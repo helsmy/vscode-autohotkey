@@ -1,11 +1,11 @@
 import { Position, Range } from 'vscode-languageserver';
-import { TokenType } from '../tokenTypes';
+import { TokenType } from '../../tokenizor/tokenTypes';
 import {
     IExpr,
     SyntaxKind,
     Token,
     SyntaxNode
-} from '../types';
+} from '../../types';
 import { NodeBase } from './nodeBase';
 import * as SuffixTerm from './suffixterm'
 
@@ -64,7 +64,7 @@ export class Invalid extends Expr {
 }
 
 /**
- * Class holding all valid unary expressions in KOS
+ * Class holding all valid unary expressions in AHK
  */
 export class Unary extends Expr {
     /**
@@ -143,9 +143,58 @@ export class Binary extends Expr {
 }
 
 /**
+ * Class repersenting all valid ternary expressions in AHK
+ */
+ export class Ternary extends Expr {
+    /**
+     * Constructor for all ternary expressions
+     * @param condition condition expression
+     * @param question '?' token
+     * @param trueExpr true expression
+     * @param colon ':' token
+     * @param falseExpr false expression
+     */
+    constructor(
+        public readonly condition: IExpr,
+        public readonly question: Token,
+        public readonly trueExpr: IExpr,
+        public readonly colon: Token,
+        public readonly falseExpr: IExpr) {
+        super();
+    }
+
+    public get start(): Position {
+        return this.condition.start;
+    }
+
+    public get end(): Position {
+        return this.falseExpr.end;
+    }
+
+    public get ranges(): Range[] {
+        const condR = this.condition.ranges;
+        const trueR = this.trueExpr.ranges;
+        const falseR = this.falseExpr.ranges;
+        return condR.concat(this.question)
+            .concat(...trueR).concat(this.colon)
+            .concat(falseR);
+    }
+
+    public toLines(): string[] {
+        const condLines = this.condition.toLines();
+        const trueLines = this.trueExpr.toLines();
+        const falseLines = this.falseExpr.toLines();
+        
+        condLines[condLines.length-1] += ' ' + this.question.content;
+        trueLines[trueLines.length-1] += ' ' + this.colon.content;
+        return condLines.concat(trueLines).concat(falseLines);
+    }
+}
+
+/**
  * Class for all factor to be calcuated
  */
-export class factor extends Expr {
+export class Factor extends Expr {
     /**
      * Factor constructor
      * @param suffixTerm base suffix term

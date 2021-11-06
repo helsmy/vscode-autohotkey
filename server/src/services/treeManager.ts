@@ -2,9 +2,14 @@ import {
 	CompletionItem,
 	CompletionItemKind,
     Definition,
+    IConnection,
     Location,
+	ParameterInformation,
 	Position,
 	Range,
+	SignatureHelp,
+	SignatureInformation,
+	SymbolInformation,
 	SymbolKind
 } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
@@ -14,9 +19,7 @@ import {
 	ReferenceInfomation, 
 	ISymbolNode, 
 	Word,
-    ReferenceMap,
-    IDocumentInfomation,
-    NodeInfomation
+    ReferenceMap
 } from '../parser/regParser/types';
 import {
 	INodeResult, 
@@ -42,12 +45,13 @@ import {
     normalize
 } from 'path';
 import { homedir } from "os";
-import { Lexer } from '../parser/regParser/ahkparser';
 import { IoEntity, IoKind, IoService } from './ioService';
-import { union } from '../utilities/setOperation';
-import { NodeMatcher, ScriptFinder } from '../parser/regParser/scriptFinder';
-import { threadId } from 'worker_threads';
-import { info } from 'console';
+import { SymbolTable } from '../parser/newtry/analyzer/models/symbolTable';
+import { AHKParser } from '../parser/newtry/parser/parser';
+import { PreProcesser } from '../parser/newtry/analyzer/semantic';
+import { IAST } from '../parser/newtry/types';
+import { IScoop, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
+import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, ScopedSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
 
 // if belongs to FuncNode
 function isFuncNode(node: ISymbolNode): node is IFuncNode{
@@ -71,6 +75,7 @@ function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
 
 export class TreeManager
 {
+    private conn: IConnection;
 	/**
 	 * server cached documnets
 	 */
@@ -84,12 +89,11 @@ export class TreeManager
 	 * server cached AST for documents, respectively 
      * Map<uri, IDocmentInfomation>
 	 */
-    private docsAST: Map<string, IDocumentInfomation>;
-
+    private docsAST: Map<string, DocInfo>;
     /**
      * local storaged AST of ahk documents, cached included documents
      */
-    private localAST: Map<string, IDocumentInfomation>;
+    private localAST: Map<string, DocInfo>;
 
     /**
      * Server cached include informations for each documents
@@ -123,7 +127,8 @@ export class TreeManager
      */
     private readonly ULibDir: string;
 
-	constructor(logger: ILoggerBase) {
+	constructor(conn: IConnection, logger: ILoggerBase) {
+        this.conn = conn;
 		this.serverDocs = new Map();
         this.docsAST = new Map();
         this.localAST = new Map();
@@ -142,12 +147,11 @@ export class TreeManager
     /**
      * Initialize information of a just open document
      * @param uri Uri of initialized document
-     * @param docinfo AST of initialized document
      * @param doc TextDocument of initialized documnet
      */
-    public initDocument(uri: string, docinfo: IDocumentInfomation, doc: TextDocument) {
+    public initDocument(uri: string, doc: TextDocument) {
         this.currentDocUri = uri;
-        this.updateDocumentAST(uri, docinfo, doc);
+        this.updateDocumentAST(uri, doc);
     }
 
     /**
@@ -165,20 +169,34 @@ export class TreeManager
      * @param docinfo AST of updated document
      * @param doc TextDocument of update documnet
      */
-	public async updateDocumentAST(uri: string, docinfo: IDocumentInfomation, doc: TextDocument) {
+	public async updateDocumentAST(uri: string, doc: TextDocument) {
         // update documnet
         this.serverDocs.set(uri, doc);
-        const oldInclude = this.docsAST.get(uri)?.include
-        let useneed, useless: string[];
+        const parser = new AHKParser(doc.getText(), uri, this.logger);
+        const ast = parser.parse();
+        const preprocesser = new PreProcesser(ast.script);
+        const mainTable = preprocesser.process();
+
         // updata AST first, then its includes
-        this.docsAST.set(uri, docinfo);
-        if (oldInclude) {
+        const oldInclude = this.docsAST.get(uri)?.AST.script.include
+        this.docsAST.set(uri, {
+            AST: ast,
+            table: mainTable.table
+        });
+        this.conn.sendDiagnostics({
+            uri: uri,
+            diagnostics: mainTable.diagnostics
+        });
+        
+        let useneed, useless: string[];
+        ;
+        if (oldInclude && ast.script.include) {
             // useless need delete, useneed need to add
             // FIXME: delete useless include
-            [useless, useneed] = setDiffSet(oldInclude, docinfo.include);
+            [useless, useneed] = setDiffSet(oldInclude, ast.script.include);
         }
         else {
-            useneed = docinfo.include;
+            useneed = ast.script.include;
             useless = [];
         }
         // delete unused incinfo
@@ -195,6 +213,8 @@ export class TreeManager
             for (const abs of tempInfo)
                 incInfo.delete(abs);
         } 
+
+        if (!useneed) return;
         // EnumIncludes
         let incQueue: string[] = [...useneed];
         // this code works why?
@@ -211,17 +231,22 @@ export class TreeManager
             // 我有必要一遍遍读IO来确认库文件存不存在吗？
             const doc = await this.loadDocumnet(p);
             if (doc) {
-                let lexer = new Lexer(doc, this.logger);
-                this.serverDocs.set(doc.uri, doc);
-                let incDocInfo = lexer.Parse();
+                const parser = new AHKParser(doc.getText(), uri, this.logger);
+                const ast = parser.parse();
+                const preprocesser = new PreProcesser(ast.script);
+                const table = preprocesser.process();
+                mainTable.table.addInclude(table.table);
                 // cache to local storage file AST
-                this.localAST.set(doc.uri, incDocInfo);
+                this.localAST.set(doc.uri, {
+                    AST: ast,
+                    table: table.table
+                });
                 // TODO: Correct document include tree
                 if (this.incInfos.has(uri))
                     this.incInfos.get(uri)?.set(p, path);
                 else
                     this.incInfos.set(uri, new Map([[p, path]]));
-                incQueue.push(...Array.from(incDocInfo.include));
+                incQueue.push(...Array.from(ast.script.include || []));
             }
             path = incQueue.shift();
         }
@@ -243,6 +268,18 @@ export class TreeManager
             // TODO: log exception here
             return undefined;
         }
+    }
+
+    private parseTable(doc: TextDocument) {
+        const parser = new AHKParser(doc.getText(), doc.uri, this.logger);
+        const ast = parser.parse();
+        const preprocesser = new PreProcesser(ast.script);
+        const table = preprocesser.process();
+        this.conn.sendDiagnostics({
+            uri: doc.uri,
+            diagnostics: table.diagnostics
+        });
+        return table.table;
     }
 
 	public deleteUnusedDocument(uri: string) {
@@ -335,33 +372,23 @@ export class TreeManager
      * A simple(vegetable) way to get all include AST of a document
      * @returns SymbolNode[]-ASTs, document uri
      */
-    private allIncludeTreeinfomation(): Maybe<NodeInfomation[]> {
-        const docinfo = this.docsAST.get(this.currentDocUri);
-        if (!docinfo) return undefined;
+    private allIncludeTreeinfomation(docinfo: DocInfo): DocInfo[] {
         const incInfo = this.incInfos.get(this.currentDocUri) || [];
-        let r: NodeInfomation[] = [];
+        let r: DocInfo[] = [];
         for (const [path, raw] of incInfo) {
             const uri = URI.file(path).toString();
             const incDocInfo = this.localAST.get(uri);
             if (incDocInfo) {
-                r.push({
-                    nodes: incDocInfo.tree,
-                    uri: uri
-                });
+                r.push(incDocInfo);
             }
         }    
         return r;
     }
-    
-    /**
-     * Return the AST of current select document
-     */
-	public getTree(): Array<ISymbolNode|IFuncNode> {
-		// await this.done;
-		if (this.currentDocUri)
-			return <Array<ISymbolNode|IFuncNode>>this.docsAST.get(this.currentDocUri)?.tree;
-		else
-			return [];
+
+    public docSymbolInfo(): SymbolInformation[] {
+        const info = this.docsAST.get(this.currentDocUri);
+        if (!info) return [];
+        return info.table.symbolInformations();
     }
 
     /**
@@ -397,27 +424,28 @@ export class TreeManager
 
     public getGlobalCompletion(): CompletionItem[] {
         let incCompletion: CompletionItem[] = [];
-        let docinfo: IDocumentInfomation|undefined;
+        let docinfo: DocInfo|undefined;
         if (this.currentDocUri)
             docinfo = this.docsAST.get(this.currentDocUri);
         if (!docinfo) return [];
+        const symbols = docinfo.table.allSymbols();
         // TODO: 应该统一只用this.allIncludeTreeinfomation
         const incInfo = this.incInfos.get(this.currentDocUri) || []
         // 为方便的各种重复存储，还要各种加上累赘代码，真是有点沙雕
         for (let [path, raw] of incInfo) {
             const incUri = URI.file(path).toString();
             // read include file tree from disk file tree caches
-            const tree = this.localAST.get(incUri)?.tree;
-            if (tree) {
-                incCompletion.push(...tree.map(node => {
-                    let c = this.convertNodeCompletion(node);
+            const table = this.localAST.get(incUri)?.table;
+            if (table) {
+                incCompletion.push(...table.allSymbols().map(node => {
+                    let c = this.convertSymCompletion(node);
                     c.data += '  \nInclude from ' + raw;
                     return c;
                 }))
             }
         }
         
-        return this.getTree().map(node => this.convertNodeCompletion(node))
+        return symbols.map(sym => this.convertSymCompletion(sym))
         .concat(this.builtinFunction.map(node => {
             let ci = CompletionItem.create(node.name);
             ci.data = this.getFuncPrototype(node);
@@ -434,16 +462,40 @@ export class TreeManager
     }
 
     public getScopedCompletion(pos: Position): CompletionItem[] {
-        let node = this.searchNodeAtPosition(pos, this.getTree());
-        
-        if (node && node.subnode) {
-            return node.subnode.map(node => {
-                return this.convertNodeCompletion(node);
-            }).concat(...this.convertParamsCompletion(node));
+        let docinfo: DocInfo|undefined;
+        docinfo = this.docsAST.get(this.currentDocUri);
+        if (!docinfo) return [];
+        const scoop = this.getCurrentScoop(pos, docinfo.table);
+        const lexems = this.getLexemsAtPosition(pos);
+        if (lexems && lexems.length > 1) {
+            const perfixs = lexems.reverse();
+            const symbol = this.searchPerfixSymbol(perfixs.slice(0, -1), scoop);
+            if (!symbol) return [];
+            return symbol.allSymbols().map(sym => this.convertSymCompletion(sym));
         }
-        else {
-            return [];
+        if (scoop.name === 'global') return this.getGlobalCompletion();
+        const symbols = scoop.allSymbols();
+        return symbols.map(sym => this.convertSymCompletion(sym));
+    }
+
+    /**
+     * Find current position is belonged to which scoop
+     * @param pos position of current request
+     * @param table symbol table of current document
+     * @returns Scoop of current position
+     */
+    private getCurrentScoop(pos: Position, table: IScoop): IScoop {
+        const symbols = table.allSymbols();
+        for (const sym of symbols) {
+            if (sym instanceof AHKMethodSymbol || sym instanceof AHKObjectSymbol) {
+                if (sym.range.start.line >= pos.line && sym.range.start.character >= pos.character
+                    && sym.range.end.line <= pos.line && sym.range.end.character >= pos.character ) {
+                    return this.getCurrentScoop(pos, sym);
+                }
+            }
         }
+        // no matched scoop return position is belongs to its parent scoop
+        return table;
     }
 
     public includeDirCompletion(position: Position): Maybe<CompletionItem[]> {
@@ -508,33 +560,24 @@ export class TreeManager
         }
         return [suffix.name].concat(perfixs);
     }
-
-    /**
-     * Get all nodes of a particular token.
-     * return all possible nodes or empty list
-     * @param position 
-     */
-    public getSuffixNodes(position: Position): Maybe<NodeInfomation> {
-        let lexems = this.getLexemsAtPosition(position);
-        if (!lexems) return undefined;
-        
-        return this.searchSuffix(lexems.slice(1), position);
-    }
-
+    
     /**
      * Get suffixs list of a given perfixs list
-     * @param perfixs perfix list for search(top scope at last)
+     * @param perfixs perfix list for search(top scope at first)
      */
-    private searchSuffix(perfixs: string[], position: Position): Maybe<NodeInfomation> {
-        if (!perfixs.length) return undefined;
-        const find = this.searchNode(perfixs, position, true);
-        if (!find) return undefined;
-        const node = find.nodes[0];
-        if (!node.subnode) return undefined;
-        return {
-            nodes: node.subnode,
-            uri: find.uri
-        };
+    private searchPerfixSymbol(perfixs: string[], scoop: IScoop): Maybe<AHKObjectSymbol> {
+        let nextScoop = scoop.resolve(perfixs[0]);
+        if (nextScoop && nextScoop instanceof AHKObjectSymbol) {
+            for (const lexem of perfixs.slice(1)) {
+                nextScoop = nextScoop.resolveProp(lexem);
+                if (nextScoop && nextScoop instanceof AHKObjectSymbol) 
+                    scoop = nextScoop;
+                else 
+                    return undefined;
+            }
+            return nextScoop;
+        }
+        return undefined;
     }
 
     /**
@@ -542,52 +585,18 @@ export class TreeManager
      * @param lexems all words strings(这次call，全部的分割词)
      * @param position position of qurey word(这个call的位置)
      */
-    private searchNode(lexems: string[], position: Position, issuffix: boolean = false): Maybe<NodeInfomation> {
-        // first search tree of current document
-        let currTreeUri: string = this.currentDocUri;
-        let nodeList: ISymbolNode[]|undefined = this.getTree();
-        let incTreeMap = this.allIncludeTreeinfomation();
+    private searchNode(lexems: string[], position: Position): Maybe<ISymbol> {
+        const docinfo = this.docsAST.get(this.currentDocUri);
+        if (!docinfo) return undefined;
+        const scoop = this.getCurrentScoop(position, docinfo.table);
+        if (lexems.length > 1) {
+            // check if it is a property access
+            const perfixs = lexems.reverse().slice(0, -1);
+            const symbol = this.searchPerfixSymbol(perfixs, scoop);
+            return symbol ? symbol.resolveProp(lexems[lexems.length-1]) : undefined;
+        }
         
-        // 这写的都是什么破玩意，没有天分就不要写，还学别人写LS --武状元
-        // if first word is 'this'
-        // find what 'this' is point
-        if (lexems[lexems.length-1] === 'this') {
-            let classNode = this.searchNodeAtPosition(position, this.getTree(), SymbolKind.Class);
-            if (classNode) {
-                // set next search tree to class node we found
-                lexems[lexems.length-1] = classNode.name
-                // if this is the only word, 
-                // just return class' subnode
-                if (!lexems.length)
-                return {
-                    nodes: [classNode],
-                    uri: currTreeUri
-                };
-            } 
-            else {
-                return undefined;
-            }
-        }
-        if (!nodeList) return undefined;
-        
-
-        let cond: NodeMatcher[] = [];
-        // finder search need top scope at first
-        // 这里又要从头向后搜索了，转来转去的可真蠢
-        lexems = lexems.reverse();
-        for (const lexem of lexems) {
-            cond.push(new NodeMatcher(lexem));
-        }
-        let finder = new ScriptFinder(cond, nodeList, currTreeUri, incTreeMap ? incTreeMap : []);
-        let result = finder.find(issuffix);
-
-        if (result) {
-            return {
-                nodes: [result.node],
-                uri: result.uri
-            };
-        }
-        return undefined;
+        return scoop.resolve(lexems[0]);
     }
 
 
@@ -621,28 +630,31 @@ export class TreeManager
     }
 
     /**
-     * Convert a node to comletion item
-     * @param info node to be converted
+     * Convert a symbol to comletion item
+     * @param sym symbol to be converted
      */
-    public convertNodeCompletion(info: ISymbolNode): CompletionItem {
-        let ci = CompletionItem.create(info.name);
-        if (isFuncNode(info)) {
-            ci['kind'] = CompletionItemKind.Function;
-            ci.data = this.getFuncPrototype(info);
-        } else if (info.kind === SymbolKind.Variable) {
-            ci.kind = CompletionItemKind.Variable;
-        } else if (info.kind === SymbolKind.Class) {
-            ci['kind'] = CompletionItemKind.Class;
-            ci.data = ''
-        } else if (info.kind === SymbolKind.Event) {
-            ci['kind'] = CompletionItemKind.Event;
-        } else if (info.kind === SymbolKind.Null) {
-            ci['kind'] = CompletionItemKind.Text;
+    public convertSymCompletion(sym: ISymbol): CompletionItem {
+		let ci = CompletionItem.create(sym.name);
+		if (sym instanceof AHKMethodSymbol) {
+			ci['kind'] = CompletionItemKind.Method;
+            sym.requiredParameters
+			ci.data = sym.toString();
+		} else if (sym instanceof VaribaleSymbol) {
+			ci.kind = sym.tag === VarKind.property ? 
+                      CompletionItemKind.Property :
+                      CompletionItemKind.Variable;
+		} else if (sym instanceof AHKObjectSymbol) {
+			ci['kind'] = CompletionItemKind.Class;
+			ci.data = ''
+		} else if (sym instanceof HotkeySymbol || sym instanceof HotStringSymbol) {
+			ci['kind'] = CompletionItemKind.Event;
+		} else {
+			ci['kind'] = CompletionItemKind.Text;
 		} 
-        return ci;
-    }
+		return ci;
+	}
 
-    public getFuncAtPosition(position: Position): Maybe<{func: IFuncNode|BuiltinFuncNode, index: number, isCmd: boolean}> {
+    public getFuncAtPosition(position: Position): Maybe<SignatureHelp> {
 		let context = this.LineTextToPosition(position);
 		if (!context) return undefined;
 
@@ -708,29 +720,46 @@ export class TreeManager
             if (lastnode instanceof CommandCall) {
                 // All Commands are built-in, just search built-in Commands
                 const bfind = arrayFilter(this.builtinCommand, item => item.name.toLowerCase() === funcName.toLowerCase());
-                if (!bfind) return undefined;
-                return {
-                    func: bfind,
-                    index: index,
-                    isCmd: true
+                const info = this.convertBuiltin2Signature(bfind, true);
+                if (info) {
+                    return {
+                        signatures: info,
+                        activeParameter: index,
+                        activeSignature: this.findActiveSignature(bfind, index)
+                    }
                 }
             }
             let find = this.searchNode([funcName].concat(...perfixs.reverse()), position);
             // if no find, search build-in
             if (!find) {
                 const bfind = arrayFilter(this.builtinFunction, item => item.name.toLowerCase() === funcName.toLowerCase());
-                if (!bfind) return undefined;
-                return {
-                    func: bfind,
-                    index: index,
-                    isCmd: false
+                const info = this.convertBuiltin2Signature(bfind);
+                if (info) {
+                    return {
+                        signatures: info,
+                        activeParameter: index,
+                        activeSignature: this.findActiveSignature(bfind, index)
+                    }
                 }
             }
-            return {
-                func: <IFuncNode>find.nodes[0],
-                index: index,
-                isCmd: false
-            };
+            if (find instanceof AHKMethodSymbol) {
+                const reqParam: ParameterInformation[] = find.requiredParameters.map(param => ({
+                    label: param.name
+                }));
+                const optParam: ParameterInformation[] = find.optionalParameters.map(param => ({
+                    label: param.name+'?'
+                }));
+                return {
+                    signatures: [SignatureInformation.create(
+                        find.toString(),
+                        undefined,
+                        ...reqParam,
+                        ...optParam
+                    )],
+                    activeSignature: 0,
+                    activeParameter: index
+                };
+            }
         }
     }
 
@@ -757,15 +786,51 @@ export class TreeManager
         return node;
     }
 
+    private convertBuiltin2Signature(symbols: BuiltinFuncNode[], iscmd: boolean = false): Maybe<SignatureInformation[]> {
+        if (symbols.length === 0)
+            return undefined;
+        const info: SignatureInformation[] = [];
+        for (const sym of symbols) {
+            const paraminfo: ParameterInformation[] = sym.params.map(param => ({
+                label: `${param.name}${param.isOptional ? '?' : ''}${param.defaultVal ? ' = '+param.defaultVal: ''}`
+            }))
+            info.push(SignatureInformation.create(
+                this.getFuncPrototype(sym, iscmd),
+                undefined,
+                ...paraminfo
+            ))
+        }
+        return info;
+    }
+
+    /**
+     * Find which index of signatures is active
+     * @param symbols symbols to be found
+     * @param paramIndex active parameter index
+     * @returns active signature index
+     */
+    private findActiveSignature(symbols: BuiltinFuncNode[], paramIndex: number): number {
+        for (let i = 0; i < symbols.length; i++) {
+            const sym = symbols[i];
+            if (sym.params.length >= paramIndex)
+                return i;
+        }
+        return 0;
+    }
+
     public getDefinitionAtPosition(position: Position): Location[] {
         let lexems = this.getLexemsAtPosition(position);
         if (!lexems) return [];
-        let find = this.searchNode(lexems, position);
-        if (!find) return [];
+        const symbol = this.searchNode(lexems, position);
+        if (!symbol) return [];
         let locations: Location[] = [];
-        for (const node of find.nodes) {
-            locations.push(Location.create(find.uri, node.range));
-        }
+        if (symbol instanceof VaribaleSymbol ||
+            symbol instanceof AHKMethodSymbol ||
+            symbol instanceof AHKObjectSymbol)
+            locations.push(Location.create(
+                symbol.uri,
+                symbol.range
+            ));
         return locations;
     }
 
@@ -814,14 +879,6 @@ export class TreeManager
             return '';
         }
 	}
-	
-	private getReference(): ReferenceMap {
-		if (this.currentDocUri){
-			const ref = this.docsAST.get(this.currentDocUri)?.refTable
-			if (ref) return ref;
-		}
-		return new Map();
-	}
 }
 
 /**
@@ -829,10 +886,28 @@ export class TreeManager
  * @param list array to be filted
  * @param callback condition of filter
  */
-function arrayFilter<T>(list: Array<T>, callback: (item: T) => boolean): Maybe<T> {
+function arrayFilter<T>(list: Array<T>, callback: (item: T) => boolean): T[] {
+    let flag = false;
+    const items: T[] = [];
+
+    // search a continueous block of symbols
     for (const item of list) {
-        if (callback(item)) 
-            return item;
+        if (callback(item)) {
+            items.push(item);
+            flag = true;
+        }
+        else if (flag === true) 
+            break;
     }
-    return undefined;
+    return items;
+}
+
+interface DocInfo {
+    AST: IAST;
+    table: SymbolTable;
+}
+
+interface NodeInfomation {
+    symbol: ISymbol;
+    uri: string;
 }

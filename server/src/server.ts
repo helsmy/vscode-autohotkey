@@ -58,7 +58,7 @@ let hasDiagnosticRelatedInformationCapability: boolean = false;
 const logger = new Logger(connection.console);
 let keyWordCompletions: CompletionItem[] = buildKeyWordCompletions();
 let builtinVariableCompletions: CompletionItem[] = buildbuiltin_variable();
-let DOCManager: TreeManager = new TreeManager(logger);
+let DOCManager: TreeManager = new TreeManager(connection, logger);
 
 connection.onInitialize((params: InitializeParams) => {
 	let capabilities = params.capabilities;
@@ -191,16 +191,18 @@ function flatTree(tree: ISymbolNode[]): ISymbolNode[] {
 
 connection.onDocumentSymbol(
 	(params: DocumentSymbolParams): SymbolInformation[] => {
-		const tree = DOCManager.selectDocument(params.textDocument.uri).getTree();
+	// 	const tree = DOCManager.selectDocument(params.textDocument.uri).getTree();
 
-	return flatTree(tree).map(info => {
-		return SymbolInformation.create(
-			info.name,
-			info.kind,
-			info.range,
-			params.textDocument.uri
-		);
-	});
+	// return flatTree(tree).map(info => {
+	// 	return SymbolInformation.create(
+	// 		info.name,
+	// 		info.kind,
+	// 		info.range,
+	// 		params.textDocument.uri
+	// 	);
+	// });
+	DOCManager.selectDocument(params.textDocument.uri);
+	return DOCManager.docSymbolInfo();
 });
 
 connection.onSignatureHelp(
@@ -212,23 +214,7 @@ connection.onSignatureHelp(
 		return undefined;
 	}
 
-	let info = DOCManager.selectDocument(uri).getFuncAtPosition(position);
-
-	if (info) {
-		return {
-			signatures: [
-				SignatureInformation.create(DOCManager.getFuncPrototype(info.func, info.isCmd), undefined, 
-					...info.func.params.map((param): ParameterInformation => {
-						return ParameterInformation.create(param.name);
-					}))
-			],
-			activeParameter: info.index,
-			activeSignature: 0
-		};
-	}
-	else {
-		return undefined;
-	}
+	return DOCManager.selectDocument(uri).getFuncAtPosition(position);
 })
 
 connection.onDefinition(
@@ -251,7 +237,7 @@ connection.onDefinition(
 documents.onDidOpen(async e => {
 	let lexer = new Lexer(e.document, logger);
 	const docInfo = lexer.Parse();
-	DOCManager.initDocument(e.document.uri, docInfo, e.document);
+	DOCManager.initDocument(e.document.uri, e.document);
 });
 
 // Only keep settings for open documents
@@ -267,13 +253,13 @@ documents.onDidClose(e => {
 documents.onDidChangeContent(change => {
 	let lexer = new Lexer(change.document, logger);
 	let docAST = lexer.Parse();
-	DOCManager.updateDocumentAST(change.document.uri, docAST, change.document);
+	DOCManager.updateDocumentAST(change.document.uri, change.document);
 	validateTextDocument(change.document);
 });
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// In this simple example we get the settings for every validate run.
-	let result = await getDocumentSettings(textDocument.uri);
+	// let result = await getDocumentSettings(textDocument.uri);
 	// connection.console.log(result.documentLanguage);
 }
 
@@ -289,11 +275,11 @@ connection.onCompletion(
 			return undefined;
 		}
 		const {position, textDocument} = _compeltionParams;
-
+		DOCManager.selectDocument(textDocument.uri);
 		// findout if we are in an include compeltion
 		if (_compeltionParams.context && 
 			(_compeltionParams.context.triggerCharacter === '/' || _compeltionParams.context.triggerCharacter === '<')) {
-			let result = DOCManager.selectDocument(textDocument.uri).includeDirCompletion(position);
+			let result = DOCManager.includeDirCompletion(position);
 			// if request is fired by `/` and `<`,but not start with "include", we exit
 			if (result) 
 				return result;
@@ -301,16 +287,7 @@ connection.onCompletion(
 				return undefined;
 		}
 
-		// search and find out if we are in a suffix compeltion
-		let result = DOCManager.selectDocument(textDocument.uri).getSuffixNodes(position);
-		if (result) {
-			return result.nodes.map(DOCManager.convertNodeCompletion.bind(DOCManager));
-		}
-
-		// if not go to symbol compeltion
-		return DOCManager.getGlobalCompletion()
-			.concat(DOCManager.getScopedCompletion(_compeltionParams.position))
-			.concat(keyWordCompletions).concat(builtinVariableCompletions);
+		return DOCManager.getScopedCompletion(_compeltionParams.position);
 	}
 );
 

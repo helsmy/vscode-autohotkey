@@ -257,7 +257,8 @@ export class Else extends Stmt {
 
 	constructor(
 		public readonly elseToken: Token,
-		public readonly body: IStmt
+		public readonly body: IStmt,
+		public readonly condition?: IExpr
 	) {
 		super();
 	}
@@ -588,6 +589,7 @@ export class ForStmt extends Stmt {
 	constructor(
 		public readonly forToken: Token,
 		public readonly inToken: Token,
+		public readonly iterable: Expr.Expr,
 		public readonly body: IStmt,
 		public readonly iter1id: Token,
 		public readonly comma?: Token,

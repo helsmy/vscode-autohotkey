@@ -15,6 +15,7 @@ import * as Decl from './models/declaration';
 import { IDiagnosticInfo, TokenKind } from '../tokenizor/types';
 import { mockLogger } from '../../../utilities/logger';
 import { Script } from '../models/script';
+import { Position } from 'vscode-languageserver-types';
 
 export class AHKParser {
     private tokenizer: Tokenizer;
@@ -401,6 +402,8 @@ export class AHKParser {
                 return this.hotkey();
             // 其他是语法错误，统一当作有错误的赋值语句
             default:
+                if (p.type >= TokenType.aassign && p.type <= TokenType.lshifteq)
+                    return this.assign();
                 throw this.error(p,
                     'Invalid follower(s) of identifer')
         }
@@ -449,7 +452,13 @@ export class AHKParser {
         // parse else branch if found else
         if (this.currentToken.type === TokenType.else) {
             const elsetoken = this.currentToken;
-            this.advance()
+            this.advance();
+            let elifcondition: Maybe<INodeResult<Expr.Expr>> = undefined;
+            if (this.matchTokens([TokenType.if])) {
+                const eliftoken = this.eat();
+                elifcondition = this.expression();
+                errors.push(...elifcondition.errors);
+            }
             const body = this.block();
             errors.push(...body.errors);
             return nodeResult(
@@ -459,7 +468,8 @@ export class AHKParser {
                     body.value,
                     new Stmt.Else(
                         elsetoken,
-                        body.value
+                        body.value,
+                        elifcondition?.value
                     )
                 ),
                 errors
@@ -501,7 +511,7 @@ export class AHKParser {
     }
 
     private returnStmt(): INodeResult<Stmt.Return> {
-        const returnToken = this.currentToken;
+        const returnToken = this.eat();
         
         // If expersions parse all
         if (!this.atLineEnd()) {
@@ -691,15 +701,16 @@ export class AHKParser {
                 TokenType.in,
                 'Expect in keyword in for loop'
             );
+            const iterable = this.expression();
             const body = this.declaration();
-            const errors = body.errors;
             return nodeResult(
                 new Stmt.ForStmt(
                     forToken, inToken,
-                    body.value,
+                    iterable.value,
+                    body.value, 
                     id1, comma, id2
                 ),
-                errors
+                iterable.errors.concat(body.errors)
             );
         }
 
@@ -707,15 +718,16 @@ export class AHKParser {
             TokenType.in,
             'Expect in keyword in for loop'
         );
+        const iterable = this.expression();
         const body = this.declaration();
-        const errors = body.errors;
         return nodeResult(
             new Stmt.ForStmt(
                 forToken, inToken,
+                iterable.value,
                 body.value,
                 id1
             ),
-            errors
+            iterable.errors.concat(body.errors)
         );
     }
 
@@ -777,25 +789,25 @@ export class AHKParser {
     }
 
     // assignment statemnet
-    private assign(): INodeResult<Stmt.AssignStmt> {
+    private assign(): INodeResult<Stmt.AssignStmt|Stmt.ExprStmt> {
         const left = this.factor();
-        if (!this.matchTokens([
-            TokenType.aassign,
-            TokenType.equal
-        ])) {
-            throw this.error(
-                this.currentToken,
-                'Expect an assignment'
+        if (this.currentToken.type >= TokenType.aassign &&
+            this.currentToken.type <= TokenType.lshifteq) {
+            const assign = this.currentToken;
+            this.advance();
+            const expr = this.expression();
+            this.terminal();
+            return nodeResult(
+                new Stmt.AssignStmt(left.value, assign, expr.value),
+                left.errors.concat(expr.errors)
             );
         }
-        const assign = this.currentToken;
-        this.advance();
-        const expr = this.expression();
-        this.terminal();
-        return {
-            errors: left.errors.concat(expr.errors),
-            value: new Stmt.AssignStmt(left.value, assign, expr.value)
-        };
+        if (this.currentToken.type === TokenType.comma)
+            this.eat()
+        return nodeResult(
+            new Stmt.ExprStmt(left.value),
+            left.errors
+        );
 
     }
 
@@ -827,6 +839,7 @@ export class AHKParser {
                 case TokenType.bnot:
                 case TokenType.pplus:
                 case TokenType.mminus:
+                case TokenType.new:
                     const saveToken = this.currentToken;
                     this.advance();
                     const q = (saveToken.type >= TokenType.pplus &&
@@ -1141,7 +1154,7 @@ export class AHKParser {
         const errors: ParseError[] = [];
 
         // if there are pairs parse them all
-        if (this.currentToken.type !== TokenType.closeBracket &&
+        if (this.currentToken.type !== TokenType.closeBrace &&
             this.currentToken.type !== TokenType.EOF) {
             do {
                 let a = this.pair();
@@ -1213,13 +1226,21 @@ export class AHKParser {
         // if there are arguments parse them all
         if (this.currentToken.type !== TokenType.closeParen &&
             this.currentToken.type !== TokenType.EOF) {
-            let a = this.expression();
-            args.push(a.value);
-            errors.push(...a.errors);
-            while (this.eatDiscardCR(TokenType.comma)) {
-                a = this.expression();
+            if (this.currentToken.type === TokenType.comma)
+                args.push(this.emptyArg());
+            else {
+                let a = this.expression();
                 args.push(a.value);
                 errors.push(...a.errors);
+            }
+            while (this.eatDiscardCR(TokenType.comma)) {
+                if (this.currentToken.type === TokenType.comma)
+                    args.push(this.emptyArg());
+                else {
+                    let a = this.expression();
+                    args.push(a.value);
+                    errors.push(...a.errors);
+                }
             }
         }
         const close = this.eatAndThrow(
@@ -1229,6 +1250,18 @@ export class AHKParser {
         return nodeResult(
             new SuffixTerm.Call(open, args, close),
             errors
+        );
+    }
+
+    private emptyArg(): Expr.Expr {
+        return new Expr.Factor(
+            new SuffixTerm.SuffixTerm(
+                new SuffixTerm.Literal(new Token(
+                    TokenType.string, '',
+                    Position.create(-1, -1),
+                    Position.create(-1, -1)
+                )), []
+            )
         );
     }
 
@@ -1279,6 +1312,8 @@ export class AHKParser {
 
         if (this.currentToken.type !== TokenType.closeParen) {
             do {
+                if (TokenType.byref === this.currentToken.type) 
+                    this.eat();
                 const name = this.eatAndThrow(
                     TokenType.id,
                     'Expect an identifier in parameter'
@@ -1298,12 +1333,6 @@ export class AHKParser {
                     );
                     isDefaultParam = true;
                 }
-    
-                if (isDefaultParam) 
-                    errors.push(this.error(
-                        name,
-                        'Expect a Optional parameter'
-                    ));
                 
                 requiredParameters.push(
                     new Decl.Parameter(name)
@@ -1441,9 +1470,10 @@ export class AHKParser {
                 
                 // drective
                 case TokenType.drective:
-
+                    return
                 // close scope
                 case TokenType.closeBrace:
+                    this.advance();
                     return;
                 
                 // end of line

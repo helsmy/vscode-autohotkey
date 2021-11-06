@@ -371,6 +371,10 @@ export class Tokenizer {
                             this.Advance();
                             return this.CreateToken(TokenType.sconnect, " . ", p, this.genPosition());
                         }
+                        else if (this.Peek() === '=') {
+                            this.Advance().Advance();
+                            return this.CreateToken(TokenType.sconneq, ".=", p, this.genPosition())
+                        }
                         this.Advance();
                         return this.CreateToken(TokenType.dot, ".", p, this.genPosition());
                     }
@@ -947,7 +951,8 @@ const RESERVED_KEYWORDS: ITokenMap = new Map([
     ["not", TokenType.keynot],
     ["try", TokenType.try],
     ["catch", TokenType.catch],
-    ["finally", TokenType.finally]
+    ["finally", TokenType.finally],
+    ["byref", TokenType.byref]
 ]);
 const OTHER_MARK: ITokenMap = new Map([
     ["{", TokenType.openBrace], ["}", TokenType.closeBrace],

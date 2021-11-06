@@ -461,7 +461,7 @@ export class TreeManager
         .concat(incCompletion);
     }
 
-    public getScopedCompletion(pos: Position): CompletionItem[] {
+    public getScopedCompletion(pos: Position, keywordCompletions: CompletionItem[], builtinVarCompletions: CompletionItem[]): CompletionItem[] {
         let docinfo: DocInfo|undefined;
         docinfo = this.docsAST.get(this.currentDocUri);
         if (!docinfo) return [];
@@ -473,9 +473,13 @@ export class TreeManager
             if (!symbol) return [];
             return symbol.allSymbols().map(sym => this.convertSymCompletion(sym));
         }
-        if (scoop.name === 'global') return this.getGlobalCompletion();
+        if (scoop.name === 'global') return this.getGlobalCompletion()
+                                    .concat(keywordCompletions)
+                                    .concat(builtinVarCompletions);
         const symbols = scoop.allSymbols();
-        return symbols.map(sym => this.convertSymCompletion(sym));
+        return symbols.map(sym => this.convertSymCompletion(sym))
+                .concat(keywordCompletions)
+                .concat(builtinVarCompletions);
     }
 
     /**

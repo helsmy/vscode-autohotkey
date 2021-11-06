@@ -287,7 +287,7 @@ connection.onCompletion(
 				return undefined;
 		}
 
-		return DOCManager.getScopedCompletion(_compeltionParams.position);
+		return DOCManager.getScopedCompletion(_compeltionParams.position, keyWordCompletions, builtinVariableCompletions);
 	}
 );
 

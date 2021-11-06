@@ -7,14 +7,15 @@ AutoHotKey language support for VS Code
 
 ## What's New
 
-1. Experimental hint for where symbol is included on completion. ONLY work on global symbol.
-2. Enumerate include
+1. **Recursive descent parser** is ready !!
+2. Experimental hint for where symbol is included on completion. ONLY work on global symbol.
+3. Enumerate include
    * Documents must be explicitly included by `#include`
    * **Notice** `#include DirName` are not implemented now
    * Include completion
    * Experimental support for `#include <LibName>`
-3. Document formation, supports both v1 and v2 
-4. Build-in Variable and Function(partly) hint.
+4. Document formation, supports both v1 and v2 
+5. Build-in Variable and Function(partly) hint.
    - Need documentions which is easy to be parsed by js/ts. If you find any, help please([Example](others/Contribute.md)).
 
 ## Notice

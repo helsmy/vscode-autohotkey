@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.8.0
+1. pre-release of recursive descent parser
+
 ## 0.5.0
 
 1. Command parse

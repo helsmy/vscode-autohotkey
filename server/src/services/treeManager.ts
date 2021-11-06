@@ -183,10 +183,10 @@ export class TreeManager
             AST: ast,
             table: mainTable.table
         });
-        this.conn.sendDiagnostics({
-            uri: uri,
-            diagnostics: mainTable.diagnostics
-        });
+        // this.conn.sendDiagnostics({
+        //     uri: uri,
+        //     diagnostics: mainTable.diagnostics
+        // });
         
         let useneed, useless: string[];
         ;

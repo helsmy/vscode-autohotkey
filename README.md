@@ -7,7 +7,7 @@ AutoHotKey language support for VS Code
 
 ## What's New
 
-1. **Recursive descent parser** is ready !!
+1. **Recursive descent parser** is ready !! It is under alpha stage, if you want to use old one, you can go to [here](https://github.com/helsmy/vscode-autohotkey/releases/tag/0.5.10) to download it
 2. Experimental hint for where symbol is included on completion. ONLY work on global symbol.
 3. Enumerate include
    * Documents must be explicitly included by `#include`

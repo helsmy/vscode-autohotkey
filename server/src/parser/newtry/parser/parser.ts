@@ -29,6 +29,7 @@ export class AHKParser {
     private tokens: Token[] = [];
     private tokenErrors: IDiagnosticInfo[] = [];
     private comments: Token[] = [];
+    private includes: Set<string> = new Set();
 
     private readonly logger: ILoggerBase;
 
@@ -145,6 +146,7 @@ export class AHKParser {
                     statment,
                     this.tokens,
                     this.comments,
+                    this.includes
                 ),
                 sytanxErrors: diagnostics,
                 tokenErrors: this.tokenErrors
@@ -772,7 +774,18 @@ export class AHKParser {
 
     // TODO: Need Finish
     private drective(): INodeResult<Stmt.Drective> {
-        const drective = this.eat();
+        const drective = this.currentToken;
+        if (drective.content.toLowerCase() === 'include') {
+            this.tokenizer.isLiteralToken = true;
+            this.advance();
+            const includePath = this.eat();
+            this.includes.add(includePath.content);
+            this.terminal();
+            return nodeResult(
+                new Stmt.Drective(drective, []),
+                []
+            )
+        }
         const errors: ParseError[] = [];
         const args: IExpr[] = [];
         while (this.currentToken.type !== TokenType.EOL) {
@@ -1464,7 +1477,7 @@ export class AHKParser {
                 case TokenType.return:
                 case TokenType.break:
                 case TokenType.switch:
-                case TokenType.for:
+                case TokenType.for: 
                 case TokenType.try:
                 case TokenType.throw:
                 

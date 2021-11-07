@@ -178,7 +178,7 @@ export class TreeManager
         const mainTable = preprocesser.process();
 
         // updata AST first, then its includes
-        const oldInclude = this.docsAST.get(uri)?.AST.script.include
+        const oldInclude = this.docsAST.get(uri)?.AST.script.include;
         this.docsAST.set(uri, {
             AST: ast,
             table: mainTable.table
@@ -196,7 +196,7 @@ export class TreeManager
             [useless, useneed] = setDiffSet(oldInclude, ast.script.include);
         }
         else {
-            useneed = ast.script.include;
+            useneed = ast.script.include ? [... ast.script.include] : [];
             useless = [];
         }
         // delete unused incinfo
@@ -214,7 +214,10 @@ export class TreeManager
                 incInfo.delete(abs);
         } 
 
-        if (!useneed) return;
+        if (useneed.length === 0) {
+            this.linkInclude(mainTable.table, uri);
+            return
+        }
         // EnumIncludes
         let incQueue: string[] = [...useneed];
         // this code works why?
@@ -235,7 +238,6 @@ export class TreeManager
                 const ast = parser.parse();
                 const preprocesser = new PreProcesser(ast.script);
                 const table = preprocesser.process();
-                mainTable.table.addInclude(table.table);
                 // cache to local storage file AST
                 this.localAST.set(doc.uri, {
                     AST: ast,
@@ -250,7 +252,7 @@ export class TreeManager
             }
             path = incQueue.shift();
         }
-            
+        this.linkInclude(mainTable.table, uri);
     }
     
     /**
@@ -270,16 +272,15 @@ export class TreeManager
         }
     }
 
-    private parseTable(doc: TextDocument) {
-        const parser = new AHKParser(doc.getText(), doc.uri, this.logger);
-        const ast = parser.parse();
-        const preprocesser = new PreProcesser(ast.script);
-        const table = preprocesser.process();
-        this.conn.sendDiagnostics({
-            uri: doc.uri,
-            diagnostics: table.diagnostics
-        });
-        return table.table;
+    private linkInclude(table: SymbolTable, uri: string) {
+        const includes = this.incInfos.get(uri);
+        if (!includes) return; 
+        for (const [path, raw] of includes) {
+            const incUri = URI.file(path).toString();
+            const incTable = this.localAST.get(incUri);
+            if (!incTable) continue;
+            table.addInclude(incTable.table);
+        }
     }
 
 	public deleteUnusedDocument(uri: string) {
@@ -492,14 +493,26 @@ export class TreeManager
         const symbols = table.allSymbols();
         for (const sym of symbols) {
             if (sym instanceof AHKMethodSymbol || sym instanceof AHKObjectSymbol) {
-                if (sym.range.start.line >= pos.line && sym.range.start.character >= pos.character
-                    && sym.range.end.line <= pos.line && sym.range.end.character >= pos.character ) {
+                if (this.isLessPosition(sym.range.start, pos)
+                    && this.isLessPosition(pos, sym.range.end) ) {
                     return this.getCurrentScoop(pos, sym);
                 }
             }
         }
         // no matched scoop return position is belongs to its parent scoop
         return table;
+    }
+
+    /**
+     * Return if pos1 is before pos2
+     * @param pos1 position 1
+     * @param pos2 position 2
+     */
+    private isLessPosition(pos1: Position, pos2: Position): boolean {
+        if (pos1.line < pos2.line) return true;
+        if (pos1.line === pos2.line && pos1.character < pos1.character) 
+            return true;
+        return false;
     }
 
     public includeDirCompletion(position: Position): Maybe<CompletionItem[]> {

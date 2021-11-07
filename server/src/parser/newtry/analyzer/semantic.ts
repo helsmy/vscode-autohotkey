@@ -276,11 +276,13 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			if (left.trailer === undefined) {
 				const idName = id1.token.content;
 				if (!this.currentScoop.resolve(idName)) {
+					const kind = this.currentScoop instanceof AHKObjectSymbol ?
+								 VarKind.property : VarKind.variable;
 					const sym = new VaribaleSymbol(
 						this.script.uri,
 						idName,
 						copyRange(left),
-						VarKind.variable,
+						kind,
 						undefined
 					);
 					this.currentScoop.define(sym);
@@ -302,7 +304,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				if (trailer.trailer === undefined) {
 					const prop = trailer.suffixTerm.atom;
 					if (prop instanceof SuffixTerm.Identifier) {
-						if (!this.currentScoop.resolve(prop.token.content)) {
+						if (!this.currentScoop.parentScoop.resolve(prop.token.content)) {
 							const sym = new VaribaleSymbol(
 								this.script.uri,
 								prop.token.content,

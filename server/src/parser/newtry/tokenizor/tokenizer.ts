@@ -13,7 +13,7 @@ export class Tokenizer {
      */
     private pos: number = 0;
     private document: string;
-    private isLiteralToken: boolean = false;
+    public isLiteralToken: boolean = false;
     private isLiteralDeref: boolean = false;
     private currChar: string;
     private line: number = 0;
@@ -253,7 +253,10 @@ export class Tokenizer {
     private LiteralToken(): TokenResult {
         let start = this.pos;
         let p = this.genPosition();
-        while (this.Peek() !== ',' && this.Peek() !== '%' && this.currChar !== "EOF") {
+        while (this.Peek() !== ',' 
+            && this.Peek() !== '%' 
+            && this.Peek() !== '\n'
+            && this.currChar !== "EOF") {
             this.Advance();
         }
         this.Advance();
@@ -344,6 +347,9 @@ export class Tokenizer {
                         // this.isLiteralDeref = false;
                         this.Advance();
                         return this.CreateToken(TokenType.comma, ',', p, this.genPosition());
+                    case '\n':
+                        this.isLiteralToken = false;
+                        continue;
                     default:
                         // is deref 
                         if (this.isLiteralDeref) break;

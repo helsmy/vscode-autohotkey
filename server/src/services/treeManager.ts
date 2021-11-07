@@ -172,17 +172,14 @@ export class TreeManager
 	public async updateDocumentAST(uri: string, doc: TextDocument) {
         // update documnet
         this.serverDocs.set(uri, doc);
-        const parser = new AHKParser(doc.getText(), uri, this.logger);
+        const parser = new AHKParser(doc.getText(), doc.uri, this.logger);
         const ast = parser.parse();
         const preprocesser = new PreProcesser(ast.script);
         const mainTable = preprocesser.process();
+        const docTable = mainTable.table;
 
         // updata AST first, then its includes
         const oldInclude = this.docsAST.get(uri)?.AST.script.include;
-        this.docsAST.set(uri, {
-            AST: ast,
-            table: mainTable.table
-        });
         // this.conn.sendDiagnostics({
         //     uri: uri,
         //     diagnostics: mainTable.diagnostics
@@ -215,7 +212,11 @@ export class TreeManager
         } 
 
         if (useneed.length === 0) {
-            this.linkInclude(mainTable.table, uri);
+            this.linkInclude(docTable, uri);
+            this.docsAST.set(uri, {
+                AST: ast,
+                table: docTable
+            });
             return
         }
         // EnumIncludes
@@ -234,7 +235,7 @@ export class TreeManager
             // 我有必要一遍遍读IO来确认库文件存不存在吗？
             const doc = await this.loadDocumnet(p);
             if (doc) {
-                const parser = new AHKParser(doc.getText(), uri, this.logger);
+                const parser = new AHKParser(doc.getText(), doc.uri, this.logger);
                 const ast = parser.parse();
                 const preprocesser = new PreProcesser(ast.script);
                 const table = preprocesser.process();
@@ -252,7 +253,14 @@ export class TreeManager
             }
             path = incQueue.shift();
         }
-        this.linkInclude(mainTable.table, uri);
+        // 一顿操作数组和解析器了之后，
+        // 这个table和docinfo里的table之间的引用怎么没了得
+        // 神秘
+        this.linkInclude(docTable, uri);
+        this.docsAST.set(uri, {
+            AST: ast,
+            table: docTable
+        });
     }
     
     /**

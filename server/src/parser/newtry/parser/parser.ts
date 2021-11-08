@@ -153,7 +153,7 @@ export class AHKParser {
             };
         }
         catch (error) {
-            this.logger.error(error);
+            this.logger.error(error as any);
         }
 
         return {
@@ -590,10 +590,10 @@ export class AHKParser {
                     }
                     // throw other label to default
                 default:
-                    this.error(
+                    throw this.error(
                         this.currentToken,
                         'Expect "case" statement or "default:"'
-                    )
+                    );
             }
 
         }
@@ -1327,29 +1327,40 @@ export class AHKParser {
             do {
                 if (TokenType.byref === this.currentToken.type) 
                     this.eat();
-                const name = this.eatAndThrow(
-                    TokenType.id,
-                    'Expect an identifier in parameter'
-                );
-    
-                if (this.matchTokens([
-                    TokenType.aassign,
-                    TokenType.equal
-                ])) {
-                    const assign = this.eat();
-                    const dflt = this.expression();
-                    errors.push(...dflt.errors);
-                    DefaultParameters.push(
-                        new Decl.DefaultParam(
-                            name, assign, dflt.value
-                        )
-                    );
-                    isDefaultParam = true;
+                try {
+                    if (isDefaultParam) {
+                        const param = this.defaultParameter();
+                        errors.push(...param.errors);
+                        DefaultParameters.push(param.value);
+                    }
+                    else {
+                        const p = this.peek();
+                        // check if it is a default parameter
+                        if (p.type === TokenType.aassign || p.type === TokenType.equal) {
+                            isDefaultParam = true;
+                            const param = this.defaultParameter();
+                            errors.push(...param.errors);
+                            DefaultParameters.push(param.value);
+                        }
+                        else {
+                            const param = this.requiredParameter();
+                            requiredParameters.push(param.value);
+                        }
+                    }
                 }
+                catch (e) {
+                    if (e instanceof ParseError) {
+                        // synchronize parser, try to parse next parameter
+                        while (!this.matchTokens([
+                            TokenType.comma,
+                            TokenType.closeParen
+                        ])) {
+                            this.advance();
+                        }
+                    }
+                }
+
                 
-                requiredParameters.push(
-                    new Decl.Parameter(name)
-                );
             } while(this.eatDiscardCR(TokenType.comma));
         }
 
@@ -1364,6 +1375,42 @@ export class AHKParser {
                 DefaultParameters,
                 close
             ), errors
+        );
+    }
+
+    private requiredParameter():  INodeResult<Decl.Parameter> {
+        const name = this.eatAndThrow(
+            TokenType.id,
+            'Expect an identifier in parameter'
+        );
+
+        return nodeResult(new Decl.Parameter(name), []);
+    }
+
+    private defaultParameter():  INodeResult<Decl.DefaultParam> {
+        const errors: ParseError[] = [];
+        const name = this.eatAndThrow(
+            TokenType.id,
+            'Expect an identifier in parameter'
+        );
+
+        if (this.matchTokens([
+            TokenType.aassign,
+            TokenType.equal
+        ])) {
+            const assign = this.eat();
+            const dflt = this.expression();
+            errors.push(...dflt.errors);
+            return nodeResult(
+                new Decl.DefaultParam(
+                    name, assign, dflt.value
+                ),
+                errors
+            );
+        }
+        throw this.error(
+            this.currentToken,
+            'Expect a optional parameter'
         );
     }
 
@@ -1483,6 +1530,9 @@ export class AHKParser {
                 
                 // drective
                 case TokenType.drective:
+
+                // expression spliter
+                // case TokenType.comma:
                     return
                 // close scope
                 case TokenType.closeBrace:

@@ -411,7 +411,7 @@ export class TreeManager
         let result = symbol.name + paramStartSym;
         symbol.params.map((param, index, array) => {
             result += param.name;
-            if (param.isOptional) result += '[Optional]';
+            if (param.isOptional) result += '?';
             if (param.defaultVal) result += ' := ' + param.defaultVal;
             if (array.length-1 !== index) result += ', ';
         })
@@ -740,8 +740,7 @@ export class TreeManager
 
             const funcName = lastnode.name;
             let index = lastnode.actualParams.length===0 ?
-                        lastnode.actualParams.length:
-                        lastnode.actualParams.length-1;
+                        null: lastnode.actualParams.length-1;
             if (lastnode instanceof CommandCall) {
                 // All Commands are built-in, just search built-in Commands
                 const bfind = arrayFilter(this.builtinCommand, item => item.name.toLowerCase() === funcName.toLowerCase());
@@ -750,7 +749,7 @@ export class TreeManager
                     return {
                         signatures: info,
                         activeParameter: index,
-                        activeSignature: this.findActiveSignature(bfind, index)
+                        activeSignature: this.findActiveSignature(bfind, lastnode.actualParams.length)
                     }
                 }
             }
@@ -763,7 +762,7 @@ export class TreeManager
                     return {
                         signatures: info,
                         activeParameter: index,
-                        activeSignature: this.findActiveSignature(bfind, index)
+                        activeSignature: this.findActiveSignature(bfind, lastnode.actualParams.length)
                     }
                 }
             }

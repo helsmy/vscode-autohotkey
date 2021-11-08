@@ -1358,6 +1358,8 @@ export class AHKParser {
                             this.advance();
                         }
                     }
+                    else
+                        throw e;
                 }
 
                 

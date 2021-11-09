@@ -419,10 +419,11 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			)
 			this.currentScoop.define(sym);
 		}
-		if (stmt.iter2id) {
+		if (stmt.iter2id && 
+			!this.currentScoop.resolve(stmt.iter2id.content)) {
 			const sym = new VaribaleSymbol(
 				this.script.uri,
-				stmt.iter1id.content,
+				stmt.iter2id.content,
 				copyRange(stmt.iter2id),
 				VarKind.variable,
 				undefined

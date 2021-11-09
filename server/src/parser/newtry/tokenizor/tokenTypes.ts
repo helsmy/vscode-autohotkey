@@ -126,3 +126,10 @@ export enum TokenType {
     // error
     unknown,
 }
+
+export function isValidIdentifier(type: TokenType): boolean {
+    if (type === TokenType.id || 
+        (type >= TokenType.if && type <= TokenType.byref))
+        return true;
+    return false;
+}

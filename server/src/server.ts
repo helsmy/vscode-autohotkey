@@ -235,8 +235,8 @@ connection.onDefinition(
 
 // load opened document
 documents.onDidOpen(async e => {
-	let lexer = new Lexer(e.document, logger);
-	const docInfo = lexer.Parse();
+	// let lexer = new Lexer(e.document, logger);
+	// const docInfo = lexer.Parse();
 	DOCManager.initDocument(e.document.uri, e.document);
 });
 

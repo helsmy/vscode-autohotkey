@@ -5,7 +5,7 @@ import {
     INodeResult,
     IParseError,
 } from "../types";
-import { ParseError } from './models/parseError';
+import { constructorToFailed, FailedConstructor, ParseError } from './models/parseError';
 import * as Stmt from './models/stmt';
 import * as Expr from './models/expr';
 import * as SuffixTerm from './models/suffixterm';
@@ -16,6 +16,11 @@ import { IDiagnosticInfo, TokenKind } from '../tokenizor/types';
 import { mockLogger } from '../../../utilities/logger';
 import { Script } from '../models/script';
 import { Position } from 'vscode-languageserver-types';
+
+type NodeConstructor =
+    | Constructor<Expr.Expr>
+    | Constructor<Stmt.Stmt>
+    | Constructor;
 
 export class AHKParser {
     private tokenizer: Tokenizer;
@@ -72,6 +77,13 @@ export class AHKParser {
                     this.currentToken.type <= TokenType.comma) {
                     this.tokens.push(this.currentToken);
                 }
+                else if (this.currentToken.type === TokenType.EOL) {
+                    this.currentToken = this.nextToken(this.currentToken.type);
+                    while (this.currentToken.type === TokenType.EOL) {
+                        this.currentToken = this.nextToken(this.currentToken.type);
+                    }
+                    this.tokens.push(this.currentToken);
+                }
                 else {
                     this.tokens.push(saveToken);
                     this.tokens.push(this.currentToken);
@@ -115,10 +127,11 @@ export class AHKParser {
         return token;
     }
 
-    private error(token: Token, message: string): ParseError {
+    private error(token: Token, message: string, failed: Maybe<NodeConstructor>): ParseError {
         return new ParseError(
             token,
-            message
+            message,
+            constructorToFailed(failed)
         );
     }
 
@@ -201,7 +214,7 @@ export class AHKParser {
         }
         catch (error) {
             if (error instanceof ParseError) {
-                this.synchronize();
+                this.synchronize(error.failed);
                 const tokens = this.tokens.slice(start, this.pos);
                 tokens.push(this.currentToken);
 
@@ -250,7 +263,8 @@ export class AHKParser {
                 // Generate error when no varible is found
                 errors.push(this.error(
                     this.currentToken,
-                    'Expect an identifer in varible declaration'
+                    'Expect an identifer in varible declaration',
+                    Decl.VarDecl
                 ));
                 // Generate Invalid Mark
                 assign.push(new Decl.OptionalAssginStmt(
@@ -264,7 +278,7 @@ export class AHKParser {
             }
         } while (this.eatDiscardCR(TokenType.comma));
 
-        this.terminal();
+        this.terminal(Decl.VarDecl);
 
         return nodeResult(
             new Decl.VarDecl(scope, assign),
@@ -276,13 +290,15 @@ export class AHKParser {
         const classToken = this.eat();
         const name = this.eatAndThrow(
             TokenType.id,
-            'Expect an indentifier in class define'
+            'Expect an indentifier in class define',
+            Decl.ClassDef
         );
         if (this.currentToken.type === TokenType.extends) {
             const extendsToken = this.eat();
             const parentName = this.eatAndThrow(
                 TokenType.id,
-                'Expect an indentifier after "extends" keyword'
+                'Expect an indentifier after "extends" keyword',
+                Decl.ClassDef
             );
             const body = this.block();
             return nodeResult(
@@ -332,7 +348,8 @@ export class AHKParser {
         }
         this.eatAndThrow(
             TokenType.hotkey,
-            'Expect a "::" at the end of hotkey declaration'
+            'Expect a "::" at the end of hotkey declaration',
+            Decl.Hotkey
         );
         return nodeResult(new Decl.Hotkey(k1), []);
     }
@@ -341,7 +358,8 @@ export class AHKParser {
         const option = this.eat();
         const str = this.eatAndThrow(
             TokenType.hotstringEnd,
-            'Expect a hotstring in hotstring'
+            'Expect a hotstring in hotstring',
+            Decl.HotString
         );
         // TODO: FINISH X OPTION
         if (this.currentToken.type === TokenType.EOL) {
@@ -350,7 +368,8 @@ export class AHKParser {
         }
         const expend = this.eatAndThrow(
             TokenType.string,
-            'Expect a expend string in hotstring'
+            'Expect a expend string in hotstring',
+            Decl.HotString
         );
         return nodeResult(new Decl.HotString(option, str, expend), []);
     } 
@@ -384,7 +403,8 @@ export class AHKParser {
             default:
                 throw this.error(
                     this.currentToken,
-                    'UnKnown statment found');
+                    'UnKnown statment found',
+                    undefined);
         }
     }
 
@@ -407,7 +427,8 @@ export class AHKParser {
                 if (p.type >= TokenType.aassign && p.type <= TokenType.lshifteq)
                     return this.assign();
                 throw this.error(p,
-                    'Invalid follower(s) of identifer')
+                    'Invalid follower(s) of identifer',
+                    undefined);
         }
     }
 
@@ -416,7 +437,8 @@ export class AHKParser {
         if (!open) {
             throw this.error(
                 this.currentToken,
-                'Expect a "{" at begining of block'
+                'Expect a "{" at begining of block',
+                Stmt.Block
             );
         }
         const errors: ParseError[] = [];
@@ -431,7 +453,8 @@ export class AHKParser {
         }
         const close = this.eatAndThrow(
             TokenType.closeBrace,
-            'Expect a "}" at block end'
+            'Expect a "}" at block end',
+            Stmt.Block
         );
 
         return nodeResult(
@@ -499,16 +522,17 @@ export class AHKParser {
             this.eatDiscardCR(TokenType.comma);
             const label = this.eatAndThrow(
                 TokenType.id,
-                'Expect a label name'
+                'Expect a label name',
+                Stmt.Break
             );
-            this.terminal();
+            this.terminal(Stmt.Break);
             return nodeResult(
                 new Stmt.Break(breakToken, label),
                 []
             );
         }
 
-        this.terminal();
+        this.terminal(Stmt.Break);
         return nodeResult(new Stmt.Break(breakToken), []);
     }
 
@@ -520,13 +544,13 @@ export class AHKParser {
             // ',' is negotiable
             this.eatDiscardCR(TokenType.comma);
             const expr = this.expression();
-            this.terminal()
+            this.terminal(Stmt.Return)
             return nodeResult(
                 new Stmt.Return(returnToken, expr.value),
                 expr.errors
             );
         }
-        this.terminal();
+        this.terminal(Stmt.Return);
         return nodeResult(new Stmt.Return(returnToken), []);
     }
 
@@ -539,7 +563,8 @@ export class AHKParser {
 
         const open = this.eatAndThrow(
             TokenType.openBrace,
-            'Expect a "{"'
+            'Expect a "{"',
+            Stmt.SwitchStmt
         );
         
         const cases: Stmt.CaseStmt[] = [];
@@ -562,7 +587,8 @@ export class AHKParser {
                     
                     const colon = this.eatAndThrow(
                         TokenType.colon,
-                        'Expect a ":" at end of case'
+                        'Expect a ":" at end of case',
+                        Stmt.SwitchStmt
                     );
                     const stmts = this.stmtList();
                     errors.push(...stmts.errors);
@@ -592,14 +618,16 @@ export class AHKParser {
                 default:
                     throw this.error(
                         this.currentToken,
-                        'Expect "case" statement or "default:"'
+                        'Expect "case" statement or "default:"',
+                        Stmt.SwitchStmt
                     );
             }
 
         }
         const close = this.eatAndThrow(
             TokenType.closeBrace,
-            'Expect a "}"'
+            'Expect a "}"',
+            Stmt.SwitchStmt
         );
         return nodeResult(
             new Stmt.SwitchStmt(
@@ -647,10 +675,11 @@ export class AHKParser {
             if (this.matchTokens([TokenType.until])) {
                 const until = this.eatAndThrow(
                     TokenType.until,
-                    'Expect a until in loop-until'
+                    'Expect a until in loop-until',
+                    Stmt.UntilLoop
                 );
                 const cond = this.expression();
-                this.terminal();
+                this.terminal(Stmt.UntilLoop);
                 return nodeResult(
                     new Stmt.UntilLoop(loop, body.value, 
                         until, cond.value),
@@ -662,7 +691,7 @@ export class AHKParser {
                 body.errors
             );
         }
-
+        
         const cond = this.expression();
         this.jumpWhiteSpace();
         const body = this.declaration();
@@ -691,17 +720,20 @@ export class AHKParser {
         this.advance();
         const id1 = this.eatAndThrow(
             TokenType.id,
-            'Expect an identifer in for loop'
+            'Expect an identifer in for loop',
+            Stmt.ForStmt
         );
         if (this.currentToken.type === TokenType.comma) {
             const comma = this.eat();
             const id2 = this.eatAndThrow(
                 TokenType.id,
-                'Expect second identifer after `,` in for loop'
+                'Expect second identifer after `,` in for loop',
+                Stmt.ForStmt
             );
             const inToken = this.eatAndThrow(
                 TokenType.in,
-                'Expect in keyword in for loop'
+                'Expect in keyword in for loop',
+                Stmt.ForStmt
             );
             const iterable = this.expression();
             const body = this.declaration();
@@ -718,7 +750,8 @@ export class AHKParser {
 
         const inToken = this.eatAndThrow(
             TokenType.in,
-            'Expect in keyword in for loop'
+            'Expect in keyword in for loop',
+            Stmt.ForStmt
         );
         const iterable = this.expression();
         const body = this.declaration();
@@ -747,7 +780,8 @@ export class AHKParser {
             this.advance();
             const errorVar = this.eatAndThrow(
                 TokenType.id,
-                'Expect an identifer as output variable'
+                'Expect an identifer as output variable',
+                Stmt.TryStmt
             );
             this.jumpWhiteSpace();
             const body = this.declaration();
@@ -780,7 +814,7 @@ export class AHKParser {
             this.advance();
             const includePath = this.eat();
             this.includes.add(includePath.content);
-            this.terminal();
+            this.terminal(Stmt.Drective);
             return nodeResult(
                 new Stmt.Drective(drective, []),
                 []
@@ -794,7 +828,7 @@ export class AHKParser {
             args.push(a.value);
         }
 
-        this.terminal();
+        this.terminal(Stmt.Drective);
         return nodeResult(
             new Stmt.Drective(drective, args),
             errors
@@ -809,7 +843,7 @@ export class AHKParser {
             const assign = this.currentToken;
             this.advance();
             const expr = this.expression();
-            this.terminal();
+            this.terminal(Stmt.AssignStmt);
             return nodeResult(
                 new Stmt.AssignStmt(left.value, assign, expr.value),
                 left.errors.concat(expr.errors)
@@ -884,7 +918,8 @@ export class AHKParser {
                 default:
                     throw this.error(
                         this.currentToken,
-                        'Expect an experssion'
+                        'Expect an experssion',
+                        Expr.Factor
                     );
             }
 
@@ -897,6 +932,22 @@ export class AHKParser {
                     Precedences[this.currentToken.type] >= p) {
                     const saveToken = this.currentToken;
                     this.advance();
+                    // array extend expression
+                    if (this.currentToken.type === TokenType.multi && !this.matchTokens([
+                        TokenType.plus, TokenType.minus, TokenType.and,
+                        TokenType.multi, TokenType.not, TokenType.bnot,
+                        TokenType.pplus, TokenType.mminus, TokenType.new,
+                        TokenType.openParen, TokenType.number, TokenType.string,
+                        TokenType.openBrace, TokenType.openBracket, TokenType.id,
+                        TokenType.precent
+                    ])) {
+                        return nodeResult(
+                            new Expr.Unary(
+                                saveToken,
+                                result.value
+                            ), result.errors
+                        );
+                    }
                     const q = Precedences[saveToken.type];
                     const right = this.expression(q + 1);
                     result = nodeResult(
@@ -942,7 +993,8 @@ export class AHKParser {
                         const trueExpr = this.expression();
                         const colon = this.eatAndThrow(
                             TokenType.colon,
-                            'Expect a ":" in ternary expression'
+                            'Expect a ":" in ternary expression',
+                            Expr.Ternary
                         );
                         // right-associative 
                         const falseExpr = this.expression(q);
@@ -1002,7 +1054,7 @@ export class AHKParser {
             if (error instanceof ParseError) {
                 // this.logger.verbose(JSON.stringify(error.partial));
                 // this.synchronize(error.failed);
-                this.synchronize();
+                this.synchronize(error.failed);
 
                 // TODO: Correct error token list
                 const tokens = this.tokens.slice(start, this.pos);
@@ -1111,7 +1163,8 @@ export class AHKParser {
                 else
                     throw this.error(
                         this.currentToken,
-                        'Expect "%" in precent expression'
+                        'Expect "%" in precent expression',
+                        SuffixTerm.Identifier
                     );
             case TokenType.openBracket:
                 return this.arrayTerm();
@@ -1122,11 +1175,11 @@ export class AHKParser {
                     const previous = this.previous();
 
                     return nodeResult(new SuffixTerm.Invalid(previous.end), [
-                        this.error(previous, 'Expected suffix')
+                        this.error(previous, 'Expected suffix', undefined)
                     ]);
                 }
 
-                throw this.error(this.currentToken, 'Expected an expression');
+                throw this.error(this.currentToken, 'Expected an expression', undefined);
         }
     }
 
@@ -1151,7 +1204,8 @@ export class AHKParser {
 
         const close = this.eatAndThrow(
             TokenType.closeBracket,
-            'Expect a "]" to end array'
+            'Expect a "]" to end array',
+            SuffixTerm.ArrayTerm
         );
 
         return nodeResult(
@@ -1178,7 +1232,8 @@ export class AHKParser {
 
         const close = this.eatAndThrow(
             TokenType.closeBrace,
-            'Expect a "}" at the end of associative array'
+            'Expect a "}" at the end of associative array',
+            SuffixTerm.AssociativeArray
         )
 
         return nodeResult(
@@ -1204,7 +1259,8 @@ export class AHKParser {
         // and contiune parsing rest of dict
         errors.push(this.error(
             this.currentToken,
-            'Expect a ":" on key-value pairs in associative array'
+            'Expect a ":" on key-value pairs in associative array',
+            SuffixTerm.Pair
         ));
         return nodeResult(
             new SuffixTerm.Pair(
@@ -1222,7 +1278,9 @@ export class AHKParser {
         const index = this.expression();
         const close = this.eatAndThrow(
             TokenType.closeBracket,
-            'Expected a "]" at end of array index ');
+            'Expected a "]" at end of array index ',
+            SuffixTerm.BracketIndex
+            );
 
         return nodeResult(
             new SuffixTerm.BracketIndex(open, index.value, close),
@@ -1258,7 +1316,8 @@ export class AHKParser {
         }
         const close = this.eatAndThrow(
             TokenType.closeParen,
-            'Expected a ")" at end of call'
+            'Expected a ")" at end of call',
+            SuffixTerm.Call
         );
         return nodeResult(
             new SuffixTerm.Call(open, args, close),
@@ -1342,6 +1401,10 @@ export class AHKParser {
                             errors.push(...param.errors);
                             DefaultParameters.push(param.value);
                         }
+                        else if (p.type === TokenType.multi) {
+                            isDefaultParam = true;
+                            
+                        }
                         else {
                             const param = this.requiredParameter();
                             requiredParameters.push(param.value);
@@ -1368,7 +1431,8 @@ export class AHKParser {
 
         const close = this.eatAndThrow(
             TokenType.closeParen,
-            'Expect a ")"'
+            'Expect a ")"',
+            Decl.Param
         );
         return nodeResult(
             new Decl.Param(
@@ -1383,18 +1447,30 @@ export class AHKParser {
     private requiredParameter():  INodeResult<Decl.Parameter> {
         const name = this.eatAndThrow(
             TokenType.id,
-            'Expect an identifier in parameter'
+            'Expect an identifier in parameter',
+            Decl.Parameter
         );
 
         return nodeResult(new Decl.Parameter(name), []);
     }
 
-    private defaultParameter():  INodeResult<Decl.DefaultParam> {
+    private defaultParameter(isExtend: Boolean = false):  INodeResult<Decl.DefaultParam> {
         const errors: ParseError[] = [];
         const name = this.eatAndThrow(
             TokenType.id,
-            'Expect an identifier in parameter'
+            'Expect an identifier in parameter',
+            Decl.DefaultParam
         );
+
+        // if is parameter*
+        if (isExtend) {
+            const star = this.eat();
+            return nodeResult(
+                new Decl.DefaultParam(
+                    name, star, new Expr.Invalid(star.start, [star])
+                ), []
+            );
+        }
 
         if (this.matchTokens([
             TokenType.aassign,
@@ -1412,7 +1488,8 @@ export class AHKParser {
         }
         throw this.error(
             this.currentToken,
-            'Expect a optional parameter'
+            'Expect a optional parameter',
+            Decl.DefaultParam
         );
     }
 
@@ -1422,12 +1499,14 @@ export class AHKParser {
 
     /**
      * Check the the statement is terminated
+     * @param failed failed constructor context
      */
-    private terminal() {
+    private terminal(failed: Maybe<NodeConstructor>) {
         if (this.currentToken.type !== TokenType.EOF)
             this.eatAndThrow(
                 TokenType.EOL,
-                'Expect "`n" to terminate statement'
+                'Expect "`n" to terminate statement',
+                failed
             );
     }
 
@@ -1468,13 +1547,13 @@ export class AHKParser {
         return this.previous();
     }
 
-    private eatAndThrow(t: TokenType, message: string) {
+    private eatAndThrow(t: TokenType, message: string, failed: Maybe<NodeConstructor>) {
         if (this.currentToken.type === t) {
             this.advance();
             return this.previous();
         }
         else
-            throw this.error(this.currentToken, message);
+            throw this.error(this.currentToken, message, failed);
     }
 
     /**
@@ -1501,13 +1580,18 @@ export class AHKParser {
     }
 
     // attempt to synchronize parser
-    private synchronize(): void {
+    private synchronize(failed: FailedConstructor): void {
         // need to confirm this is the only case
-        // if (empty(failed.stmt)) {
-        //   this.advance();
-        // }
+        // if this is not a statement fail, 
+        // we no need to skip all expressions 
+        // Just check if next some is able to parse 
+        if (failed.stmt === undefined) {
+          this.advance();
+        }
 
         while (this.currentToken.type !== TokenType.EOF) {
+            // skip until next statement
+            // and try to parse them
             switch (this.peek().type) {
                 // declarations
                 case TokenType.local:
@@ -1538,7 +1622,7 @@ export class AHKParser {
                     return
                 // close scope
                 case TokenType.closeBrace:
-                    this.advance();
+                    // this.advance();
                     return;
                 
                 // end of line

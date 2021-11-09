@@ -3,6 +3,7 @@
 ## 0.8.0
 1. pre-release of recursive descent parser
 2. bug fixs in if for call and new
+3. improve synchronize
 
 ## 0.5.0
 

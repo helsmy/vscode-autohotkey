@@ -77,14 +77,14 @@ export class AHKParser {
                     this.currentToken.type <= TokenType.comma) {
                     this.tokens.push(this.currentToken);
                 }
-                else if (this.currentToken.type === TokenType.EOL) {
-                    this.currentToken = this.nextToken(this.currentToken.type);
-                    while (this.currentToken.type === TokenType.EOL) {
-                        this.currentToken = this.nextToken(this.currentToken.type);
-                    }
-                    this.tokens.push(this.currentToken);
-                }
                 else {
+                    // 跳过多余的换行
+                    if (this.currentToken.type === TokenType.EOL) {
+                        this.currentToken = this.nextToken(this.currentToken.type);
+                        while (this.currentToken.type === TokenType.EOL) {
+                            this.currentToken = this.nextToken(this.currentToken.type);
+                        }
+                    }
                     this.tokens.push(saveToken);
                     this.tokens.push(this.currentToken);
                     this.currentToken = saveToken;

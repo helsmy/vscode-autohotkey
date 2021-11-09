@@ -413,14 +413,14 @@ suite('Full file test', () => {
 		SendMode Input  ; Recommended for new scripts due to its superior speed and reliability.
 		SetWorkingDir %A_ScriptDir%  ; Ensures a consistent starting directory.
 		
-		;#If WinActive("ahk_exe MatStudio.exe")
+		#If WinActive("ahk_exe Authotkey.exe")
 		::aa::Al2Al2
 		::aar::Al2Al2RT
-		;#If		
+		#If		
 		`;
 		const parser = new AHKParser(file, '');
 		const fileAST = parser.parse();
 		assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
-		assert.strictEqual(fileAST.sytanxErrors.length, 0, 'Enconter Parser error');
+		assert.strictEqual(fileAST.sytanxErrors.length, 2, 'Enconter Parser error');
 	});
 });

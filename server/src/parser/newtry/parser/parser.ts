@@ -822,6 +822,7 @@ export class AHKParser {
         }
         const errors: ParseError[] = [];
         const args: IExpr[] = [];
+        this.advance();
         while (this.currentToken.type !== TokenType.EOL) {
             const a = this.expression();
             errors.push(...a.errors);

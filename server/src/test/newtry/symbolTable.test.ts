@@ -67,6 +67,19 @@ suite('Symbol Table Test', () => {
         assert.strictEqual(AST.tokenErrors.length, 0, 'token error');
         const stmts = AST.script.stmts;
         const table = builtTable(stmts);
-        console.log(table.toString());
+        const stringTable = ["", "",
+        "作用域符号表：",
+        "==============",
+        "作用域名称: global",
+        "",
+        "",
+        "符号表中的内容：",
+        "--------------",
+        "number: <BuiltinType number>",
+        "string: <BuiltinType string>",
+        "a: <a: number>",
+        "b: <b: string>"].join('\n');
+        assert.strictEqual(table.toString(), stringTable);
+        
     })
 })

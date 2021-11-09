@@ -29,20 +29,20 @@ suite('Basic Token Test', () => {
 
 	test('float', () => {
 		let actualTokens = getalltoken('1.324 .234');
-		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.number, '1.324', Position.create(1, 1),Position.create(1, 6)));
-		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.number, '.234', Position.create(1, 7),Position.create(1, 11)));
+		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.number, '1.324', Position.create(0, 0),Position.create(0, 5)));
+		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.number, '.234', Position.create(0, 6),Position.create(0, 10)));
 	});
 
 	test('string', () => {
 		let actualTokens = getalltoken('"123" "AHK是世界第一的热键语言"');
-		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, '123', Position.create(1, 1),Position.create(1, 6)));
-		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.string, 'AHK是世界第一的热键语言', Position.create(1, 7),Position.create(1, 22)));
+		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, '123', Position.create(0, 0),Position.create(0, 5)));
+		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.string, 'AHK是世界第一的热键语言', Position.create(0, 6),Position.create(0, 21)));
 	});
 
 	test('identifer', () => {
 		let actualTokens = getalltoken('AHKisHotkey DllCall');
-		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.id, 'AHKisHotkey', Position.create(1, 1),Position.create(1, 12)));
-		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.id, 'DllCall', Position.create(1, 13),Position.create(1, 20)));
+		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.id, 'AHKisHotkey', Position.create(0, 0),Position.create(0, 11)));
+		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.id, 'DllCall', Position.create(0, 12),Position.create(0, 19)));
 	});
 
 	test('drective', () => {

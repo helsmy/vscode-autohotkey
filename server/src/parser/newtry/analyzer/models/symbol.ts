@@ -226,7 +226,7 @@ export class AHKMethodSymbol extends ScopedSymbol {
 		public readonly requiredParameters: VaribaleSymbol[],
 		public readonly optionalParameters: VaribaleSymbol[],
 		enclosingScoop?: IScoop,
-		public readonly parentScoop?: IScoop
+		public readonly parentScoop?: AHKObjectSymbol
 	) {
 		super(name, enclosingScoop);
 		this.initParameters();
@@ -237,9 +237,12 @@ export class AHKMethodSymbol extends ScopedSymbol {
 		this.optionalParameters.forEach(v => this.define(v));
 	}
 
-	public defineThis() {
-		if (this.parentScoop && this.parentScoop instanceof AHKMethodSymbol)
-			this.symbols.set('this', this.parentScoop);
+	public resolve(name: string): Maybe<ISymbol> {
+		// find implicit this
+		if (name.toLowerCase() === 'this' && !this.symbols.has('this')) {
+			return this.parentScoop;
+		}
+		return super.resolve(name);
 	}
 
 	public toString(): string {

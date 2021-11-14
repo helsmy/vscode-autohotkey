@@ -361,13 +361,19 @@ suite('Full file test', () => {
 		assert.strictEqual(fileAST.sytanxErrors.length, 0, 'Enconter Parser error');
 	});
 	test('Function define file', () => {
-		const file = `a()
+		const file = `a(a, b, c:=100, d*)
 		{
-			Path := "Path"
+			static Path := "Path"
 			Lib := "Lib"
 			Auto := "Auto"
 			Directory := "Directory"
 			Error := "Error"
+		}
+
+		FindText(args*)
+		{
+		global FindText
+		return FindText.FindText(args*)
 		}
 		
 		
@@ -390,8 +396,13 @@ suite('Full file test', () => {
 			static Directory := "Directory"
 			static Error := "Error"
 
-			__New() {
+			__New(a, b, c:=100, d*) {
 				this.a := 12
+			}
+
+			answer(a, b) {
+				this.error := a+b
+				return 42
 			}
 		}
 		

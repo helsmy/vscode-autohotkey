@@ -186,7 +186,6 @@ export class TreeManager
         // });
         
         let useneed, useless: string[];
-        ;
         if (oldInclude && ast.script.include) {
             // useless need delete, useneed need to add
             // FIXME: delete useless include

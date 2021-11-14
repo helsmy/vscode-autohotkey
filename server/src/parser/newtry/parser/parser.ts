@@ -934,7 +934,7 @@ export class AHKParser {
                     const saveToken = this.currentToken;
                     this.advance();
                     // array extend expression
-                    if (this.currentToken.type === TokenType.multi && !this.matchTokens([
+                    if (saveToken.type === TokenType.multi && !this.matchTokens([
                         TokenType.plus, TokenType.minus, TokenType.and,
                         TokenType.multi, TokenType.not, TokenType.bnot,
                         TokenType.pplus, TokenType.mminus, TokenType.new,
@@ -1404,7 +1404,9 @@ export class AHKParser {
                         }
                         else if (p.type === TokenType.multi) {
                             isDefaultParam = true;
-                            
+                            const param = this.defaultParameter(true);
+                            errors.push(...param.errors);
+                            DefaultParameters.push(param.value);
                         }
                         else {
                             const param = this.requiredParameter();
@@ -1455,6 +1457,10 @@ export class AHKParser {
         return nodeResult(new Decl.Parameter(name), []);
     }
 
+    /**
+     * Parse default parameter of function
+     * @param isExtend if parameter is array extend parameter
+     */
     private defaultParameter(isExtend: Boolean = false):  INodeResult<Decl.DefaultParam> {
         const errors: ParseError[] = [];
         const name = this.eatAndThrow(
@@ -1593,7 +1599,7 @@ export class AHKParser {
         while (this.currentToken.type !== TokenType.EOF) {
             // skip until next statement
             // and try to parse them
-            switch (this.peek().type) {
+            switch (this.currentToken.type) {
                 // declarations
                 case TokenType.local:
                 case TokenType.global:

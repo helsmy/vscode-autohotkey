@@ -105,7 +105,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			reqParams,
 			dfltParams,
 			this.supperGlobal,
-			this.currentScoop
+			this.currentScoop instanceof AHKObjectSymbol ?
+				this.currentScoop : undefined
 		);
 		// this.supperGlobal.define(sym);
 		// this.supperGlobal.addScoop(sym);
@@ -113,9 +114,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		// this.table.addScoop(sym);
 		this.currentScoop.define(sym);
 		this.currentScoop.addScoop(sym);
-		// Define Implicit this variable
-		if (this.currentScoop instanceof AHKObjectSymbol) 
-			sym.defineThis();
+
 		this.enterScoop(sym);
 		const errors = decl.body.accept(this, []);
 		this.leaveScoop();
@@ -232,7 +231,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		if (expr instanceof Expr.Factor) {
 			if (!expr.trailer) {
 				const atom = expr.suffixTerm.atom;
-				if (atom instanceof SuffixTerm.Identifier) {
+				if (atom instanceof SuffixTerm.Identifier && 
+					expr.suffixTerm.trailers.length === 0) {
 					// Only check varible defination in first scanning
 					const idName = atom.token.content;
 					if (!this.currentScoop.resolve(idName))

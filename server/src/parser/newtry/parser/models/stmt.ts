@@ -89,7 +89,8 @@ export class AssignStmt extends Stmt {
 	constructor(
 		public readonly left: Expr.Factor,
 		public readonly assign: Token,
-		public readonly expr: Expr.Expr
+		public readonly expr: Expr.Expr,
+		public readonly trailerExpr: Expr.Expr[]
 	) {
 		super();
 	}
@@ -124,7 +125,10 @@ export class AssignStmt extends Stmt {
  * class containing function call and ',' expressions
  */
 export class ExprStmt extends Stmt {
-	constructor(public readonly suffix: Expr.Factor) {
+	constructor(
+		public readonly suffix: Expr.Factor,
+		public readonly trailerExpr?: Expr.Expr[]
+	) {
 		super();
 	}
 

@@ -219,6 +219,9 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const errors: Diagnostics = [];
 		errors.push(...this.processAssignVar(stmt.left, stmt));
 		errors.push(...this.processExpr(stmt.expr));
+		for (const expr of stmt.trailerExpr) {
+			errors.push(...this.processExpr(expr));
+		}
 		return errors;
 	}
 

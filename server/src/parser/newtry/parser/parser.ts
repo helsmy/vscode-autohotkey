@@ -1,6 +1,6 @@
 import { Tokenizer } from "../tokenizor/tokenizer";
 import { Atom, IAST, IExpr, IStmt, SuffixTermTrailer, Token } from "../types";
-import { TokenType } from "../tokenizor/tokenTypes";
+import { isValidIdentifier, TokenType } from "../tokenizor/tokenTypes";
 import {
     INodeResult,
     IParseError,
@@ -183,33 +183,39 @@ export class AHKParser {
     private declaration(): INodeResult<Stmt.Stmt> {
         const start = this.pos;
         try {
-            switch (this.currentToken.type) {
-                case TokenType.id:
-                    return this.idLeadStatement();
-                case TokenType.class:
-                    return this.classDefine();
-                case TokenType.global:
-                case TokenType.local:
-                case TokenType.static:
-                    return this.varDecl();
-                case TokenType.label:
-                    return this.label();
-                case TokenType.key:
-                // 所有热键的修饰符
-                // case TokenType.sharp:
-                // case TokenType.not:
-                // case TokenType.xor:
-                // case TokenType.plus:
-                // case TokenType.less:
-                // case TokenType.greater:
-                // case TokenType.multi:
-                // case TokenType.bnot:
-                // case TokenType.dollar:
-                    return this.hotkey();
-                case TokenType.hotstringOpen:
-                    return this.hotstring();
-                default:
-                    return this.statement();
+            while (true) {
+                switch (this.currentToken.type) {
+                    case TokenType.id:
+                        return this.idLeadStatement();
+                    case TokenType.class:
+                        return this.classDefine();
+                    case TokenType.global:
+                    case TokenType.local:
+                    case TokenType.static:
+                        return this.varDecl();
+                    case TokenType.label:
+                        return this.label();
+                    case TokenType.key:
+                    // 所有热键的修饰符
+                    // case TokenType.sharp:
+                    // case TokenType.not:
+                    // case TokenType.xor:
+                    // case TokenType.plus:
+                    // case TokenType.less:
+                    // case TokenType.greater:
+                    // case TokenType.multi:
+                    // case TokenType.bnot:
+                    // case TokenType.dollar:
+                        return this.hotkey();
+                    case TokenType.hotstringOpen:
+                        return this.hotstring();
+                    // Skip empty statment
+                    case TokenType.EOL:
+                        this.jumpWhiteSpace();
+                        continue;
+                    default:
+                        return this.statement();
+                }
             }
         }
         catch (error) {
@@ -260,6 +266,7 @@ export class AHKParser {
 
             }
             else {
+                // TODO: allow scoop declaration
                 // Generate error when no varible is found
                 errors.push(this.error(
                     this.currentToken,
@@ -400,6 +407,8 @@ export class AHKParser {
                 return this.tryStmt();
             case TokenType.drective:
                 return this.drective();
+            case TokenType.command:
+                return this.command();
             default:
                 throw this.error(
                     this.currentToken,
@@ -484,7 +493,7 @@ export class AHKParser {
                 elifcondition = this.expression();
                 errors.push(...elifcondition.errors);
             }
-            const body = this.block();
+            const body = this.declaration();
             errors.push(...body.errors);
             return nodeResult(
                 new Stmt.If(
@@ -692,6 +701,23 @@ export class AHKParser {
             );
         }
         
+        // TODO: syntax check for loop command
+        // just skip all command for now
+        if (this.currentToken.type === TokenType.comma) {
+            while (!this.matchTokens([
+                TokenType.EOL,
+                TokenType.openBrace
+            ])) {
+                this.advance();
+            }
+            if (this.atLineEnd()) this.advance();
+            const body = this.declaration();
+            return nodeResult(
+                new Stmt.Loop(loop, body.value, new Expr.Invalid(loop.start, [])),
+                body.errors
+            );
+        }
+
         const cond = this.expression();
         this.jumpWhiteSpace();
         const body = this.declaration();
@@ -839,15 +865,27 @@ export class AHKParser {
     // assignment statemnet
     private assign(): INodeResult<Stmt.AssignStmt|Stmt.ExprStmt> {
         const left = this.factor();
+        const errors = [...left.errors];
         if (this.currentToken.type >= TokenType.aassign &&
             this.currentToken.type <= TokenType.lshifteq) {
             const assign = this.currentToken;
             this.advance();
             const expr = this.expression();
+            errors.push(...expr.errors);
+            const trailers: Expr.Expr[] = [];
+
+            if (this.eatDiscardCR(TokenType.comma)) {
+                do {
+                    const trailer = this.expression();
+                    trailers.push(trailer.value);
+                    errors.push(...trailer.errors);
+                } while (this.eatDiscardCR(TokenType.comma));
+            }
+
             this.terminal(Stmt.AssignStmt);
             return nodeResult(
-                new Stmt.AssignStmt(left.value, assign, expr.value),
-                left.errors.concat(expr.errors)
+                new Stmt.AssignStmt(left.value, assign, expr.value, trailers),
+                errors
             );
         }
         if (this.currentToken.type === TokenType.comma)
@@ -917,6 +955,11 @@ export class AHKParser {
                     result = this.factor();
                     break;
                 default:
+                    // TODO: Allow all keywords as identifier and warn this
+                    if (isValidIdentifier(this.currentToken.type)) {
+                        result = this.factor();
+                        break;
+                    }
                     throw this.error(
                         this.currentToken,
                         'Expect an experssion',
@@ -1172,6 +1215,11 @@ export class AHKParser {
             case TokenType.openBrace:
                 return this.associativeArray();
             default:
+                // TODO: Allow all keywords here, and warn this
+                if (isValidIdentifier(this.currentToken.type)) {
+                    this.advance();
+                    return nodeResult(new SuffixTerm.Identifier(this.previous()), []);
+                }
                 if (isTailor) {
                     const previous = this.previous();
 
@@ -1338,6 +1386,9 @@ export class AHKParser {
         );
     }
 
+    /**
+     * Parse all condition related to Function statements
+     */
     private func(): INodeResult<Stmt.ExprStmt|Decl.FuncDef> {
         let token = this.currentToken
         this.advance();
@@ -1355,24 +1406,56 @@ export class AHKParser {
         this.advance();
         if (this.eatDiscardCR(TokenType.openBrace)) {
             this.backto(pos);
-            let parameters = this.parameters();
-            let block = this.block();
-            let errors = parameters.errors.concat(block.errors);
-            return {
-                errors: errors,
-                value: new Decl.FuncDef(
-                    token,
-                    parameters.value,
-                    block.value
-                )
-            };
+            return this.funcDefine(token);
         }
 
         this.backto(pos);
-        const call = this.factor();
+        return this.funcCall(token);
+    }
+
+    private funcDefine(name: Token): INodeResult<Decl.FuncDef> {
+        let parameters = this.parameters();
+        let block = this.block();
+        let errors = parameters.errors.concat(block.errors);
+        return {
+            errors: errors,
+            value: new Decl.FuncDef(
+                name,
+                parameters.value,
+                block.value
+            )
+        };
+    }
+
+    /**
+     * Parse a function call statement,
+     * also parse statement with ',' expression trailer
+     * @param name Name token of a function call
+     */
+    private funcCall(name: Token): INodeResult<Stmt.ExprStmt> {
+        const call = this.funcCallTrailer();
+        const errors: ParseError[] = [...call.errors];
+        const trailers: Expr.Expr[] = [];
+        
+        if (this.eatDiscardCR(TokenType.comma)) {
+            do {
+                const trailer = this.expression();
+                trailers.push(trailer.value);
+                errors.push(...trailer.errors);
+            } while (this.eatDiscardCR(TokenType.comma));
+        }
+
+        const callFactor = new Expr.Factor(
+            new SuffixTerm.SuffixTerm(
+                new SuffixTerm.Identifier(name),
+                [call.value]
+            )
+        );
+
+        this.terminal(Stmt.AssignStmt);
         return nodeResult(
-            new Stmt.ExprStmt(call.value),
-            call.errors
+            new Stmt.ExprStmt(callFactor, trailers),
+            errors
         );
     }
 
@@ -1500,9 +1583,18 @@ export class AHKParser {
         );
     }
 
-    // private command(): INodeResult<ICommandCall> {
-
-    // }
+    private command(): INodeResult<Stmt.Stmt> {
+        const cmd = this.eat();
+        // TODO: syntax check for command
+        // just jump everything for now
+        while (!this.atLineEnd()) {
+            this.advance();
+        }
+        return nodeResult(
+            new Stmt.Invalid(cmd.start, []),
+            []
+        );
+    }
 
     /**
      * Check the the statement is terminated
@@ -1597,6 +1689,8 @@ export class AHKParser {
         }
 
         while (this.currentToken.type !== TokenType.EOF) {
+            // try to parse next statement
+            if (this.previous().type === TokenType.EOL) return;
             // skip until next statement
             // and try to parse them
             switch (this.currentToken.type) {
@@ -1629,14 +1723,8 @@ export class AHKParser {
                     return
                 // close scope
                 case TokenType.closeBrace:
-                    // this.advance();
                     return;
                 
-                // end of line
-                // 开始解析下一句
-                case TokenType.EOL:
-                    this.advance();
-                    return;
                 default:
                     break;
             }

@@ -408,6 +408,10 @@ export class Tokenizer {
                         return this.CheckHotkey(CharType.mark);
                     }
                     this.Advance();
+                    if (this.currChar === '/') {
+                        this.Advance();
+                        return this.CreateToken(TokenType.fdiv, '//', p, this.genPosition());
+                    }
                     return this.CreateToken(TokenType.div, '/', p, this.genPosition());
                 case ';':
                     return this.SkipLineComment();

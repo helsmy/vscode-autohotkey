@@ -252,6 +252,7 @@ export class AHKMethodSymbol extends ScopedSymbol {
 	}
 }
 
+
 export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 	/**
 	 * @param name Name of class symbol
@@ -276,6 +277,6 @@ export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 	public resolveProp(name: string): Maybe<ISymbol> {
 		if (this.symbols.has(name))
 			return this.symbols.get(name);
-		return this.parentScoop?.resolve(name);
+		return this.parentScoop?.resolveProp(name);
 	}
 }

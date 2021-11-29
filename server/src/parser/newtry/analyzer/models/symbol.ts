@@ -247,7 +247,7 @@ export class AHKMethodSymbol extends ScopedSymbol {
 
 	public toString(): string {
 		const reqParaStr = this.requiredParameters.map(v => v.name);
-		const optParaStr = this.optionalParameters.map(v => v.name);
+		const optParaStr = this.optionalParameters.map(v => v.name+'?');
 		return `${this.name}(${reqParaStr.concat(optParaStr).join(', ')})`
 	}
 }

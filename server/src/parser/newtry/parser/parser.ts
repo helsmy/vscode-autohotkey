@@ -241,6 +241,13 @@ export class AHKParser {
         const assign: Decl.OptionalAssginStmt[] = [];
         const errors: ParseError[] = [];
         this.advance();
+        if (this.atLineEnd()) {
+            this.terminal(Decl.VarDecl);
+            return nodeResult(
+                new Decl.VarDecl(scope, []),
+                errors
+            );
+        }
         // check if there are varible,
         // if any parse them all
         do {

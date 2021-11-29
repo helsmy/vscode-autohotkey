@@ -39,6 +39,8 @@ export class VarDecl extends Decl {
     }
 
     public get end(): Position {
+        if (this.assigns.length === 0)
+            return this.scope.end;
         return this.assigns[this.assigns.length - 1].end;
     }
 

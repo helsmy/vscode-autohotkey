@@ -491,9 +491,8 @@ export class AHKParser {
         errors.push(...body.errors);
 
         // parse else branch if found else
-        if (this.currentToken.type === TokenType.else) {
-            const elsetoken = this.currentToken;
-            this.advance();
+        if (this.eatDiscardCR(TokenType.else)) {
+            const elsetoken = this.previous();
             let elifcondition: Maybe<INodeResult<Expr.Expr>> = undefined;
             if (this.matchTokens([TokenType.if])) {
                 const eliftoken = this.eat();
@@ -808,9 +807,8 @@ export class AHKParser {
         let catchStmt: Maybe<Stmt.CatchStmt>;
         let finallyStmt: Maybe<Stmt.FinallyStmt>;
 
-        if (this.currentToken.type === TokenType.catch) {
-            const catchToken = this.currentToken;
-            this.advance();
+        if (this.eatDiscardCR(TokenType.catch)) {
+            const catchToken = this.previous();
             const errorVar = this.eatAndThrow(
                 TokenType.id,
                 'Expect an identifer as output variable',
@@ -824,9 +822,8 @@ export class AHKParser {
             );
         }
 
-        if (this.currentToken.type === TokenType.finally) {
-            const finallyToken = this.currentToken;
-            this.advance();
+        if (this.eatDiscardCR(TokenType.finally)) {
+            const finallyToken = this.previous();
             this.jumpWhiteSpace();
             const body = this.declaration();
             errors.push(...body.errors);

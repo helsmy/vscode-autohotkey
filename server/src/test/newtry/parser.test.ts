@@ -140,6 +140,16 @@ suite('Syntax Parser Expresion Test', () => {
         assert.strictEqual(actual.value.toString(), 'a := 1 + 3 * 2 - 12 / 3');
     });
 
+    test('basic valid `=` assign', () => {
+        const file = `w:=Format("{:d}",w), CutUp:=CutDown:=0
+        re1=(^0{%w%}|^1{%w%})
+        re2=(0{%w%}$|1{%w%}$)`
+        const parser = new AHKParser(file, '');
+        const fileAST = parser.parse();
+        assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
+        assert.strictEqual(fileAST.sytanxErrors.length, 0, 'Enconter Parser error');
+    })
+
     test('operator eol', () => {
         const actuals = getExpr(`123
         

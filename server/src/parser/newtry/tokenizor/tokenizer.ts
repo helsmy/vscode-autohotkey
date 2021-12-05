@@ -92,8 +92,11 @@ export class Tokenizer {
         const p = this.genPosition();
         this.Advance().Advance();
         while (this.currChar !== 'EOF' &&
-            this.currChar !== '*' &&
-            this.Peek() !== '/') {
+            !this.matchWord('*/')) {
+            if (this.currChar === '\n') {
+                this.AdvanceLine();
+                continue;
+            }
             this.Advance();
         }
         this.Advance().Advance();
@@ -137,7 +140,7 @@ export class Tokenizer {
             this.NumberAdvance();
         }
         if (this.currChar === 'e' || this.currChar === 'E') {
-            this.currChar;
+            this.Advance();
             this.NumberAdvance();
         }
         const sNum = this.document.slice(offset, this.pos);
@@ -348,8 +351,15 @@ export class Tokenizer {
                         this.Advance();
                         return this.CreateToken(TokenType.comma, ',', p, this.genPosition());
                     case '\n':
+                        // Generate a empty string token
+                        // 给换行的字符串token产生一个空字符串
+                        // 为了`var=\n`产生空占位符
                         this.isLiteralToken = false;
-                        continue;
+                        if (preType === TokenType.equal ||
+                            preType === TokenType.comma)
+                            return this.CreateToken(TokenType.string, '', p, p);
+                        else
+                            continue;
                     default:
                         // is deref 
                         if (this.isLiteralDeref) break;
@@ -664,6 +674,11 @@ export class Tokenizer {
                 this.currChar === '&' && 
                 this.isWhiteSpace(this.Peek())) ?
                 true: false;
+    }
+
+    private matchWord(s: string): boolean {
+        let w = this.document.slice(this.pos, this.pos + s.length);
+        return w === s;
     }
 
     private BackTo(offset: number) {

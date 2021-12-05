@@ -892,8 +892,30 @@ export class AHKParser {
                 errors
             );
         }
-        if (this.currentToken.type === TokenType.comma)
-            this.eat()
+        if (this.currentToken.type === TokenType.equal) {
+            // if is a `=` let tokenizer take literal token(string)
+            this.tokenizer.isLiteralToken = true;
+            this.tokenizer.setLiteralDeref(false);
+            const assign = this.eat();
+            const expr = this.expression();
+            errors.push(...expr.errors);
+            const trailers: Expr.Expr[] = [];
+
+            if (this.eatDiscardCR(TokenType.comma)) {
+                do {
+                    const trailer = this.expression();
+                    trailers.push(trailer.value);
+                    errors.push(...trailer.errors);
+                } while (this.eatDiscardCR(TokenType.comma));
+            }
+
+            this.terminal(Stmt.AssignStmt);
+            return nodeResult(
+                new Stmt.AssignStmt(left.value, assign, expr.value, trailers),
+                errors
+            );
+        }
+
         return nodeResult(
             new Stmt.ExprStmt(left.value),
             left.errors
@@ -1398,7 +1420,7 @@ export class AHKParser {
         this.advance();
         const pos = this.pos;
         let unclosed: number = 1;
-        while (unclosed > 0) {
+        while (unclosed > 0 && !this.atLineEnd()) {
             let t = this.peek().type
             if (t === TokenType.closeParen)
                 unclosed--;

@@ -273,7 +273,8 @@ export class Tokenizer {
         const p = this.genPosition();
         while (!(this.currChar === ':') &&
                !(this.currChar === '\n') &&
-               !(this.Peek() === ':')) {
+               !(this.Peek() === ':') &&
+               this.currChar !== 'EOF') {
             this.Advance();
         }
         this.Advance().Advance();
@@ -292,13 +293,7 @@ export class Tokenizer {
             // check  multi-line expend
             if (this.Peek() === '(') {
                 this.Advance();
-                const p = this.genPosition();
-                while (this.Peek() !== ')') {
-                    this.Advance();
-                }
-                this.Advance();
-                const content = this.document.slice(offset, this.pos);
-                return this.CreateToken(TokenType.string, content, p, this.genPosition());
+                return this.getLiteralString();
             }
             // if not multi-line expend return eol
             const p = this.genPosition();
@@ -310,6 +305,18 @@ export class Tokenizer {
         while (this.currChar !== '\n') {
             this.Advance();
         }
+        const content = this.document.slice(offset, this.pos);
+        return this.CreateToken(TokenType.string, content, p, this.genPosition());
+    }
+
+    private getLiteralString() : TokenResult {
+        const p = this.genPosition();
+        const offset = this.pos;
+        this.Advance();
+        while (this.Peek() !== ')' && this.currChar !== 'EOF') {
+            this.Advance();
+        }
+        this.Advance();
         const content = this.document.slice(offset, this.pos);
         return this.CreateToken(TokenType.string, content, p, this.genPosition());
     }
@@ -351,6 +358,10 @@ export class Tokenizer {
                         this.Advance();
                         return this.CreateToken(TokenType.comma, ',', p, this.genPosition());
                     case '\n':
+                        // `=` `\n` `(...)` multiline string
+                        if (this.BackPeek(1, true) === '=' && this.Peek(1, true) === '(') {
+                            return this.getLiteralString();
+                        }
                         // Generate a empty string token
                         // 给换行的字符串token产生一个空字符串
                         // 为了`var=\n`产生空占位符

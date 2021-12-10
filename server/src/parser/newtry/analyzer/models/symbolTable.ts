@@ -9,12 +9,12 @@ import { BuiltinTypeSymbol, AHKSymbol, VaribaleSymbol, AHKMethodSymbol, AHKObjec
 export class SymbolTable implements IScoop {
 	private symbols: Map<string, AHKSymbol> = new Map();
 	public readonly name: string;
-	public readonly enclosingScoop: Maybe<IScoop>;
+	public readonly enclosingScoop: Maybe<SymbolTable>;
 	private includeTable: Set<IScoop>;
 	public readonly dependcyScoop: Set<IScoop>;
 	public readonly scoopLevel: number;
 
-	constructor(name: string, scoopLevel: number, enclosingScoop?: Maybe<IScoop>) {
+	constructor(name: string, scoopLevel: number, enclosingScoop?: Maybe<SymbolTable>) {
 		this.name = name;
 		this.scoopLevel = scoopLevel;
 		this.enclosingScoop = enclosingScoop;
@@ -52,6 +52,7 @@ export class SymbolTable implements IScoop {
 
 	public addInclude(table: IScoop) {
 		this.includeTable.add(table);
+		this.enclosingScoop?.addInclude(table);
 	}
 
 	public allSymbols(): ISymbol[] {

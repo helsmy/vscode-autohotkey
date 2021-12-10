@@ -491,6 +491,7 @@ export class TreeManager
                                     .concat(builtinVarCompletions);
         const symbols = scoop.allSymbols();
         return symbols.map(sym => this.convertSymCompletion(sym))
+                .concat(this.getGlobalCompletion())
                 .concat(keywordCompletions)
                 .concat(builtinVarCompletions);
     }

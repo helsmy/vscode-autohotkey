@@ -5,6 +5,7 @@
 2. bug fixs in if for call and new
 3. improve synchronize
 4. more bugs fixed see commit log
+5. fix parse error on multi-index `[]`, more check on hotkey token
 
 ## 0.5.0
 

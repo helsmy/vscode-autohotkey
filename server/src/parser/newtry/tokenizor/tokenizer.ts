@@ -551,6 +551,7 @@ export class Tokenizer {
         const offset = this.pos;
         
         this.Advance();
+        // TODO: 重写一下这个函数
         switch (preCharType) {
             case CharType.mark:
                 if (this.isWhiteSpace(this.currChar)) {
@@ -564,6 +565,7 @@ export class Tokenizer {
                     if (this.isHotkeyToken()) {
                         return this.CreateToken(TokenType.key, this.document[offset], p, this.genPosition());
                     }
+                    // FIXME: if在这里不会跳到else里，因为已经跳到这个if里了
                 }
                 else if (this.isHotkeyToken()) {
                     return this.CreateToken(TokenType.key, this.document[offset], p, this.genPosition());

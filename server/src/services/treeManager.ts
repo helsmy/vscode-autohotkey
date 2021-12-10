@@ -151,7 +151,7 @@ export class TreeManager
      */
     public initDocument(uri: string, doc: TextDocument) {
         this.currentDocUri = uri;
-        this.updateDocumentAST(uri, doc);
+        // this.updateDocumentAST(uri, doc);
     }
 
     /**
@@ -184,6 +184,13 @@ export class TreeManager
         //     uri: uri,
         //     diagnostics: mainTable.diagnostics
         // });
+
+        // Store AST first, before await document load
+        // In case of other async function run ahead
+        this.docsAST.set(uri, {
+            AST: ast,
+            table: docTable
+        });
         
         let useneed, useless: string[];
         if (oldInclude && ast.script.include) {
@@ -211,11 +218,8 @@ export class TreeManager
         } 
 
         if (useneed.length === 0) {
+            // just link its include and go.
             this.linkInclude(docTable, uri);
-            this.docsAST.set(uri, {
-                AST: ast,
-                table: docTable
-            });
             return
         }
         // EnumIncludes
@@ -226,12 +230,13 @@ export class TreeManager
         while (path) {
             const docDir = dirname(URI.parse(this.currentDocUri).fsPath);
             let p = this.include2Path(path, docDir);
-            if (!p) {
+            if (!p || this.localAST.has(URI.file(p).toString())) {
                 path = incQueue.shift();
                 continue;
             }
             // if is lib include, use lib dir
             // 我有必要一遍遍读IO来确认库文件存不存在吗？
+            
             const doc = await this.loadDocumnet(p);
             if (doc) {
                 const parser = new AHKParser(doc.getText(), doc.uri, this.logger);

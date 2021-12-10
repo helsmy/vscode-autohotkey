@@ -6,6 +6,7 @@
 3. improve synchronize
 4. more bugs fixed see commit log
 5. fix parse error on multi-index `[]`, more check on hotkey token
+6. fix bug that outline may not load 
 
 ## 0.5.0
 

@@ -410,8 +410,8 @@ export class Tokenizer {
                         matchTypes(preType, [
                         TokenType.EOL,
                         TokenType.hotkeyand
-                    ])) {
-                        return this.CheckHotkey(CharType.mark);
+                    ]) && this.CheckHotkey()) {
+                        return this.MatchHotkey(CharType.mark);
                     }
                     return this.GetString();
                 case "#":
@@ -425,8 +425,8 @@ export class Tokenizer {
                         matchTypes(preType, [
                         TokenType.EOL,
                         TokenType.hotkeyand
-                    ])) {
-                        return this.CheckHotkey(CharType.mark);
+                    ]) && this.CheckHotkey()) {
+                        return this.MatchHotkey(CharType.mark);
                     }
                     this.Advance();
                     if (this.currChar === '/') {
@@ -439,8 +439,9 @@ export class Tokenizer {
                 case '&':
                     if (this.isParseHotkey&&
                         this.isWhiteSpace(this.Peek()) && 
-                        this.isWhiteSpace(this.BackPeek())) {
-                        return this.CheckHotkey(CharType.hotand);
+                        this.isWhiteSpace(this.BackPeek()) &&
+                        this.CheckHotkey()) {
+                        return this.MatchHotkey(CharType.hotand);
                     }
                     this.Advance();
                     return this.CreateToken(TokenType.and, "&", p, this.genPosition());
@@ -474,8 +475,8 @@ export class Tokenizer {
                             matchTypes(preType, [
                             TokenType.EOL,
                             TokenType.hotkeyand
-                        ]) && this.isWhiteSpace(this.Peek())) {
-                            return this.CheckHotkey(CharType.digit);
+                        ]) && this.isWhiteSpace(this.Peek()) && this.CheckHotkey()) {
+                            return this.MatchHotkey(CharType.digit);
                         }
                         return this.GetNumber();
                     }
@@ -484,8 +485,8 @@ export class Tokenizer {
                             matchTypes(preType, [
                             TokenType.EOL,
                             TokenType.hotkeyand
-                        ])) {
-                            return this.CheckHotkey(CharType.char);
+                        ]) && this.CheckHotkey()) {
+                            return this.MatchHotkey(CharType.char);
                         }
                         return this.GetId(preType);
                     }
@@ -496,8 +497,8 @@ export class Tokenizer {
                             matchTypes(preType, [
                             TokenType.EOL,
                             TokenType.hotkeyand
-                        ])) {
-                            return this.CheckHotkey(CharType.mark);
+                        ]) && this.CheckHotkey()) {
+                            return this.MatchHotkey(CharType.mark);
                         }
                         return this.GetMark();
                     }
@@ -534,44 +535,105 @@ export class Tokenizer {
     }
 
     /**
+     * Check if current line is possible to be a hotkey define line
+     */ 
+    private CheckHotkey(): boolean {
+        const testStr = this.document.slice(this.pos, MaxHotkeyLength);
+        return testStr.search('::') !== -1;
+    }
+
+    /**
      * if is a hotkey token, tokentype is key
      * @param preCharType CharType of current check hotkey
      */
-    private CheckHotkey(preCharType: CharType): TokenResult {
+    private MatchHotkey(preCharType: CharType): TokenResult {
         const p = this.genPosition();
         const offset = this.pos;
+        
         this.Advance();
-        if (preCharType === CharType.mark) {
-            if (this.isWhiteSpace(this.currChar)) {
-                this.SikpWhiteSpace();
-                if (this.isHotkeyAndToken()) {
-                    if (this.MatchResultType(this.CheckHotkey(CharType.hotand), TokenType.key)) {
+        switch (preCharType) {
+            case CharType.mark:
+                if (this.isWhiteSpace(this.currChar)) {
+                    this.SikpWhiteSpace();
+                    if (this.isHotkeyAndToken()) {
+                        if (this.MatchResultType(this.MatchHotkey(CharType.hotand), TokenType.key)) {
+                            return this.CreateToken(TokenType.key, this.document[offset], p, this.genPosition());
+                        }
+                        else return this.GetMark();
+                    }
+                    if (this.isHotkeyToken()) {
                         return this.CreateToken(TokenType.key, this.document[offset], p, this.genPosition());
                     }
-                    else return this.GetMark();
                 }
-                if (this.isHotkeyToken()) {
+                else if (this.isHotkeyToken()) {
                     return this.CreateToken(TokenType.key, this.document[offset], p, this.genPosition());
                 }
-            }
-            else if (this.isHotkeyToken()) {
-                return this.CreateToken(TokenType.key, this.document[offset], p, this.genPosition());
-            }
-            else if (this.isAlpha(this.currChar) && this.currChar !== 'EOF') {
-                const key1 = this.GetId(TokenType.precent);
+                else if (this.isAlpha(this.currChar) && this.currChar !== 'EOF') {
+                    const key1 = this.GetId(TokenType.precent);
+                    if (this.isWhiteSpace(this.currChar)) {
+                        this.SikpWhiteSpace();
+                    }
+                    if (this.isHotkeyToken() || this.isHotkeyAndToken()) {
+                        const content = this.document[offset] + key1.result.content;
+                        return this.CreateToken(TokenType.key, content, p, key1.result.end);
+                    }
+                    // backwards
+                    this.BackTo(offset);
+                    return this.GetMark();
+                }
+                else if (this.isDigit(this.currChar)) {
+                    this.Advance();
+                    if (this.isWhiteSpace(this.currChar) ||
+                        this.currChar === ':') {
+                        this.SikpWhiteSpace();
+                        if (this.isHotkeyToken() ||
+                            this.isHotkeyAndToken()) {
+                            const content = this.document.slice(offset, this.pos);
+                            return this.CreateToken(TokenType.key, content, p, this.genPosition());
+                        }
+                    }
+                    this.BackTo(offset);
+                    return this.GetNumber();
+                }
+                else if (this.isHotkeyToken()) {
+                    return this.CreateToken(TokenType.key, this.document[offset], p, this.genPosition());
+                }
+                // mark
+                else {
+                    while (this.isMark(this.currChar) && this.currChar !== 'EOF') {
+                        this.Advance();
+                    }
+                    let marks = this.document.slice(offset, this.pos);
+                    let end = this.genPosition();
+                    if (this.isAlphaNumeric(this.currChar)) {
+                        const key1 = this.GetId(TokenType.precent);
+                        marks += key1.result.content;
+                        end = key1.result.end;
+                    }
+                    if (this.isWhiteSpace(this.currChar)) {
+                        this.SikpWhiteSpace();
+                    }
+                    if (this.isHotkeyToken() || this.isHotkeyAndToken()) {
+                        return this.CreateToken(TokenType.key, marks, p, end);
+                    }
+                    // backwards
+                    this.BackTo(offset);
+                    return this.GetMark();
+                }
+            case CharType.char:
+                this.BackTo(offset);
+                const key1 = this.GetId(TokenType.EOL);
+                // all keywords is not allowed
+                if (key1.result.type >= TokenType.if && key1.result.type <= TokenType.static)
+                    return key1;
                 if (this.isWhiteSpace(this.currChar)) {
                     this.SikpWhiteSpace();
                 }
                 if (this.isHotkeyToken() || this.isHotkeyAndToken()) {
-                    const content = this.document[offset] + key1.result.content;
-                    return this.CreateToken(TokenType.key, content, p, key1.result.end);
+                    return this.CreateToken(TokenType.key, key1.result.content, p, key1.result.end);
                 }
-                // backwards
-                this.pos = offset + 1
-                return this.GetMark();
-            }
-            else if (this.isDigit(this.currChar)) {
-                this.Advance();
+                return key1; 
+            case CharType.digit:
                 if (this.isWhiteSpace(this.currChar) ||
                     this.currChar === ':') {
                     this.SikpWhiteSpace();
@@ -583,88 +645,32 @@ export class Tokenizer {
                 }
                 this.BackTo(offset);
                 return this.GetNumber();
-            }
-            else if (this.isHotkeyToken()) {
-                return this.CreateToken(TokenType.key, this.document[offset], p, this.genPosition());
-            }
-            // mark
-            else {
-                while (this.isMark(this.currChar) && this.currChar !== 'EOF') {
-                    this.Advance();
-                }
-                let marks = this.document.slice(offset, this.pos);
-                let end = this.genPosition();
-                if (this.isAlphaNumeric(this.currChar)) {
-                    const key1 = this.GetId(TokenType.precent);
-                    marks += key1.result.content;
-                    end = key1.result.end;
-                }
+            case CharType.hotand:
                 if (this.isWhiteSpace(this.currChar)) {
                     this.SikpWhiteSpace();
                 }
-                if (this.isHotkeyToken() || this.isHotkeyAndToken()) {
-                    return this.CreateToken(TokenType.key, marks, p, end);
+                const key2 = this.MatchHotkey(
+                    this.isDigit(this.currChar) ?
+                    CharType.digit :
+                    this.isAlpha(this.currChar) ?
+                    CharType.char :
+                    CharType.mark
+                );
+        
+                // 根据运算符短路如果match了tokentype.key
+                // 那么就key2就是一个key
+                if (this.MatchResultType(key2, TokenType.key) &&
+                    this.MatchResultType(this.GetNextToken(TokenType.key), TokenType.hotkey)) {
+                    this.BackTo(offset+2);
+                    return this.CreateToken(TokenType.hotkeyand, ' & ', p, this.genPosition());
                 }
-                // backwards
+                const flag = this.isParseHotkey;
+                this.isParseHotkey = false;
                 this.BackTo(offset);
-                return this.GetMark();
-            }
+                const t = this.GetNextToken(TokenType.and);
+                this.isParseHotkey = flag;
+                return t;
         }
-
-        if (preCharType === CharType.char) {
-            this.BackTo(offset);
-            const key1 = this.GetId(TokenType.EOL);
-            // all keywords is not allowed
-            if (key1.result.type >= TokenType.if && key1.result.type <= TokenType.static)
-                return key1;
-            if (this.isWhiteSpace(this.currChar)) {
-                this.SikpWhiteSpace();
-            }
-            if (this.isHotkeyToken() || this.isHotkeyAndToken()) {
-                return this.CreateToken(TokenType.key, key1.result.content, p, key1.result.end);
-            }
-            return key1; 
-        }
-
-        if (preCharType === CharType.digit) {
-            if (this.isWhiteSpace(this.currChar) ||
-                this.currChar === ':') {
-                this.SikpWhiteSpace();
-                if (this.isHotkeyToken() ||
-                    this.isHotkeyAndToken()) {
-                    const content = this.document.slice(offset, this.pos);
-                    return this.CreateToken(TokenType.key, content, p, this.genPosition());
-                }
-            }
-            this.BackTo(offset);
-            return this.GetNumber();
-        }
-
-        // preCharType === CharType.hotand
-        if (this.isWhiteSpace(this.currChar)) {
-            this.SikpWhiteSpace();
-        }
-        const key2 = this.CheckHotkey(
-            this.isDigit(this.currChar) ?
-            CharType.digit :
-            this.isAlpha(this.currChar) ?
-            CharType.char :
-            CharType.mark
-        );
-
-        // 根据运算符短路如果match了tokentype.key
-        // 那么就key2就是一个key
-        if (this.MatchResultType(key2, TokenType.key) &&
-            this.MatchResultType(this.GetNextToken(TokenType.key), TokenType.hotkey)) {
-            this.BackTo(offset+2);
-            return this.CreateToken(TokenType.hotkeyand, ' & ', p, this.genPosition());
-        }
-        const flag = this.isParseHotkey;
-        this.isParseHotkey = false;
-        this.BackTo(offset);
-        const t = this.GetNextToken(TokenType.and);
-        this.isParseHotkey = flag;
-        return t;
     }
 
     /**
@@ -870,7 +876,7 @@ function matchTypes(type: TokenType, ts: TokenType[]) {
 }
 
 // Max length to find '::' token
-const MaxHotkeyLength = 55;
+const MaxHotkeyLength = 40;
 const MaxKeyLength = 16;
 
 // defines unicode range of all language letters

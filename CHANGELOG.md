@@ -4,6 +4,7 @@
 1. pre-release of recursive descent parser
 2. bug fixs in if for call and new
 3. improve synchronize
+4. more bugs fixed see commit log
 
 ## 0.5.0
 

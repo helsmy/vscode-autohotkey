@@ -462,6 +462,7 @@ export class AHKParser {
         this.jumpWhiteSpace();
         while (this.currentToken.type !== TokenType.closeBrace &&
             this.currentToken.type !== TokenType.EOF) {
+            // FIXME: 在192行左右有什么错误
             const stmt = this.declaration();
             errors.push(...stmt.errors);
             block.push(stmt.value);
@@ -1350,7 +1351,17 @@ export class AHKParser {
     private arrayBracket(): INodeResult<SuffixTerm.BracketIndex> {
         const open = this.currentToken;
         this.advance();
-        const index = this.expression();
+        const indexs: Expr.Expr[] = [];
+        const errors: ParseError[] = [];
+        
+        // Found all index and parse them
+        // [index, index, ...]
+        do {
+            const index = this.expression();
+            errors.push(...index.errors);
+            indexs.push(index.value);
+        } while (this.eatDiscardCR(TokenType.comma))
+
         const close = this.eatAndThrow(
             TokenType.closeBracket,
             'Expected a "]" at end of array index ',
@@ -1358,8 +1369,8 @@ export class AHKParser {
             );
 
         return nodeResult(
-            new SuffixTerm.BracketIndex(open, index.value, close),
-            index.errors
+            new SuffixTerm.BracketIndex(open, indexs, close),
+            errors
         );
     }
 

@@ -206,12 +206,12 @@ export class BracketIndex extends SuffixTermBase {
     /**
      * Constructor for the array bracket suffix term trailer
      * @param open open bracket
-     * @param index index into the collection
+     * @param indexs index into the collection
      * @param close close bracket
      */
     constructor(
         public readonly open: Token,
-        public readonly index: IExpr,
+        public readonly indexs: IExpr[],
         public readonly close: Token,
     ) {
         super();
@@ -226,11 +226,11 @@ export class BracketIndex extends SuffixTermBase {
     }
 
     public get ranges(): Range[] {
-        return [this.open, this.index, this.close];
+        return [this.open, ...this.indexs, this.close];
     }
 
     public toLines(): string[] {
-        const lines = this.index.toLines();
+        const lines = this.indexs.flatMap(i => i.toLines());
 
         lines[0] = `${this.open.content}${lines[0]}`;
         lines[lines.length - 1] = `${lines[lines.length - 1]}${this.close.content}`;

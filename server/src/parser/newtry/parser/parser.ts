@@ -71,6 +71,10 @@ export class AHKParser {
             if (this.currentToken.type === TokenType.EOL) {
                 const saveToken = this.currentToken;
                 this.currentToken = this.nextToken(saveToken.type);
+                // 跳过多余的换行
+                while (this.currentToken.type === TokenType.EOL) {
+                    this.currentToken = this.nextToken(this.currentToken.type);
+                }
                 // 下一行是运算符或者','时丢弃EOL
                 // discard EOL
                 if (this.currentToken.type >= TokenType.pplus &&
@@ -78,13 +82,6 @@ export class AHKParser {
                     this.tokens.push(this.currentToken);
                 }
                 else {
-                    // 跳过多余的换行
-                    if (this.currentToken.type === TokenType.EOL) {
-                        this.currentToken = this.nextToken(this.currentToken.type);
-                        while (this.currentToken.type === TokenType.EOL) {
-                            this.currentToken = this.nextToken(this.currentToken.type);
-                        }
-                    }
                     this.tokens.push(saveToken);
                     this.tokens.push(this.currentToken);
                     this.currentToken = saveToken;
@@ -1306,6 +1303,17 @@ export class AHKParser {
             } while (this.eatDiscardCR(TokenType.comma))
         }
 
+        // try to skip every wrong pair and close dictionary
+        if (this.currentToken.type !== TokenType.closeBrace) {
+            errors.push(this.error(
+                this.currentToken,
+                'Wrong Expression for key-value pairs',
+                SuffixTerm.Pair
+            ));
+            while (!this.matchTokens([TokenType.closeBrace]) && !this.atLineEnd()) {
+                this.advance();
+            }
+        }
         const close = this.eatAndThrow(
             TokenType.closeBrace,
             'Expect a "}" at the end of associative array',

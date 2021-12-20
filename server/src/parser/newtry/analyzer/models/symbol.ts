@@ -1,5 +1,5 @@
 import { IScoop, ISymbol, ISymType, VarKind } from '../types';
-import { CompletionItem, CompletionItemKind, Range, SymbolInformation, SymbolKind } from 'vscode-languageserver';
+import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver';
 
 export abstract class AHKSymbol implements ISymbol {
 	public readonly name: string;
@@ -27,6 +27,13 @@ export class BuiltinVaribelSymbol extends AHKSymbol {
 }
 
 export class VaribaleSymbol extends AHKSymbol {
+
+	/**
+	 * Temporary type marking for current usage
+	 * (one scan semantic parser)
+	 */
+	private tempType: Maybe<string>
+
 	/**
 	 * @param name Name of a variable
 	 * @param range Range of its defined area
@@ -43,6 +50,14 @@ export class VaribaleSymbol extends AHKSymbol {
 		super(name, type);
 	}
 
+	public setType(t: string) {
+		this.tempType = t;
+	}
+
+	public getType(): Maybe<string> {
+		return this.tempType;
+	}
+ 
 	toString(): string {
 		return this.type !== undefined ?
 			`<${this.name}: ${this.type.name}>` :

@@ -43,7 +43,8 @@ import {
 import {
     dirname,
     extname,
-    normalize
+    normalize,
+    isAbsolute
 } from 'path';
 import { homedir } from "os";
 import { IoEntity, IoKind, IoService } from './ioService';
@@ -564,6 +565,11 @@ export class TreeManager
             const SLibDir = normalize(this.SLibDir + '\\' + np);
             searchDir.push(dir, ULibDir, SLibDir);
         } 
+        // absolute dirctory
+        if (isAbsolute(p)) {
+            searchDir.push(p);
+        }
+        // relative dirctory
         else {
             const dir = normalize(docDir + '\\' + normalize(p));
             searchDir.push(dir);

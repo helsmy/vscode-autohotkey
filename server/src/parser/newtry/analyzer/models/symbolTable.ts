@@ -52,7 +52,6 @@ export class SymbolTable implements IScoop {
 
 	public addInclude(table: IScoop) {
 		this.includeTable.add(table);
-		this.enclosingScoop?.addInclude(table);
 	}
 
 	public allSymbols(): ISymbol[] {

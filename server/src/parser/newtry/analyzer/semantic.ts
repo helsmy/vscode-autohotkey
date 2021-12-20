@@ -19,7 +19,6 @@ interface ProcessResult {
 
 export class PreProcesser extends TreeVisitor<Diagnostics> {
 	private table: SymbolTable;
-	private supperGlobal: SymbolTable;
 	private stack: IScoop[];
 	private currentScoop: IScoop;
 
@@ -28,9 +27,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		
 	) {
 		super();
-		this.supperGlobal = new SymbolTable('supperGlobal', 0);
-		this.table = new SymbolTable('global', 1, this.supperGlobal);
-		this.supperGlobal.addScoop(this.table);
+		this.table = new SymbolTable('global', 1);
 		this.stack = [this.table];
 		this.currentScoop = this.stack[this.stack.length-1];
 	}
@@ -78,7 +75,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			for (const sym of vs) {
 				// global declaration in global
 				if (this.currentScoop.name === 'global')
-					this.supperGlobal.define(sym);
+					this.table.define(sym);
 				const globalSym = this.table.resolve(sym.name);
 				// if variable exists in global
 				// add it to local, make it visible in local
@@ -104,7 +101,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			copyRange(decl),
 			reqParams,
 			dfltParams,
-			this.supperGlobal,
+			this.table,
 			this.currentScoop instanceof AHKObjectSymbol ?
 				this.currentScoop : undefined
 		);
@@ -147,14 +144,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		);
 		const errors: Diagnostics = [];
 		
-		// supper global means we are in global scoop
-		if (this.currentScoop === this.supperGlobal) {
-			this.supperGlobal.define(objTable);
-			this.table.define(objTable);
-		} 
-		else {
-			this.currentScoop.define(objTable);
-		}
+		this.currentScoop.define(objTable);
 		this.enterScoop(objTable);
 		errors.push(... decl.body.accept(this, []));
 		this.leaveScoop();

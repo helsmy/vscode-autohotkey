@@ -2,6 +2,7 @@ import {
 	CompletionItem,
 	CompletionItemKind,
     Definition,
+    Diagnostic,
     IConnection,
     Location,
 	ParameterInformation,
@@ -49,7 +50,7 @@ import { IoEntity, IoKind, IoService } from './ioService';
 import { SymbolTable } from '../parser/newtry/analyzer/models/symbolTable';
 import { AHKParser } from '../parser/newtry/parser/parser';
 import { PreProcesser } from '../parser/newtry/analyzer/semantic';
-import { IAST } from '../parser/newtry/types';
+import { IAST, IParseError } from '../parser/newtry/types';
 import { IScoop, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
 import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, ScopedSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
 
@@ -184,6 +185,7 @@ export class TreeManager
         //     uri: uri,
         //     diagnostics: mainTable.diagnostics
         // });
+        // this.sendErrors(ast.sytanxErrors, uri);
 
         // Store AST first, before await document load
         // In case of other async function run ahead
@@ -293,6 +295,22 @@ export class TreeManager
             if (!incTable) continue;
             table.addInclude(incTable.table);
         }
+    }
+
+    private sendErrors(errors: IParseError[], uri: string) {
+        const diagnostics: Diagnostic[] = [];
+        for (const e of errors) {
+            diagnostics.push(
+                Diagnostic.create(
+                    Range.create(e.start, e.end),
+                    e.message
+                )
+            )
+        }
+        this.conn.sendDiagnostics({
+            uri: uri,
+            diagnostics: diagnostics
+        });
     }
 
 	public deleteUnusedDocument(uri: string) {

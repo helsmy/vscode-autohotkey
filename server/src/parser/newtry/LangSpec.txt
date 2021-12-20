@@ -5,9 +5,9 @@ program -> declaration*
 declaration -> ( statement
     | variableDeclaration
     | functionDeclaration
-	| classDeclaration
+    | classDeclaration
     | hotKeyDeclaration
-	| labelDeclaration
+    | labelDeclaration
 )
 
 variableDeclaration -> scope? identifier assignment? (, identifier assignment? )* '\n'
@@ -41,13 +41,13 @@ statement -> ( statementBlock
     | return
     | switch
     | for
-	| loopCount
+    | loopCount
     | loopUntil
-	| while
-	| try
-	| catch
-	| finally
-	| directive
+    | while
+    | try
+    | catch
+    | finally
+    | directive
 )
 
 // directive
@@ -157,7 +157,7 @@ sub_number -> [0-9] ([0-9_]* [0-9])*
 command -> idenitifer (',' commandExpression)*
 commandExpression -> ( rawString 
     | precentDef
-	| '%' singleLineStatement
+    | '%' singleLineStatement
 )
 
 // precent dereference

@@ -301,14 +301,14 @@ export class AHKParser {
         const classToken = this.eat();
         const name = this.eatAndThrow(
             TokenType.id,
-            'Expect an indentifier in class define',
+            'Expect an identifier in class define',
             Decl.ClassDef
         );
         if (this.currentToken.type === TokenType.extends) {
             const extendsToken = this.eat();
             const parentName = this.eatAndThrow(
                 TokenType.id,
-                'Expect an indentifier after "extends" keyword',
+                'Expect an identifier after "extends" keyword',
                 Decl.ClassDef
             );
             const body = this.block();
@@ -574,6 +574,7 @@ export class AHKParser {
         const cond = this.expression();
         errors.push(...cond.errors);
 
+        this.jumpWhiteSpace();
         const open = this.eatAndThrow(
             TokenType.openBrace,
             'Expect a "{"',
@@ -627,7 +628,11 @@ export class AHKParser {
                         );
                         break;
                     }
-                    // throw other label to default
+                // skip WhiteSpace
+                case TokenType.EOL:
+                    this.jumpWhiteSpace();
+                    continue;
+                // throw other label to default
                 default:
                     throw this.error(
                         this.currentToken,

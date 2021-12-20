@@ -190,7 +190,7 @@ export class Tokenizer {
             return this.CreateToken(keyword, value, p, this.genPosition());
         }
         if (preType === TokenType.EOL && this.currChar === ':') {
-            const pchar = this.Peek(); 
+            const pchar = this.Peek(1, true); 
             if (this.isWhiteSpace(pchar) || pchar === '\n') {
                 this.Advance();
                 return this.CreateToken(TokenType.label, value, p, this.genPosition());

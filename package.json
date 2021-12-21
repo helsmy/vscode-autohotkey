@@ -72,15 +72,37 @@
 					"default": "off",
 					"description": "Traces the communication between VS Code and the language server."
 				},
+				"AutohotkeyLangeuageServer.sendError": {
+					"scope": "application",
+					"type":"string",
+					"enum": [
+						"on",
+						"off"
+					],
+					"default": "off",
+					"description": "Send errors to client or not.(In progress)"
+				},
+				"AutohotkeyLangeuageServer.logLevel" : {
+					"scope": "application",
+					"type": "string",
+					"enum": [
+						"error",
+						"info",
+						"veberse",
+						"off"
+					],
+					"default": "info",
+					"description": "Log level for language server.(In progress)"
+				},
 				"AutohotkeyLanguageServer.documentLanguage": {
-					"scope": "resource",
+					"scope": "application",
 					"type": "string",
 					"enum": [
 						"no",
 						"CN"
 					],
 					"default": "no",
-					"description": "Which language document(for built-in functions[not available now] and varibles) to be used.'no' means no documents shown"
+					"description": "Which language document(for built-in functions[not available now] and varibles) to be used.'no' means no documents shown.(In progress)"
 				}
 			}
 		}

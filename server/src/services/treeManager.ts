@@ -200,10 +200,12 @@ export class TreeManager
             // useless need delete, useneed need to add
             // FIXME: delete useless include
             [useless, useneed] = setDiffSet(oldInclude, ast.script.include);
+            this.logger.info(`Got ${ast.script.include.size} include file. ${useneed.length} file to load.` )
         }
         else {
             useneed = ast.script.include ? [... ast.script.include] : [];
             useless = [];
+            this.logger.info(`Got ${useneed.length} include file to load.` )
         }
         // delete unused incinfo
         let incInfo = this.incInfos.get(doc.uri);
@@ -234,6 +236,7 @@ export class TreeManager
             const docDir = dirname(URI.parse(this.currentDocUri).fsPath);
             let p = this.include2Path(path, docDir);
             if (!p || this.localAST.has(URI.file(p).toString())) {
+                this.logger.info(`${p} is an invalid file name.`)
                 path = incQueue.shift();
                 continue;
             }
@@ -376,7 +379,7 @@ export class TreeManager
         const normalized = normalize(rawPath);
         switch (extname(normalized)) {
             case '.ahk':
-                if (dirname(normalized)[0] === '.') // if dir start as ../ or .
+                if (!isAbsolute(normalized)) // if dir start as ../ or .
                     return normalize(scriptDir + '\\' + normalized);
                 else    // absolute path
                     return normalized;
@@ -398,23 +401,6 @@ export class TreeManager
             default:
                 return undefined;
         }
-    }
-
-    /**
-     * A simple(vegetable) way to get all include AST of a document
-     * @returns SymbolNode[]-ASTs, document uri
-     */
-    private allIncludeTreeinfomation(docinfo: DocInfo): DocInfo[] {
-        const incInfo = this.incInfos.get(this.currentDocUri) || [];
-        let r: DocInfo[] = [];
-        for (const [path, raw] of incInfo) {
-            const uri = URI.file(path).toString();
-            const incDocInfo = this.localAST.get(uri);
-            if (incDocInfo) {
-                r.push(incDocInfo);
-            }
-        }    
-        return r;
     }
 
     public docSymbolInfo(): SymbolInformation[] {

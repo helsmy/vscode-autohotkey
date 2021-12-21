@@ -134,6 +134,7 @@ enum docLangName {
 interface AHKLSSettings {
 	maxNumberOfProblems: number;
 	documentLanguage: docLangName;			// which language doc to be used
+	sendError: 'on' | 'off';
 }
 
 // The global settings, used when the `workspace/configuration` request is not supported by the client.
@@ -141,23 +142,24 @@ interface AHKLSSettings {
 // but could happen with other clients.
 const defaultSettings: AHKLSSettings = { 
 	maxNumberOfProblems: 1000,
-	documentLanguage: docLangName.NO
+	documentLanguage: docLangName.NO,
+	sendError: 'off'
 };
 let globalSettings: AHKLSSettings = defaultSettings;
 
 // Cache the settings of all open documents
 let documentSettings: Map<string, Thenable<AHKLSSettings>> = new Map();
 
-connection.onDidChangeConfiguration(change => {
+connection.onDidChangeConfiguration(async change => {
 	if (hasConfigurationCapability) {
 		// Reset all cached document settings
 		documentSettings.clear();
 	} else {
+		logger.info(JSON.stringify(change.settings));
 		globalSettings = <AHKLSSettings>(
 			(change.settings.languageServerExample || defaultSettings)
 		);
 	}
-
 	// Revalidate all open text documents
 	documents.all().forEach(validateTextDocument);
 });
@@ -177,30 +179,9 @@ function getDocumentSettings(resource: string): Thenable<AHKLSSettings> {
 	return result;
 }
 
-function flatTree(tree: ISymbolNode[]): ISymbolNode[] {
-	let result: ISymbolNode[] = [];
-	tree.map(info => {
-		 // FIXME: temporary soluation, invaild -1 line marked builtin property
-		if (info.range.start.line !== -1) 
-			result.push(info);
-		if (info.subnode)
-			result.push(...flatTree(info.subnode));
-	});
-	return result;
-}
-
 connection.onDocumentSymbol(
 	(params: DocumentSymbolParams): SymbolInformation[] => {
-	// 	const tree = DOCManager.selectDocument(params.textDocument.uri).getTree();
 
-	// return flatTree(tree).map(info => {
-	// 	return SymbolInformation.create(
-	// 		info.name,
-	// 		info.kind,
-	// 		info.range,
-	// 		params.textDocument.uri
-	// 	);
-	// });
 	DOCManager.selectDocument(params.textDocument.uri);
 	return DOCManager.docSymbolInfo();
 });
@@ -257,8 +238,8 @@ documents.onDidChangeContent(change => {
 
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// In this simple example we get the settings for every validate run.
-	// let result = await getDocumentSettings(textDocument.uri);
-	// connection.console.log(result.documentLanguage);
+	let result = await getDocumentSettings(textDocument.uri);
+	connection.console.log(JSON.stringify(result));
 }
 
 connection.onDidChangeWatchedFiles(_change => {

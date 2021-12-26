@@ -234,9 +234,18 @@ export class TreeManager
         let path = incQueue.shift();
         while (path) {
             const docDir = dirname(URI.parse(this.currentDocUri).fsPath);
-            let p = this.include2Path(path, docDir);
-            if (!p || this.localAST.has(URI.file(p).toString())) {
-                this.logger.info(`${p} is an invalid file name.`)
+            const p = this.include2Path(path, docDir);
+            if (!p) {
+                this.logger.info(`${p} is an invalid file name.`);
+                path = incQueue.shift();
+                continue;
+            }
+            else if (this.localAST.has(URI.file(p).toString())) {
+                this.logger.info(`${path} is already loaded.`);
+                if (this.incInfos.has(uri))
+                    this.incInfos.get(uri)?.set(p, path);
+                else
+                    this.incInfos.set(uri, new Map([[p, path]]));
                 path = incQueue.shift();
                 continue;
             }

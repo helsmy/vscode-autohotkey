@@ -633,6 +633,45 @@ export class ForStmt extends Stmt {
 	}
 }
 
+export class Continue extends Stmt {
+	/**
+	 * 
+	 * @param continueToken break token
+	 * @param label label jumping to
+	 */
+	 constructor(
+		public readonly continueToken: Token,
+		public readonly label?: Token
+	) {
+		super();
+	}
+
+	public toLines(): string[] {
+		return this.label !== undefined ?
+			[`${this.continueToken.content} ${this.label.content}`] :
+			[`${this.continueToken.content}`];
+	}
+
+	public get start(): Position {
+		return this.continueToken.start;
+	}
+
+	public get end(): Position {
+		return this.continueToken.end;
+	}
+
+	public get ranges(): Range[] {
+		return [this.continueToken];
+	}
+
+	public accept<T extends (...args: any) => any>(
+	  visitor: IStmtVisitor<T>,
+	  parameters: Parameters<T>,
+	): ReturnType<T> {
+		return visitor.visitContinue(this, parameters);
+	}
+}
+
 export class Break extends Stmt {
 	/**
 	 * 
@@ -846,6 +885,42 @@ export class FinallyStmt extends Stmt {
 		parameters: Parameters<T>,
 	  ): ReturnType<T> {
 		return visitor.visitFinally(this, parameters);
+	}
+}
+
+export class Throw extends Stmt {
+	constructor(
+		public readonly throwToken: Token,
+		public readonly expr: Expr.Expr
+	) {
+		super();
+	}
+
+	public toLines(): string[] {
+		const exprLines = this.expr.toLines();
+
+		exprLines[0] = `${this.throwToken.content} ${exprLines[0]}`;
+
+		return exprLines;
+	}
+
+	public get start(): Position {
+		return this.throwToken.start;
+	}
+
+	public get end(): Position {
+		return this.expr.end;
+	}
+
+	public get ranges(): Range[] {
+		return [this.throwToken, this.expr];
+	}
+
+	public accept<T extends (...args: any) => any>(
+		visitor: IStmtVisitor<T>,
+		parameters: Parameters<T>,
+	  ): ReturnType<T> {
+		return visitor.visitThrow(this, parameters);
 	}
 }
 

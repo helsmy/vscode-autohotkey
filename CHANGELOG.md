@@ -7,6 +7,8 @@
 4. more bugs fixed see commit log
 5. fix parse error on multi-index `[]`, more check on hotkey token
 6. fix bug that outline may not load 
+7. fix include load wrong and path compeltion for absolute path
+8. fix bugs on parsing `else if` statement
 
 ## 0.5.0
 

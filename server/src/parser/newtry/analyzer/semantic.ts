@@ -351,6 +351,12 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		return [];
 	}
 
+	public visitContinue(stmt: Stmt.Continue): Diagnostics {
+		// Nothing need to do with break in propcesss
+		// Since label can be defined after break
+		return [];
+	}
+
 	public visitSwitch(stmt: Stmt.SwitchStmt): Diagnostics {
 		const errors: Diagnostics = [...this.processExpr(stmt.condition)];
 		// process every case
@@ -455,6 +461,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitFinally(stmt: Stmt.FinallyStmt): Diagnostics {
 		return stmt.body.accept(this, []);
+	}
+
+	public visitThrow(stmt: Stmt.Throw): Diagnostics {
+		return this.processExpr(stmt.expr);
 	}
 
 	private enterScoop(scoop: IScoop) {

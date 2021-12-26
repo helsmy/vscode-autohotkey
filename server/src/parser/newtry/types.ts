@@ -142,6 +142,7 @@ export interface IStmtVisitor<T extends (...args: any) => any> {
 	visitElse(stmt: Stmt.Else, parameters: Parameters<T>): ReturnType<T>;
 	visitReturn(stmt: Stmt.Return, parameters: Parameters<T>): ReturnType<T>;
 	visitBreak(stmt: Stmt.Break, parameters: Parameters<T>): ReturnType<T>;
+	visitContinue(stmt: Stmt.Continue, parameters: Parameters<T>): ReturnType<T>;
 	visitSwitch(stmt: Stmt.SwitchStmt, parameters: Parameters<T>): ReturnType<T>;
 	visitCase(stmt: Stmt.CaseStmt, parameters: Parameters<T>): ReturnType<T>;
 	visitLoop(stmt: Stmt.LoopStmt, parameters: Parameters<T>): ReturnType<T>;
@@ -150,5 +151,5 @@ export interface IStmtVisitor<T extends (...args: any) => any> {
 	visitTry(stmt: Stmt.TryStmt, parameters: Parameters<T>): ReturnType<T>;
 	visitCatch(stmt: Stmt.CatchStmt, parameters: Parameters<T>): ReturnType<T>;
 	visitFinally(stmt: Stmt.FinallyStmt, parameters: Parameters<T>): ReturnType<T>;
-
+	visitThrow(stmt: Stmt.Throw, parameters: Parameters<T>): ReturnType<T>;
 }

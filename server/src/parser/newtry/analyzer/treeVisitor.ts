@@ -68,6 +68,9 @@ export abstract class TreeVisitor<T> implements IStmtVisitor<() => T> {
 	visitBreak(stmt: Stmt.Break): T {
 		throw new Error('Need Implentment');
 	}
+	visitContinue(stmt: Stmt.Continue): T {
+		throw new Error('Need Implentment');
+	}
 	visitSwitch(stmt: Stmt.SwitchStmt): T {
 		throw new Error('Need Implentment');
 	}
@@ -90,6 +93,9 @@ export abstract class TreeVisitor<T> implements IStmtVisitor<() => T> {
 		throw new Error('Need Implentment');
 	}
 	visitFinally(stmt: Stmt.FinallyStmt): T {
+		throw new Error('Need Implentment');
+	}
+	visitThrow(stmt: Stmt.Throw): T {
 		throw new Error('Need Implentment');
 	}
 }

@@ -282,10 +282,10 @@ export class TreeManager
         try {
             const c = await this.retrieveResource(uri);
             let document = TextDocument.create(uri.toString(), 'ahk', 0, c);
-            return document
+            return document;
         }
         catch (err) {
-            // TODO: log exception here
+            this.logger.error(`Can not load file from ${path}`);
             return undefined;
         }
     }
@@ -309,7 +309,7 @@ export class TreeManager
                     Range.create(e.start, e.end),
                     e.message
                 )
-            )
+            );
         }
         this.conn.sendDiagnostics({
             uri: uri,

@@ -397,6 +397,8 @@ export class AHKParser {
                 return this.ifStmt();
             case TokenType.break:
                 return this.breakStmt();
+            case TokenType.continue:
+                return this.continueStmt();
             case TokenType.return:
                 return this.returnStmt();
             case TokenType.switch:
@@ -409,6 +411,8 @@ export class AHKParser {
                 return this.forStmt();
             case TokenType.try:
                 return this.tryStmt();
+            case TokenType.throw:
+                return this.throwStmt();
             case TokenType.drective:
                 return this.drective();
             case TokenType.command:
@@ -489,26 +493,15 @@ export class AHKParser {
         errors.push(...body.errors);
 
         // parse else branch if found else
-        if (this.eatDiscardCR(TokenType.else)) {
-            const elsetoken = this.previous();
-            let elifcondition: Maybe<INodeResult<Expr.Expr>> = undefined;
-            if (this.matchTokens([TokenType.if])) {
-                const eliftoken = this.eat();
-                elifcondition = this.expression();
-                errors.push(...elifcondition.errors);
-            }
-            const body = this.declaration();
-            errors.push(...body.errors);
+        this.jumpWhiteSpace();
+        if (this.currentToken.type === TokenType.else) {
+            const elseStmt = this.elseStmt();
+            errors.push(...elseStmt.errors);
             return nodeResult(
                 new Stmt.If(
                     iftoken,
                     condition.value,
-                    body.value,
-                    new Stmt.Else(
-                        elsetoken,
-                        body.value,
-                        elifcondition?.value
-                    )
+                    elseStmt.value
                 ),
                 errors
             );
@@ -518,6 +511,31 @@ export class AHKParser {
             new Stmt.If(
                 iftoken,
                 condition.value,
+                body.value
+            ),
+            errors
+        );
+    }
+
+    private elseStmt(): INodeResult<Stmt.Else> {
+        const elsetoken = this.eat();
+        const errors: ParseError[] = [];
+        if (this.matchTokens([TokenType.if])) {
+            const elif = this.ifStmt();
+            errors.push(...elif.errors);
+            return nodeResult(
+                new Stmt.Else(
+                    elsetoken,
+                    elif.value
+                ),
+                errors
+            );
+        }
+        const body = this.declaration();
+        errors.push(...body.errors);
+        return nodeResult(
+            new Stmt.Else(
+                elsetoken,
                 body.value
             ),
             errors
@@ -565,6 +583,24 @@ export class AHKParser {
         }
         this.terminal(Stmt.Return);
         return nodeResult(new Stmt.Return(returnToken), []);
+    }
+
+    private continueStmt(): INodeResult<Stmt.Continue> {
+        const continueToken = this.eat();
+        if (!this.atLineEnd()) {
+            this.eatDiscardCR(TokenType.comma);
+            const label = this.eatAndThrow(
+                TokenType.id,
+                'Expect a label name',
+                Stmt.Continue
+            );
+            this.terminal(Stmt.Break);
+            return nodeResult(
+                new Stmt.Continue(continueToken, label),
+                []
+            );
+        }
+        return nodeResult(new Stmt.Continue(continueToken), []);
     }
 
     private switchStmt(): INodeResult<Stmt.SwitchStmt> {
@@ -672,6 +708,7 @@ export class AHKParser {
             if (this.currentToken.type === TokenType.label && 
                 this.currentToken.content === 'default')
                 break;
+            this.jumpWhiteSpace();
         } while (!this.matchTokens([
             TokenType.case,
             TokenType.closeBrace
@@ -836,6 +873,15 @@ export class AHKParser {
         return nodeResult(
             new Stmt.TryStmt(tryToken, body.value, catchStmt, finallyStmt),
             errors
+        );
+    }
+
+    private throwStmt(): INodeResult<Stmt.Throw> {
+        const throwToken = this.eat();
+        const expr = this.expression();
+        return nodeResult(
+            new Stmt.Throw(throwToken, expr.value),
+            expr.errors
         );
     }
 

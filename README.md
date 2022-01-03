@@ -51,7 +51,7 @@ For vim user, how to use this extension in vim.
 * Snippets
 * Code Completion
 * Document symbol(class, method, variable, label, hotkey) 
-* Goto Definition
+* Goto Definition(only works for "code", file name is not supported for now)
 * Signature Helper (tooltip for method parameters)
 * Enumerate include documents
   * The documents must be explicitly included by `#include`

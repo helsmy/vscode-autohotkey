@@ -373,7 +373,7 @@ export class AHKParser {
             Decl.HotString
         );
         // TODO: FINISH X OPTION
-        if (this.currentToken.type === TokenType.EOL) {
+        if (this.atLineEnd()) {
             const expend = this.eat();
             return nodeResult(new Decl.HotString(option, str, expend), []);
         }
@@ -723,6 +723,7 @@ export class AHKParser {
         // if no expression follows, check if is until loop
         if (this.matchTokens([
             TokenType.EOL,
+            TokenType.EOF,
             TokenType.openBrace
         ])) {
             this.jumpWhiteSpace();
@@ -752,6 +753,7 @@ export class AHKParser {
         if (this.currentToken.type === TokenType.comma) {
             while (!this.matchTokens([
                 TokenType.EOL,
+                TokenType.EOF,
                 TokenType.openBrace
             ])) {
                 this.advance();
@@ -902,7 +904,7 @@ export class AHKParser {
         const errors: ParseError[] = [];
         const args: IExpr[] = [];
         this.advance();
-        while (this.currentToken.type !== TokenType.EOL) {
+        while (!this.atLineEnd()) {
             const a = this.expression();
             errors.push(...a.errors);
             args.push(a.value);

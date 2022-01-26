@@ -2,7 +2,7 @@
 	"name": "ahk-simple-ls",
 	"displayName": "AutoHotKey Simple Support",
 	"description": "Simple ahkls with advanced features.",
-	"version": "0.8.22",
+	"version": "0.8.23",
 	"author": "helsmy",
 	"license": "LGPLv3.0",
 	"repository": {
@@ -48,7 +48,7 @@
 			{
 				"language": "ahk",
 				"scopeName": "source.ahk",
-				"path": "./syntaxes/ahk.tmLanguage"
+				"path": "./syntaxes/ahk.tmGrammar.json"
 			}
 		],
 		"snippets": [

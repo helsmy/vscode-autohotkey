@@ -19,3 +19,5 @@ client/node_modules/*
 Abandoned
 pic
 scripts
+syntaxes/**
+!syntaxes/ahk.tmGrammar.json

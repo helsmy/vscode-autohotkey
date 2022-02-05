@@ -905,6 +905,8 @@ export class AHKParser {
         const args: IExpr[] = [];
         this.advance();
         while (!this.atLineEnd()) {
+            if (this.matchTokens([TokenType.comma]))
+                this.eat();
             const a = this.expression();
             errors.push(...a.errors);
             args.push(a.value);

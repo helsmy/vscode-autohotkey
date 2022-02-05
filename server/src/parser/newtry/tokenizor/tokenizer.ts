@@ -277,7 +277,10 @@ export class Tokenizer {
                this.currChar !== 'EOF') {
             this.Advance();
         }
-        this.Advance().Advance();
+        // take RAW_STRING:: as a whole token
+        // eg. {content: "abcde::"}
+        // addtional 2 advancement for "::"
+        this.Advance().Advance().Advance();
         if (offset === this.pos) 
             return this.CreateError('', p, this.genPosition());
         const content = this.document.slice(offset, this.pos);
@@ -289,6 +292,7 @@ export class Tokenizer {
             this.SikpWhiteSpace();
         }
         const offset = this.pos;
+        // FIXME: "/r" and "/r/n" return line
         if (this.currChar === '\n') {
             // check  multi-line expend
             if (this.Peek() === '(') {
@@ -302,7 +306,7 @@ export class Tokenizer {
         }
         
         const p = this.genPosition();
-        while (this.currChar !== '\n') {
+        while (this.currChar !== '\n' && this.currChar !== 'EOF') {
             this.Advance();
         }
         const content = this.document.slice(offset, this.pos);
@@ -438,9 +442,13 @@ export class Tokenizer {
                     return this.SkipLineComment();
                 case '&':
                     if (this.isParseHotkey&&
-                        this.isWhiteSpace(this.Peek()) && 
-                        this.isWhiteSpace(this.BackPeek()) &&
                         this.CheckHotkey()) {
+                        if (preType === TokenType.hotkey &&
+                            this.isWhiteSpace(this.Peek()) && 
+                            this.isWhiteSpace(this.BackPeek())) {
+                                this.Advance();
+                                return this.CreateToken(TokenType.hotkeyand, "&", p, this.genPosition())
+                            }
                         return this.MatchHotkey(CharType.hotand);
                     }
                     this.Advance();
@@ -528,6 +536,7 @@ export class Tokenizer {
                 if (this.currChar === '-') this.Advance();
                 this.NumberAdvance();
             }
+            this.Advance();
         } 
         // take as a ':' key
         this.BackTo(offset + 1);
@@ -538,8 +547,10 @@ export class Tokenizer {
      * Check if current line is possible to be a hotkey define line
      */ 
     private CheckHotkey(): boolean {
-        const testStr = this.document.slice(this.pos, MaxHotkeyLength);
-        return testStr.search('::') !== -1;
+        const testStr = this.document.slice(this.pos, this.pos + MaxHotkeyLength);
+        const retPos = testStr.search('[\r\n]');
+        const hotkeyPos = testStr.search('::');
+        return  hotkeyPos !== -1 ? (retPos > hotkeyPos) : false;
     }
 
     /**
@@ -661,10 +672,13 @@ export class Tokenizer {
         
                 // 根据运算符短路如果match了tokentype.key
                 // 那么就key2就是一个key
-                if (this.MatchResultType(key2, TokenType.key) &&
-                    this.MatchResultType(this.GetNextToken(TokenType.key), TokenType.hotkey)) {
+                if (this.MatchResultType(key2, TokenType.key)) {
                     this.BackTo(offset+2);
                     return this.CreateToken(TokenType.hotkeyand, ' & ', p, this.genPosition());
+                }
+                else if (this.MatchResultType(key2, TokenType.hotkey)) {
+                    this.BackTo(offset+1);
+                    return this.CreateToken(TokenType.key, '&', p, this.genPosition());
                 }
                 const flag = this.isParseHotkey;
                 this.isParseHotkey = false;
@@ -740,42 +754,7 @@ export class Tokenizer {
         if (r.kind === TokenKind.Diagnostic) return false;
         return r.result.type === t;
     }
-    // public FirstToken(): Token {
-    //     this.SikpWhiteSpace();
-    //     // skip empty line
-    //     while (this.currChar === '\n') {
-    //         this.AdvanceLine();
-    //         if (this.isWhiteSpace(this.currChar))
-    //             this.SikpWhiteSpace();
-    //     }
-    //     // skip whitespace at begin
-    //     if (this.isWhiteSpace(this.currChar)) {
-    //         this.SikpWhiteSpace();
-    //     }
-    //     // check if is drective
-    //     if (this.currChar === '#') {
-    //         return this.GetDrectivesOrSharp();
-    //     }
-    //     else if (this.currChar === '/' && this.Peek() === '*') {
-    //         this.SkipBlockComment();
-    //     }
-    //     if (this.isHotkey()) {
-    //         this.keyAdvance();
-
-    //         if (this.currChar === ' ' &&
-    //             this.Peek() === '&' &&
-    //             this.Peek(2) === ' ') {
-    //             const p = this.genPosition();
-    //             this.Advance().Advance().Advance();
-    //             const t = new Token(TokenType.hotkeyand, ' & ', p, this.genPosition());
-    //             this.tempTokenArray.push(t);
-
-    //             // check next key
-    //             this.keyAdvance();
-    //         }
-    //     }
-    // }
-
+    
     private isDigit(s: string): boolean {
         return s >= '0' && s <= '9';
     }

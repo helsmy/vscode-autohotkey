@@ -1653,7 +1653,7 @@ export class AHKParser {
         );
 
         // if is parameter*
-        if (isExtend) {
+        if (isExtend || this.currentToken.type === TokenType.multi) {
             const star = this.eat();
             return nodeResult(
                 new Decl.DefaultParam(

@@ -6,8 +6,7 @@ import {
 	builtin_command
 } from "./builtins";
 
-export const serverName = 'mock-ahk-vscode';
-export const languageServer = 'ahk-language-server';
+export const ServerName = 'ahk-simple-language-server';
 
 export const keywords = [
 	'class',    'extends', 'if',

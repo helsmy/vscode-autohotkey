@@ -25,7 +25,8 @@ import {
 	CancellationToken,
 	DefinitionParams,
 	Definition,
-	CompletionParams
+	CompletionParams,
+	DidChangeConfigurationParams
 } from 'vscode-languageserver';
 
 import {
@@ -35,7 +36,7 @@ import {
 	buildKeyWordCompletions,
 	buildbuiltin_variable,
 	// serverName,
-	languageServer
+	ServerName
 } from './utilities/constants'
 
 import { builtin_variable } from "./utilities/builtins";
@@ -43,22 +44,52 @@ import { Lexer } from './parser/regParser/ahkparser'
 import { TreeManager } from './services/treeManager';
 import { ISymbolNode } from './parser/regParser/types';
 import { Logger } from './utilities/logger';
+import { 
+	AHKLSSettings, 
+	docLangName,
+	ServerConfiguration
+} from './parser/newtry/config/serverConfiguration';
+import { ConfigurationService } from './services/configurationService';
+import { IClientCapabilities } from './types';
 
 
 // Create a connection for the server, using Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
-let connection = createConnection(ProposedFeatures.all);
+const connection = createConnection(ProposedFeatures.all);
 
 // Create a simple text document manager. 
-let documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
+const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 let hasConfigurationCapability: boolean = false;
 let hasWorkspaceFolderCapability: boolean = false;
 let hasDiagnosticRelatedInformationCapability: boolean = false;
+// The global settings, used when the `workspace/configuration` request is not supported by the client.
+// Please note that this is not the case when using this server with the client provided in this example
+// but could happen with other clients.
+export const defaultSettings = new ServerConfiguration(
+	1000,
+	docLangName.NO,
+	'off',
+	'info',
+	{
+		hasConfiguration : hasConfigurationCapability, 
+		hasWorkspaceFolder: hasWorkspaceFolderCapability
+	}
+)
+
+let globalSettings: AHKLSSettings = defaultSettings;
+
+// Cache the settings of all open documents
+let documentSettings: Map<string, Thenable<AHKLSSettings>> = new Map();
+
 const logger = new Logger(connection.console);
-let keyWordCompletions: CompletionItem[] = buildKeyWordCompletions();
-let builtinVariableCompletions: CompletionItem[] = buildbuiltin_variable();
-let DOCManager: TreeManager = new TreeManager(connection, logger);
+const keyWordCompletions: CompletionItem[] = buildKeyWordCompletions();
+const builtinVariableCompletions: CompletionItem[] = buildbuiltin_variable();
+const DOCManager: TreeManager = new TreeManager(connection, logger);
+const configurationService = new ConfigurationService(
+	defaultSettings,
+	connection
+);
 
 connection.onInitialize((params: InitializeParams) => {
 	let capabilities = params.capabilities;
@@ -77,10 +108,17 @@ connection.onInitialize((params: InitializeParams) => {
 		capabilities.textDocument.publishDiagnostics.relatedInformation
 	);
 
+	const clientCapability: IClientCapabilities = {
+		hasConfiguration: hasConfigurationCapability,
+		hasWorkspaceFolder: hasWorkspaceFolderCapability
+	}
+
+	configurationService.updateConfiguration({clientCapability: clientCapability});
+
 	const result: InitializeResult = {
 		serverInfo: {
 			// The name of the server as defined by the server.
-			name: languageServer,
+			name: ServerName,
 	
 			// The servers's version as defined by the server.
 			// version: this.version,
@@ -113,7 +151,9 @@ connection.onInitialize((params: InitializeParams) => {
 connection.onInitialized(() => {
 	if (hasConfigurationCapability) {
 		// Register for all configuration changes.
-		connection.client.register(DidChangeConfigurationNotification.type, undefined);
+		connection.client.register(DidChangeConfigurationNotification.type, {
+			section: ServerName
+		});
 	}
 	if (hasWorkspaceFolderCapability) {
 		connection.workspace.onDidChangeWorkspaceFolders(_event => {
@@ -122,47 +162,19 @@ connection.onInitialized(() => {
 	}
 });
 
-/**
- * Name of AHK document language 
- */
-enum docLangName {
-	CN = 'CN',
-	NO = 'no'		// No Doc
-};
-
-// The AHK Language Server settings
-interface AHKLSSettings {
-	maxNumberOfProblems: number;
-	documentLanguage: docLangName;			// which language doc to be used
-	sendError: 'on' | 'off';
-}
-
-// The global settings, used when the `workspace/configuration` request is not supported by the client.
-// Please note that this is not the case when using this server with the client provided in this example
-// but could happen with other clients.
-const defaultSettings: AHKLSSettings = { 
-	maxNumberOfProblems: 1000,
-	documentLanguage: docLangName.NO,
-	sendError: 'off'
-};
-let globalSettings: AHKLSSettings = defaultSettings;
-
-// Cache the settings of all open documents
-let documentSettings: Map<string, Thenable<AHKLSSettings>> = new Map();
-
-connection.onDidChangeConfiguration(async change => {
-	if (hasConfigurationCapability) {
-		// Reset all cached document settings
-		documentSettings.clear();
-	} else {
-		logger.info(JSON.stringify(change.settings));
-		globalSettings = <AHKLSSettings>(
-			(change.settings.languageServerExample || defaultSettings)
-		);
-	}
-	// Revalidate all open text documents
-	documents.all().forEach(validateTextDocument);
-});
+// connection.onDidChangeConfiguration(async (change: DidChangeConfigurationParams) => {
+// 	if (hasConfigurationCapability) {
+// 		// Reset all cached document settings
+// 		documentSettings.clear();
+// 	} else {
+// 		logger.info(JSON.stringify(change.settings));
+// 		globalSettings = <AHKLSSettings>(
+// 			(change.settings[ServerName] || defaultSettings)
+// 		);
+// 	}
+// 	// Revalidate all open text documents
+// 	documents.all().forEach(validateTextDocument);
+// });
 
 function getDocumentSettings(resource: string): Thenable<AHKLSSettings> {
 	if (!hasConfigurationCapability) {
@@ -172,7 +184,7 @@ function getDocumentSettings(resource: string): Thenable<AHKLSSettings> {
 	if (!result) {
 		result = connection.workspace.getConfiguration({
 			scopeUri: resource,
-			section: 'AutohotkeyLanguageServer'
+			section: ServerName
 		});
 		documentSettings.set(resource, result);
 	}

@@ -329,15 +329,81 @@ export class AHKParser {
     }
 
     // TODO:  class block statement
-    // private classBlock(): INodeResult<Stmt.Block> {
-    //     switch (this.currentToken.type) {
-    //         case TokenType.id:
-    //             switch (this.peek().type) {
-    //                 case TokenType.openBracket:
+    private classBlock(): INodeResult<Stmt.Block> {
+        const open = this.eatDiscardCR(TokenType.openBrace);
+        if (!open) {
+            throw this.error(
+                this.currentToken,
+                'Expect a "{" at begining of block',
+                Stmt.Block
+            );
+        }
+        const errors: ParseError[] = [];
+        const block: Stmt.Stmt[] = [];
+        this.jumpWhiteSpace();
+        while (this.currentToken.type !== TokenType.closeBrace &&
+            this.currentToken.type !== TokenType.EOF) {
+            switch (this.currentToken.type) {
+                case TokenType.id:
+                    const p = this.peek();
+                    // function
+                    if (p.type === TokenType.openParen) {
+                        const name = this.eat();
+                        const stmt = this.funcDefine(name);
+                        errors.push(...stmt.errors);
+                        block.push(stmt.value);
+                        break;
+                    }
+                    // getter setter with parameter
+                    else if (p.type === TokenType.openBracket) {
+                        const stmt = this.propMethod();
+                        errors.push(...stmt.errors);
+                        block.push(stmt.value);
+                        break;
+                    }
+                    else if (p.type === TokenType.openBrace) {
+                        const name = this.eat();
+                        const body = this.block();
+                        errors.push(...body.errors);
+                        block.push(new Decl.FuncDef(
+                            name, new Decl.Param(
+                                NullToken, [], [], NullToken
+                            ),
+                            body.value
+                        ));
+                        break;
+                    }
+            }
+            const stmt = this.declaration();
+            errors.push(...stmt.errors);
+            block.push(stmt.value);
+            this.jumpWhiteSpace();
+        }
+        const close = this.eatAndThrow(
+            TokenType.closeBrace,
+            'Expect a "}" at block end',
+            Stmt.Block
+        );
 
-    //             }
-    //     }
-    // }
+        return nodeResult(
+            new Stmt.Block(open, block, close),
+            errors
+        );
+    }
+
+    private propMethod(): INodeResult<Decl.FuncDef> {
+        const name = this.eat();
+        const parameter = this.parameters(TokenType.closeBracket, 'Expect a "]"');
+        const block = this.block();
+        return nodeResult(
+            new Decl.FuncDef(
+                name,
+                parameter.value,
+                block.value
+            ),
+            parameter.errors.concat(block.errors)
+        );
+    }
 
     private label(): INodeResult<Decl.Label> {
         const name = this.currentToken;
@@ -1514,7 +1580,9 @@ export class AHKParser {
     }
 
     private funcDefine(name: Token): INodeResult<Decl.FuncDef> {
-        let parameters = this.parameters();
+        // getter/setter 的语法和函数的参数语法就差个括号形式不一样
+        // 整个解析函数就差最后失败原因的参数，结果就只能写得这么蠢OTZ
+        let parameters = this.parameters(TokenType.closeParen, 'Expect a ")"');
         let block = this.block();
         let errors = parameters.errors.concat(block.errors);
         return {
@@ -1559,7 +1627,7 @@ export class AHKParser {
         );
     }
 
-    private parameters(): INodeResult<Decl.Param> {
+    private parameters(closeTokenType: TokenType, closeFailMessage: string): INodeResult<Decl.Param> {
         const open = this.eat();
         const errors: ParseError[] = [];
         const requiredParameters: Decl.Parameter[] = [];
@@ -1616,8 +1684,8 @@ export class AHKParser {
         }
 
         const close = this.eatAndThrow(
-            TokenType.closeParen,
-            'Expect a ")"',
+            closeTokenType,
+            closeFailMessage,
             Decl.Param
         );
         return nodeResult(
@@ -1834,3 +1902,5 @@ export class AHKParser {
     }
 
 }
+
+const NullToken = new Token(TokenType.unknown, '', Position.create(-1, -1), Position.create(-1, -1));

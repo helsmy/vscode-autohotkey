@@ -26,7 +26,7 @@ import {
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
-import {buildKeyWordCompletions, languageServer} from './utilities/constants'
+import {buildKeyWordCompletions, ServerName} from './utilities/constants'
 import { threadId } from 'worker_threads';
 
 export class AHKLS {
@@ -74,7 +74,7 @@ export class AHKLS {
 		return {
 			serverInfo: {
 				// The name of the server as defined by the server.
-				name: languageServer,
+				name: ServerName,
 		
 				// The servers's version as defined by the server.
 				// version: this.version,

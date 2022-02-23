@@ -533,7 +533,12 @@
     },
     "string-unquoted-multi-line": {
       "name": "string.unquoted.multi.ahk",
-      "begin": "(\\()",
+      "begin": "(\\(\\s*)(((\\b(?i:Join|LTrim|RTrim0|Comments|Comment|Com|C)+|[%,`])\\s*)+)?(\\n)",
+      "beginCaptures": {
+        "2": {
+          "name": "storage.modifier.multiline.ahk"
+        }
+      },
       "end": "(\\))",
       "patterns": [
         {

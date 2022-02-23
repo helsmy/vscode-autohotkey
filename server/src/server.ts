@@ -5,28 +5,21 @@
 import {
 	createConnection,
 	TextDocuments,
-	Diagnostic,
-	DiagnosticSeverity,
 	ProposedFeatures,
 	InitializeParams,
 	DidChangeConfigurationNotification,
 	CompletionItem,
 	CompletionItemKind,
-	TextDocumentPositionParams,
 	TextDocumentSyncKind,
 	InitializeResult,
 	SymbolInformation,
 	DocumentSymbolParams,
-	SymbolKind,
 	SignatureHelpParams,
 	SignatureHelp,
-	SignatureInformation,
-	ParameterInformation,
 	CancellationToken,
 	DefinitionParams,
 	Definition,
 	CompletionParams,
-	DidChangeConfigurationParams
 } from 'vscode-languageserver';
 
 import {
@@ -40,16 +33,14 @@ import {
 } from './utilities/constants'
 
 import { builtin_variable } from "./utilities/builtins";
-import { Lexer } from './parser/regParser/ahkparser'
 import { TreeManager } from './services/treeManager';
-import { ISymbolNode } from './parser/regParser/types';
 import { Logger } from './utilities/logger';
 import { 
 	AHKLSSettings, 
 	docLangName,
 	ServerConfiguration
 } from './parser/newtry/config/serverConfiguration';
-import { ConfigurationService } from './services/configurationService';
+import { ChangeConfiguration, ConfigurationService } from './services/configurationService';
 import { IClientCapabilities } from './types';
 
 
@@ -63,20 +54,23 @@ const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 let hasConfigurationCapability: boolean = false;
 let hasWorkspaceFolderCapability: boolean = false;
 let hasDiagnosticRelatedInformationCapability: boolean = false;
-// The global settings, used when the `workspace/configuration` request is not supported by the client.
-// Please note that this is not the case when using this server with the client provided in this example
-// but could happen with other clients.
-export const defaultSettings = new ServerConfiguration(
+
+const defaultSettings = new ServerConfiguration(
 	1000,
 	docLangName.NO,
-	'off',
-	'info',
+	false,
+	{
+		level: 'info'
+	},
 	{
 		hasConfiguration : hasConfigurationCapability, 
 		hasWorkspaceFolder: hasWorkspaceFolderCapability
 	}
 )
 
+// The global settings, used when the `workspace/configuration` request is not supported by the client.
+// Please note that this is not the case when using this server with the client provided in this example
+// but could happen with other clients.
 let globalSettings: AHKLSSettings = defaultSettings;
 
 // Cache the settings of all open documents
@@ -114,6 +108,7 @@ connection.onInitialize((params: InitializeParams) => {
 	}
 
 	configurationService.updateConfiguration({clientCapability: clientCapability});
+	onConfigChange(configurationService);
 
 	const result: InitializeResult = {
 		serverInfo: {
@@ -162,19 +157,13 @@ connection.onInitialized(() => {
 	}
 });
 
-// connection.onDidChangeConfiguration(async (change: DidChangeConfigurationParams) => {
-// 	if (hasConfigurationCapability) {
-// 		// Reset all cached document settings
-// 		documentSettings.clear();
-// 	} else {
-// 		logger.info(JSON.stringify(change.settings));
-// 		globalSettings = <AHKLSSettings>(
-// 			(change.settings[ServerName] || defaultSettings)
-// 		);
-// 	}
-// 	// Revalidate all open text documents
-// 	documents.all().forEach(validateTextDocument);
-// });
+function onConfigChange(change: ChangeConfiguration) {
+	const serverConfiguration = change.serverConfiguration;
+	if (DOCManager.sendError != serverConfiguration.sendError) {
+		DOCManager.sendError = serverConfiguration.sendError;
+		DOCManager.updateErrors();
+	}
+}
 
 function getDocumentSettings(resource: string): Thenable<AHKLSSettings> {
 	if (!hasConfigurationCapability) {
@@ -314,6 +303,8 @@ connection.onCompletionResolve(
 		return item;
 	}
 );
+
+configurationService.on('change', onConfigChange);
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events

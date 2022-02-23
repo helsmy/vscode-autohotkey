@@ -9,11 +9,6 @@ export enum docLangName {
 };
 
 /**
- * Representing for sending something or not
- */
-type SendBool = 'on' | 'off';
-
-/**
  * Log level of server
  */
 type LogLevel = 'error' | 'info'| 'veberse' | 'off'
@@ -22,16 +17,18 @@ type LogLevel = 'error' | 'info'| 'veberse' | 'off'
 export interface AHKLSSettings {
     maxNumberOfProblems: number;
     documentLanguage: docLangName;            // which language doc to be used
-    sendError: SendBool;
-    logLevel: LogLevel;
+    sendError: boolean;
+    traceServer: {
+        level: LogLevel
+    }
 }
 
 export class ServerConfiguration implements AHKLSSettings {
 	constructor(
 		public readonly maxNumberOfProblems: number,
         public readonly documentLanguage: docLangName,
-        public readonly sendError: SendBool,
-        public readonly logLevel: LogLevel,
+        public readonly sendError: boolean,
+        public readonly traceServer: {level: LogLevel},
         public readonly clientCapability: IClientCapabilities
 	) {
 
@@ -43,11 +40,11 @@ export class ServerConfiguration implements AHKLSSettings {
      */
     public merge(config: Partial<ServerConfiguration>): ServerConfiguration {
         return new ServerConfiguration(
-            config.maxNumberOfProblems || this.maxNumberOfProblems,
-            config.documentLanguage || this.documentLanguage,
-            config.sendError || this.sendError,
-            config.logLevel || this.logLevel,
-            config.clientCapability || this.clientCapability
+            config.maxNumberOfProblems ?? this.maxNumberOfProblems,
+            config.documentLanguage ?? this.documentLanguage,
+            config.sendError ?? this.sendError,
+            config.traceServer ?? this.traceServer,
+            config.clientCapability ?? this.clientCapability
         );
     }
 

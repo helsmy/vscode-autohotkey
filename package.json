@@ -61,7 +61,7 @@
 			"type": "object",
 			"title": "AutoHotKeySimpleSupport",
 			"properties": {
-				"ahk-simple-language-server.trace.server.verbosity": {
+				"ahk-simple-language-server.trace.server": {
 					"scope": "window",
 					"type": "string",
 					"enum": [
@@ -72,7 +72,7 @@
 					"default": "off",
 					"description": "Traces the communication between VS Code and the language server."
 				},
-				"ahk-simple-language-server.trace.server.level" : {
+				"ahk-simple-language-server.traceServer.level" : {
 					"scope": "window",
 					"type": "string",
 					"enum": [
@@ -86,12 +86,8 @@
 				},
 				"ahk-simple-language-server.sendError": {
 					"scope": "window",
-					"type":"string",
-					"enum": [
-						"on",
-						"off"
-					],
-					"default": "off",
+					"type":"boolean",
+					"default": false,
 					"description": "Send errors to client or not.(In progress)"
 				},
 				"ahk-simple-language-server.documentLanguage": {

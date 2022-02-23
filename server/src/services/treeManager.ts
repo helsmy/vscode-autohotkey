@@ -129,6 +129,8 @@ export class TreeManager
      */
     private readonly ULibDir: string;
 
+    public sendError: boolean = false;
+
 	constructor(conn: IConnection, logger: ILoggerBase) {
         this.conn = conn;
 		this.serverDocs = new Map();
@@ -186,7 +188,9 @@ export class TreeManager
         //     uri: uri,
         //     diagnostics: mainTable.diagnostics
         // });
-        // this.sendErrors(ast.sytanxErrors, uri);
+        if (this.sendError) {
+            this.sendErrors(ast.sytanxErrors, uri);
+        }
 
         // Store AST first, before await document load
         // In case of other async function run ahead
@@ -324,6 +328,19 @@ export class TreeManager
             uri: uri,
             diagnostics: diagnostics
         });
+    }
+
+    public updateErrors() {
+        const uri = this.currentDocUri;
+        if (this.sendError) {
+            const ast = this.docsAST.get(uri);
+            if (ast) {
+                this.sendErrors(ast.AST.sytanxErrors, uri);
+            }
+        }
+        else {
+            this.sendErrors([], uri);
+        }
     }
 
 	public deleteUnusedDocument(uri: string) {

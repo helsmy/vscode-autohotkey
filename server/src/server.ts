@@ -1,7 +1,8 @@
-/* --------------------------------------------------------------------------------------------
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for license information.
- * ------------------------------------------------------------------------------------------ */
+/**
+ * Based on Microsoft language server examples under MIT LICENSE
+ * Modify and rewirte by helsmy (github.com/helsmy)
+ */
+
 import {
 	createConnection,
 	TextDocuments,
@@ -222,10 +223,7 @@ documents.onDidOpen(async e => {
 	DOCManager.initDocument(e.document.uri, e.document);
 });
 
-// Only keep settings for open documents
 documents.onDidClose(e => {
-	// delete document infomation that is closed
-	documentSettings.delete(e.document.uri);
 	//TODO: better sulotion about close document
 	DOCManager.deleteUnusedDocument(e.document.uri);
 });

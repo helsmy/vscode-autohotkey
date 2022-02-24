@@ -2,7 +2,7 @@
 	"name": "ahk-simple-ls",
 	"displayName": "AutoHotKey Simple Support",
 	"description": "Simple ahkls with advanced features.",
-	"version": "0.8.24",
+	"version": "0.8.25",
 	"author": "helsmy",
 	"license": "LGPLv3.0",
 	"repository": {
@@ -88,7 +88,7 @@
 					"scope": "window",
 					"type":"boolean",
 					"default": false,
-					"description": "Send errors to client or not.(In progress)"
+					"description": "(Preview)Send errors to client or not. Only for debugging now"
 				},
 				"ahk-simple-language-server.documentLanguage": {
 					"scope": "application",

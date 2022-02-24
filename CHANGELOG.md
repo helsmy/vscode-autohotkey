@@ -11,6 +11,7 @@
 8. fix bugs on parsing `else if` statement
 9. fix bugs on drective
 10. update highlight
+11. add option for sending errors. update highlight (0.8.25)
 
 ## 0.5.0
 

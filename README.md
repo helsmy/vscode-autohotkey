@@ -7,15 +7,15 @@ AutoHotKey language support for VS Code
 
 ## What's New
 
-1. Better highlight
-2. **Recursive descent parser** is ready !! It is under alpha stage, if you want to use old one, you can go to [here](https://github.com/helsmy/vscode-autohotkey/releases/tag/0.5.10) to download it
-3. Experimental hint for where symbol is included on completion. ONLY work on global symbol.
-4. Enumerate include
+1. Settings name changed. `AutohotkeyLanguageServer --> ahk-simple-language-server`
+2. Better highlight
+3. **Recursive descent parser** is ready !! It is under alpha stage, if you want to use old one, you can go to [here](https://github.com/helsmy/vscode-autohotkey/releases/tag/0.5.10) to download it
+4. Experimental hint for where symbol is included on completion. ONLY work on global symbol.
+5. Enumerate include
    * Documents must be explicitly included by `#include`
    * **Notice** `#include DirName` are not implemented now
    * Include completion
    * Experimental support for `#include <LibName>`
-5. Document formation, supports both v1 and v2 
 6. Build-in Variable and Function(partly) hint.
    - Need documentions which is easy to be parsed by js/ts. If you find any, help please([Example](others/Contribute.md)).
 

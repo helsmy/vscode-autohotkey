@@ -39,6 +39,8 @@ repository:
                             \b(?<!\.)(?i:
                                 global | local | static | byref
                             )\b
+                  - name: variable.language.this.ahk
+                    match: \b(?i:this)\b
       class-declaration:
             patterns:
                   - name: meta.class.ahk

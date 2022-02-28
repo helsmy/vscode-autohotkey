@@ -75,6 +75,10 @@
         {
           "name": "storage.modifier.declaration.ahk",
           "match": "(?x)\n  \\b(?<!\\.)(?i:\n      global | local | static | byref\n  )\\b\n"
+        },
+        {
+          "name": "variable.language.this.ahk",
+          "match":"\\b(?i:this)\\b"
         }
       ]
     },

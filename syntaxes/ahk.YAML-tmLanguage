@@ -350,7 +350,7 @@ repository:
                     name: support.function.ahk
       builtin-variable:
             patterns:
-                  - name: support.constant.language.builtin.ahk
+                  - name: support.type.language.builtin.ahk
                     match: >
                           (?x)
                             \b(?<!\.)(?i:

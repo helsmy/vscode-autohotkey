@@ -12,6 +12,8 @@
 9. fix bugs on drective
 10. update highlight
 11. add option for sending errors. update highlight (0.8.25)
+12. improve highlighting (0.8.26)
+13. support continuation section (0.8.26)
 
 ## 0.5.0
 

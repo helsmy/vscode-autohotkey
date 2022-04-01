@@ -60,12 +60,21 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			}
 			// Define static property of class
 			vs.forEach(v => this.currentScoop.define(v));
+			return errors;
 		}
 
 		// global and local declaration is not allowed in class
 		// report errors and return
-		if (this.currentScoop instanceof AHKObjectSymbol) 
+		if (this.currentScoop instanceof AHKObjectSymbol) {
+			// TODO: 正确的local和global错误信息
+			errors.push(
+				this.error(
+					Range.create(decl.start, decl.end),
+					'global and local are not allowed in class body'
+				)
+			);
 			return errors;
+		}
 
 		// TODO: 变量在local和global上重复定义的问题
 		// Define global and local variable

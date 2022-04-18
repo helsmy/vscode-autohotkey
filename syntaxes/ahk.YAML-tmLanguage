@@ -115,7 +115,7 @@ repository:
             patterns:
                   - include: "#comment"
                   - include: "#parameter-name"
-                  - include: "#variable-initializer"
+                  # - include: "#variable-initializer"
       parameter-name:
             match: (?i:(byref)\s+)?([_$[:alpha:]_]\w*)\*?\s*(?:(,)|(?=[)=(?::=)]))
             captures:
@@ -269,7 +269,7 @@ repository:
                   )\b
       string:
             patterns:
-                  - include: "#string-quoted-multi-line"
+                  # - include: "#string-quoted-multi-line"
                   - include: "#string-quoted-line"
       string-quoted-line:
             name: string.quoted.ahk
@@ -277,25 +277,29 @@ repository:
             beginCaptures:
                   "0":
                         name: punctuation.definition.string.begin.ahk
-            end: (?:(\1)(?!\1))|(\n)
+            end: (?:(\1)(?!\1))|(?:^[\s\t]*\)(\1)(?!\1))
             endCaptures:
                   "0":
                         name: punctuation.definition.string.end.ahk
             patterns:
                   - include: "#string-escaped-char"
-      string-quoted-multi-line:
-            name: string.quoted.multi.ahk
-            begin: (")(?=\s*\n)
-            beginCaptures:
-                  "0":
-                        name: punctuation.definition.string.begin.ahk
-            end: (\)\s*")
-            endCaptures:
-                  "0":
-                        name: punctuation.definition.string.end.ahk
-            patterns:
                   - include: "#string-multi-line-modifier"
-                  - include: "#string-escaped-char"
+      string-error-end:
+            name: invalid.string.end.ahk
+            match: ^[\s\t]*(?:\")
+      # string-quoted-multi-line:
+      #       name: string.quoted.multi.ahk
+      #       begin: (")(?=\s*\n)
+      #       beginCaptures:
+      #             "0":
+      #                   name: punctuation.definition.string.begin.ahk
+      #       end: (\)\s*")
+      #       endCaptures:
+      #             "0":
+      #                   name: punctuation.definition.string.end.ahk
+      #       patterns:
+      #             - include: "#string-multi-line-modifier"
+      #             - include: "#string-escaped-char"
       string-unquoted-multi-line:
             name: string.unquoted.multi.ahk
             begin: (\(\s*)(((\b(?i:Join|LTrim|RTrim0|Comments|Comment|Com|C)+|[%,`])\s*)+)?(\n)
@@ -313,7 +317,7 @@ repository:
                   - match: "`."
                     name: invalid.illegal.unknown-escape.ahk
       string-multi-line-modifier:
-            match: (\(\s*)(((\b(?i:Join|LTrim|RTrim0|Comments|Comment|Com|C)+|[%,`])\s*)+)
+            match: ^[\s\t]*(\(\s*)(((\b(?i:Join|LTrim|RTrim0|Comments|Comment|Com|C)+|[%,`])\s*)+)
             captures:
                   "2":
                         name: storage.modifier.multiline.ahk
@@ -350,7 +354,7 @@ repository:
                     name: support.function.ahk
       builtin-variable:
             patterns:
-                  - name: support.type.language.builtin.ahk
+                  - name: support.variable.language.builtin.ahk
                     match: >
                           (?x)
                             \b(?<!\.)(?i:

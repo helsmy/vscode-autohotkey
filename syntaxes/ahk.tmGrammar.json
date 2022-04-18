@@ -78,7 +78,7 @@
         },
         {
           "name": "variable.language.this.ahk",
-          "match":"\\b(?i:this)\\b"
+          "match": "\\b(?i:this)\\b"
         }
       ]
     },
@@ -220,9 +220,6 @@
         },
         {
           "include": "#parameter-name"
-        },
-        {
-          "include": "#variable-initializer"
         }
       ]
     },
@@ -485,9 +482,6 @@
     "string": {
       "patterns": [
         {
-          "include": "#string-quoted-multi-line"
-        },
-        {
           "include": "#string-quoted-line"
         }
       ]
@@ -500,7 +494,7 @@
           "name": "punctuation.definition.string.begin.ahk"
         }
       },
-      "end": "(?:(\\1)(?!\\1))|(\\n)",
+      "end": "(?:(\\1)(?!\\1))|(?:^[\\s\\t]*\\)(\\1)(?!\\1))",
       "endCaptures": {
         "0": {
           "name": "punctuation.definition.string.end.ahk"
@@ -509,31 +503,15 @@
       "patterns": [
         {
           "include": "#string-escaped-char"
+        },
+        {
+          "include": "#string-multi-line-modifier"
         }
       ]
     },
-    "string-quoted-multi-line": {
-      "name": "string.quoted.multi.ahk",
-      "begin": "(\")(?=\\s*\\n)",
-      "beginCaptures": {
-        "0": {
-          "name": "punctuation.definition.string.begin.ahk"
-        }
-      },
-      "end": "(\\)\\s*\")",
-      "endCaptures": {
-        "0": {
-          "name": "punctuation.definition.string.end.ahk"
-        }
-      },
-      "patterns": [
-        {
-          "include": "#string-multi-line-modifier"
-        },
-        {
-          "include": "#string-escaped-char"
-        }
-      ]
+    "string-error-end": {
+      "name": "invalid.string.end.ahk",
+      "match": "^[\\s\\t]*(?:\\\")"
     },
     "string-unquoted-multi-line": {
       "name": "string.unquoted.multi.ahk",
@@ -566,7 +544,7 @@
       ]
     },
     "string-multi-line-modifier": {
-      "match": "(\\(\\s*)(((\\b(?i:Join|LTrim|RTrim0|Comments|Comment|Com|C)+|[%,`])\\s*)+)",
+      "match": "^[\\s\\t]*(\\(\\s*)(((\\b(?i:Join|LTrim|RTrim0|Comments|Comment|Com|C)+|[%,`])\\s*)+)",
       "captures": {
         "2": {
           "name": "storage.modifier.multiline.ahk"

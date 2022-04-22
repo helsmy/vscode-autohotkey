@@ -115,7 +115,7 @@
         "commandPalette": [
             {
                 "command": "AutohotkeySS.runCurrentFile",
-                "when": "resourceLangId == ahk && !virtualWorkspace && shellExecutionSupported"
+                "when": "editorLangId == ahk"
             }
         ], 
         "editor/title/run": [

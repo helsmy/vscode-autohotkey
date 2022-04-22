@@ -10,8 +10,11 @@ import {
 	ExtensionContext,
 	DocumentSelector,
 	languages,
-	commands
+	commands,
+	window
 } from 'vscode';
+
+// import { TerminalManager } from './terminalManger'
 
 import {
 	LanguageClient,
@@ -19,6 +22,7 @@ import {
 	ServerOptions,
 	TransportKind
 } from 'vscode-languageclient';
+import { CommandManger } from './commandManger';
 
 import { FormatProvider } from "./formattingProvider";
 
@@ -26,10 +30,10 @@ let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
 	// Register run file command
-	context.subscriptions.push(commands.registerCommand(
-		'AutohotkeySS.runCurrentFile',
-		runFileCommandHandler
-	));
+	const commandManger = new CommandManger();
+	commandManger.subscript(context);
+
+	// window.onDidOpenTerminal(e => console.log(e.name));
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(

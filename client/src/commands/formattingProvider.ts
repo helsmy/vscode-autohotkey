@@ -1,4 +1,18 @@
 import * as vscode from "vscode";
+interface FormatOptions {
+    indent_size: string,
+    indent_char: string,
+    max_preserve_newlines: string,
+    preserve_newlines: boolean,
+    keep_array_indentation: boolean,
+    break_chained_methods: boolean,
+    indent_scripts: string,
+    brace_style: string,
+    space_before_conditional: boolean,
+    wrap_line_length: string,
+    space_after_anon_function: boolean,
+    jslint_happy: boolean
+}
 
 function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
     const lastLineId = document.lineCount - 1;
@@ -6,15 +20,46 @@ function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
 }
 
 export class FormatProvider implements vscode.DocumentFormattingEditProvider {
+    private readonly defaultOptions: FormatOptions;
+    
+    constructor() {
+        this.defaultOptions = {
+            "indent_size": "1",
+            "indent_char": "\t",
+            "max_preserve_newlines": "2",
+            "preserve_newlines": true,
+            "keep_array_indentation": false,
+            "break_chained_methods": false,
+            "indent_scripts": "keep",
+            "brace_style": "collapse",
+            "space_before_conditional": true,
+            "wrap_line_length": "0",
+            "space_after_anon_function": true,
+            "jslint_happy": true
+        };
+    }
+
     public provideDocumentFormattingEdits(document: vscode.TextDocument, options: vscode.FormattingOptions, token: vscode.CancellationToken): vscode.ProviderResult<vscode.TextEdit[]> {
-        let opts = { "indent_size": "1", "indent_char": "\t", "max_preserve_newlines": "2", "preserve_newlines": true, "keep_array_indentation": false, "break_chained_methods": false, "indent_scripts": "keep", "brace_style": "collapse", "space_before_conditional": true, "wrap_line_length": "0", "space_after_anon_function": true, "jslint_happy": true };
-        if (options.insertSpaces) {
-            opts.indent_char = " ", opts.indent_size = options.tabSize.toString();
-        }
+        return this.syncProvideFormattingEdits(document, options);
+    }
+
+    public syncProvideFormattingEdits(document: vscode.TextDocument, options: vscode.FormattingOptions): vscode.TextEdit[] {
+        const opts = this.ConvertOptions(options);
         let formatDocument = (new Beautifier(document.getText(fullDocumentRange(document)), opts)).beautify();
-        const result = [];
+        const result: vscode.TextEdit[] = [];
         result.push(new vscode.TextEdit(fullDocumentRange(document), formatDocument));
         return result;
+    }
+
+    private ConvertOptions(options:vscode.FormattingOptions): FormatOptions {
+        if (options.insertSpaces) {
+            return {
+                indent_char: " ",
+                indent_size: options.tabSize.toString(),
+                ...this.defaultOptions
+            }
+        }
+        return this.defaultOptions;
     }
 }
 

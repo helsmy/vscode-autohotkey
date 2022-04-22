@@ -48,9 +48,14 @@
             {
                 "category": "AutoHotkey",
                 "command": "AutohotkeySS.runCurrentFile",
-                "title": "Run Autohotkey File",
+                "title": "Run Current File",
                 "icon": "$(play)"
-            }    
+            },
+            {
+                "category": "AutoHotkey",
+                "command": "AutohotkeySS.formatDocument",
+                "title": "Format Current File"
+            }
         ],
         "grammars": [
             {
@@ -114,6 +119,10 @@
             "commandPalette": [
                 {
                     "command": "AutohotkeySS.runCurrentFile",
+                    "when": "editorLangId == ahk"
+                },
+                {
+                    "command": "AutohotkeySS.formatDocument",
                     "when": "editorLangId == ahk"
                 }
             ], 

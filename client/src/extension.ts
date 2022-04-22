@@ -17,18 +17,14 @@ import {
 	ServerOptions,
 	TransportKind
 } from 'vscode-languageclient';
-import { CommandManger } from './commandManger';
-
-import { FormatProvider } from "./formattingProvider";
+import { CommandManger } from './commands/commandManger';
 
 let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
-	// Register run file command
+	// Register command
 	const commandManger = new CommandManger();
 	commandManger.subscript(context);
-
-	// window.onDidOpenTerminal(e => console.log(e.name));
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(
@@ -58,11 +54,6 @@ export function activate(context: ExtensionContext) {
 			fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
 		}
 	};
-
-	// TODO: Implement in language server
-	const ds: DocumentSelector = { language: "ahk" };
-	const fpHandler = languages.registerDocumentFormattingEditProvider(ds, new FormatProvider());
-	context.subscriptions.push(fpHandler);
 
 	// Create the language client and start the client.
 	client = new LanguageClient(

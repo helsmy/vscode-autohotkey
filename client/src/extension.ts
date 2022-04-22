@@ -1,6 +1,7 @@
 /* --------------------------------------------------------------------------------------------
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for license information.
+ * Autohotkey Simple language server vscode client
+ * based on Microsoft language server examples under MIT LICENSE
+ * Modified and rewirted by helsmy (github.com/helsmy)
  * ------------------------------------------------------------------------------------------ */
 
 import * as path from 'path';
@@ -8,7 +9,8 @@ import {
 	workspace, 
 	ExtensionContext,
 	DocumentSelector,
-	languages
+	languages,
+	commands
 } from 'vscode';
 
 import {
@@ -23,6 +25,12 @@ import { FormatProvider } from "./formattingProvider";
 let client: LanguageClient;
 
 export function activate(context: ExtensionContext) {
+	// Register run file command
+	context.subscriptions.push(commands.registerCommand(
+		'AutohotkeySS.runCurrentFile',
+		runFileCommandHandler
+	));
+
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(
 		path.join('server', 'out', 'server.js')
@@ -74,4 +82,8 @@ export function deactivate(): Thenable<void> | undefined {
 		return undefined;
 	}
 	return client.stop();
+}
+
+function runFileCommandHandler() {
+	console.log('AutohotkeySimpleSupport Run File!');
 }

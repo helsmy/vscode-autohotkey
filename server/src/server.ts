@@ -1,6 +1,6 @@
 /**
  * Based on Microsoft language server examples under MIT LICENSE
- * Modify and rewirte by helsmy (github.com/helsmy)
+ * Modified and rewirted by helsmy (github.com/helsmy)
  */
 
 import {

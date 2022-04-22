@@ -1,7 +1,8 @@
-import { Terminal, TerminalOptions, window, Uri } from 'vscode';
+import { commands, ExtensionContext, Terminal, TerminalOptions, window } from 'vscode';
 import { TerminalManager } from './terminalManger';
+import { ICommnad } from './types';
 
-export class RunFileCommand {
+export class RunFileCommand implements ICommnad {
 	/**
 	 * API to vscode terminal
 	 */
@@ -29,7 +30,16 @@ export class RunFileCommand {
 		this.ownTerminal = undefined;
 	}
 
-	public executeFile() {
+	public subscript(commandName: string, context: ExtensionContext) {
+		context.subscriptions.push(
+			commands.registerCommand(
+				commandName,
+				this.execute.bind(this)
+			)
+		);
+	}
+
+	public execute() {
 		const runtime = '"C:\\Program Files\\AutoHotkey\\AutoHotkeyU64.exe"';
 		const activeEditor = window.activeTextEditor
 

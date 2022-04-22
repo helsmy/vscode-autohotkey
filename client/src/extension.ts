@@ -9,13 +9,8 @@ import {
 	workspace, 
 	ExtensionContext,
 	DocumentSelector,
-	languages,
-	commands,
-	window
+	languages
 } from 'vscode';
-
-// import { TerminalManager } from './terminalManger'
-
 import {
 	LanguageClient,
 	LanguageClientOptions,
@@ -86,8 +81,4 @@ export function deactivate(): Thenable<void> | undefined {
 		return undefined;
 	}
 	return client.stop();
-}
-
-function runFileCommandHandler() {
-	console.log('AutohotkeySimpleSupport Run File!');
 }

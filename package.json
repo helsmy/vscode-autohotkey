@@ -109,23 +109,23 @@
                     "description": "Which language document(for built-in functions[not available now] and varibles) to be used.'no' means no documents shown.(In progress)"
                 }
             }
+        },
+        "menus": {
+            "commandPalette": [
+                {
+                    "command": "AutohotkeySS.runCurrentFile",
+                    "when": "editorLangId == ahk"
+                }
+            ], 
+            "editor/title/run": [
+                {
+                    "command": "AutohotkeySS.runCurrentFile",
+                    "group": "navigation@0",
+                    "title": "%autoHotkey.command.AutohotkeySS.runCurrentFile.title%",
+                    "when": "resourceLangId == ahk && !isInDiffEditor && !virtualWorkspace && shellExecutionSupported"
+                }
+            ]
         }
-    },
-    "menus": {
-        "commandPalette": [
-            {
-                "command": "AutohotkeySS.runCurrentFile",
-                "when": "editorLangId == ahk"
-            }
-        ], 
-        "editor/title/run": [
-            {
-                "command": "AutohotkeySS.runCurrentFile",
-                "group": "navigation@0",
-                "title": "%autoHotkey.command.AutohotkeySS.runCurrentFile.title%",
-                "when": "resourceLangId == ahk && !isInDiffEditor && !virtualWorkspace && shellExecutionSupported"
-            }
-        ]
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",

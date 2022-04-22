@@ -1,9 +1,8 @@
 import { ExtensionContext, commands } from 'vscode';
 import { RunFileCommand } from "./runFileCommnad";
+import { ICommnad } from './types';
 
-interface ICommandList {
-    ["AutohotkeySS.runCurrentFile"]: RunFileCommand 
-}
+type ICommandList = {[k: string]: ICommnad} 
 
 export class CommandManger {
     private commandList: ICommandList
@@ -15,10 +14,8 @@ export class CommandManger {
     }
 
     public subscript(context: ExtensionContext) {
-        context.subscriptions.push(commands.registerCommand(
-            "AutohotkeySS.runCurrentFile",
-            this.commandList['AutohotkeySS.runCurrentFile'].executeFile
-                .bind(this.commandList['AutohotkeySS.runCurrentFile'])
-        ));
+        for (const name in this.commandList) {
+            this.commandList[name].subscript(name, context);
+        }
     }
 }

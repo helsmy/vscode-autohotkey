@@ -1,4 +1,4 @@
-import { commands, ExtensionContext, Terminal, TerminalOptions, window } from 'vscode';
+import { commands, ExtensionContext, Terminal, TerminalOptions, window, workspace } from 'vscode';
 import { TerminalManager } from './terminalManger';
 import { ICommand } from './types';
 
@@ -40,9 +40,24 @@ export class RunFileCommand implements ICommand {
     }
 
     public execute() {
-        // FIXME: No hardcode runtime path
-        const runtime = '"C:\\Program Files\\AutoHotkey\\AutoHotkeyU64.exe"';
+        const runtime = workspace
+                        .getConfiguration('ahk-simple-language-server')
+                        .get('runtimePath') as string;
         const activeEditor = window.activeTextEditor
+        if (runtime === '' || /^[\s\t]+$/.test(runtime)) {
+            window.showErrorMessage(
+                'RunTime path is empty. Please check Settings>Ahk-simple-language-server:runtimePath',
+                'Go to settings'
+            ).then(s => {
+                // if `Go to settings` button is pressed
+                if (s)
+                    commands.executeCommand(
+                        'workbench.action.openSettings', 
+                        'Ahk-simple-language-server:runtimePath'
+                    );
+            });
+            return;
+        }
 
         if (!this.ownTerminal) {
             this.ownTerminal = this.terminalManager.createTerminal(this.termianlOption);
@@ -55,8 +70,22 @@ export class RunFileCommand implements ICommand {
 
             // Send command and redirect stdout to console
             this.ownTerminal.sendText(
-                ['&', runtime, filePath.replace('/', '\\'), '| echo'].join(' ')
+                ['&', this.pathGuard(runtime), this.pathGuard(filePath), '| echo'].join(' ')
             );
         }
+    }
+
+    /**
+     * Convert path to be safety for command line
+     * @param p path string
+     */
+    private pathGuard(p: string): string {
+        if (/[\s\t]+/.test(p)) {
+            p = '"' + p + '"';
+        }
+        if (p.search('/')) {
+            p = p.replace('/', '\\');
+        }
+        return p;
     }
 }

@@ -1,5 +1,5 @@
-import { commands, DocumentSelector, ExtensionContext, languages, TextEditor, TextEditorEdit, window } from 'vscode';
-import { CancellationToken, FormattingOptions } from 'vscode-languageclient';
+import { commands, DocumentSelector, ExtensionContext, languages, TextEditor, TextEditorEdit } from 'vscode';
+import { FormattingOptions } from 'vscode-languageclient';
 import { FormatProvider } from './formattingProvider';
 import { ICommand } from './types';
 
@@ -21,7 +21,6 @@ export class FormatCommand implements ICommand {
         ));
     }
 
-    // FIXME: edit只能在callback内同步执行，异步会让edit没做callback内执行
     execute(textEditor: TextEditor, edit: TextEditorEdit): void {
         const result = this.provider.syncProvideFormattingEdits(
             textEditor.document, 

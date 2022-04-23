@@ -1,17 +1,21 @@
 import * as vscode from "vscode";
 interface FormatOptions {
-    indent_size: string,
+    indent_size: number,
     indent_char: string,
-    max_preserve_newlines: string,
+    max_preserve_newlines: number,
     preserve_newlines: boolean,
     keep_array_indentation: boolean,
     break_chained_methods: boolean,
     indent_scripts: string,
     brace_style: string,
     space_before_conditional: boolean,
-    wrap_line_length: string,
+    wrap_line_length: number,
     space_after_anon_function: boolean,
-    jslint_happy: boolean
+    jslint_happy: boolean,
+    braces_on_own_line?: boolean,
+    space_in_paren?: boolean,
+    space_in_empty_paren?: boolean,
+    indent_with_tabs?: boolean
 }
 
 function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
@@ -21,19 +25,19 @@ function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
 
 export class FormatProvider implements vscode.DocumentFormattingEditProvider {
     private readonly defaultOptions: FormatOptions;
-    
+
     constructor() {
         this.defaultOptions = {
-            "indent_size": "1",
+            "indent_size": 1,
             "indent_char": "\t",
-            "max_preserve_newlines": "2",
+            "max_preserve_newlines": 2,
             "preserve_newlines": true,
             "keep_array_indentation": false,
             "break_chained_methods": false,
             "indent_scripts": "keep",
             "brace_style": "collapse",
             "space_before_conditional": true,
-            "wrap_line_length": "0",
+            "wrap_line_length": 0,
             "space_after_anon_function": true,
             "jslint_happy": true
         };
@@ -74,16 +78,16 @@ enum MODE {
 };
 
 class Beautifier {
-    public beautify: any;
-    constructor(js_source_text: string, options: any) {
-        let input: string, output_lines: { text: any[]; }[];
+    public beautify: ()=> string;
+    constructor(js_source_text: string, options: FormatOptions) {
+        let input: string, output_lines: Array<{ text: string[]; }>;
         let token_text: string, token_text_low: string, token_type: string, last_type: string, last_last_text: string, indent_string: string;
-        let flags, opt, previous_flags;
-        let whitespace: string[], wordchar: string[], punct: string[], parser_pos: number, line_starters: any[], reserved_words: any[], digits: string[];
-        let prefix: string, flag_store: any[];
+        let flags: IFlag, opt: FormatOptions, previous_flags: IFlag;
+        let whitespace: string[], wordchar: string[], punct: string[], parser_pos: number, line_starters: string[], reserved_words: string[], digits: string[];
+        let prefix: string, flag_store: IFlag[];
         let input_wanted_newline: boolean, output_space_before_token: boolean, following_bracket: boolean, keep_Object_line: boolean, begin_line: boolean;
-        let input_length: number, n_newlines: number, last_LF: number, bracketnum: number, whitespace_before_token: any[];
-        let handlers = {
+        let input_length: number, n_newlines: number, last_LF: number, bracketnum: number, whitespace_before_token: string[];
+        let handlers: {[key: string]: ()=> void} = {
             'TK_START_EXPR'    : handle_start_expr,
             'TK_END_EXPR'      : handle_end_expr,
             'TK_START_BLOCK'   : handle_start_block,
@@ -137,7 +141,7 @@ class Beautifier {
         bracketnum = 0, last_LF = -1;
         
 
-        function create_flags(flags_base: any, mode: any) {
+        function create_flags(flags_base: IFlag, mode: MODE) {
             let next_indent_level = 0;
             if (flags_base) {
                 next_indent_level = flags_base.indentation_level;
@@ -147,7 +151,7 @@ class Beautifier {
                 }
             }
 
-            let next_flags = {
+            const next_flags: IFlag = {
                 mode: mode,
                 parent: flags_base,
                 last_text: flags_base ? flags_base.last_text : '',
@@ -179,8 +183,7 @@ class Beautifier {
         }
 
         // Some interpreters have unexpected results with foo = baz || bar;
-        options = options ? options : {};
-        opt = {};
+        opt = {...options};
 
         // compatibility
         if (options.space_after_anon_function !== undefined && options.jslint_happy === undefined) {
@@ -196,19 +199,9 @@ class Beautifier {
             opt.brace_style = "expand";
         }
 
-
-        opt.indent_size = options.indent_size ? parseInt(options.indent_size, 10) : 4;
-        opt.indent_char = options.indent_char ? options.indent_char : ' ';
-        opt.preserve_newlines = (options.preserve_newlines === undefined) ? true : options.preserve_newlines;
-        opt.break_chained_methods = (options.break_chained_methods === undefined) ? false : options.break_chained_methods;
-        opt.max_preserve_newlines = (options.max_preserve_newlines === undefined) ? 0 : parseInt(options.max_preserve_newlines, 10);
         opt.space_in_paren = (options.space_in_paren === undefined) ? false : options.space_in_paren;
         opt.space_in_empty_paren = (options.space_in_empty_paren === undefined) ? false : options.space_in_empty_paren;
-        opt.jslint_happy = (options.jslint_happy === undefined) ? false : options.jslint_happy;
-        opt.keep_array_indentation = (options.keep_array_indentation === undefined) ? false : options.keep_array_indentation;
-        opt.space_before_conditional = (options.space_before_conditional === undefined) ? true : options.space_before_conditional;
-        opt.wrap_line_length = (options.wrap_line_length === undefined) ? 0 : parseInt(options.wrap_line_length, 10);
-
+        
         if (options.indent_with_tabs) {
             opt.indent_char = '\t';
             opt.indent_size = 1;
@@ -252,7 +245,7 @@ class Beautifier {
 
         this.beautify = function () {
             /*jshint onevar:true */
-            let t: any[], i: number, keep_whitespace: boolean, sweet_code: string;
+            let t: string[], i: number, keep_whitespace: boolean, sweet_code: string;
 
             while (true) {
                 t = get_next_token();
@@ -341,7 +334,7 @@ class Beautifier {
             }
         }
 
-        function trim_output_line(line: any, lines: any) {
+        function trim_output_line(line: {text:string[]}, lines: boolean) {
             while (line.text.length &&
                 (line.text[line.text.length - 1] === ' ' ||
                     line.text[line.text.length - 1] === indent_string ||
@@ -488,7 +481,7 @@ class Beautifier {
                 flags.indentation_level -= 1;
         }
 
-        function remove_redundant_indentation(frame: { multiline_frame: any; start_line_index: any; }) {
+        function remove_redundant_indentation(frame: IFlag) {
             // This implementation is effective but has some issues:
             //     - less than great performance due to array splicing
             //     - can cause line wrap to happen too soon due to indent removal
@@ -500,7 +493,7 @@ class Beautifier {
             // remove one indent from each line inside this section
             let index = frame.start_line_index;
             let splice_index = 0;
-            let line: { text: any; };
+            let line: { text: string[]; };
 
             while (index < output_lines.length) {
                 line = output_lines[index];
@@ -525,7 +518,7 @@ class Beautifier {
             }
         }
 
-        function set_mode(mode: any) {
+        function set_mode(mode: MODE) {
             if (flags) {
                 flag_store.push(flags);
                 previous_flags = flags;
@@ -536,11 +529,11 @@ class Beautifier {
             flags = create_flags(previous_flags, mode);
         }
 
-        function is_array(mode: any) {
+        function is_array(mode: MODE) {
             return mode === MODE.ArrayLiteral;
         }
 
-        function is_expression(mode: any) {
+        function is_expression(mode: MODE) {
             return in_array(mode, [MODE.Expression, MODE.ForInitializer, MODE.Conditional]);
         }
 
@@ -602,7 +595,7 @@ class Beautifier {
             return in_array(word.toLowerCase(), ['case', 'return', 'loop', 'if', 'throw', 'else']);
         }
 
-        function in_array(what: string, arr: string | any[]) {
+        function in_array(what: string, arr: string | string[]) {
             for (let i = 0; i < arr.length; i += 1) {
                 if (arr[i] === what) {
                     return true;
@@ -724,6 +717,10 @@ class Beautifier {
                     last_LF = parser_pos - 1;
                     if (following_bracket) {
                         end_bracket_of_expression(parser_pos);
+                    }
+                    // 在行结束处无条件终止任何表达式
+                    while (flags.mode === MODE.Statement) {
+                        restore_mode();
                     }
                     n_newlines += 1, begin_line = true;
                     whitespace_before_token = [];
@@ -892,12 +889,12 @@ class Beautifier {
                                 }
                                 last_LF = parser_pos, LF = input.substring(pos, parser_pos + 1);
                             }
-                            let whitespace: any = LF.match(/^(\s*)\(/);
-                            if (!whitespace) {
+                            let Mwhitespace: RegExpMatchArray = LF.match(/^(\s*)\(/);
+                            if (!Mwhitespace) {
                                 parser_pos = pos, n_newlines++;
                                 return [resulting_string.trimRight(), 'TK_UNKNOWN']
                             }
-                            whitespace = whitespace[1];
+                            let whitespace = Mwhitespace[1];
                             while (LF.trim().indexOf(')' + sep) !== 0) {
                                 resulting_string += LF, pos = parser_pos + 1;
                                 parser_pos = input.indexOf('\n', pos + 1);
@@ -1204,8 +1201,8 @@ class Beautifier {
             if (start_of_statement()) {
                 // The conditional starts the statement if appropriate.
             } else if (input_wanted_newline && !is_expression(flags.mode) &&
-                (last_type !== 'TK_OPERATOR' || (flags.last_text === '--' || flags.last_text === '++')) && last_type !== 'TK_EQUALS' &&
-                (opt.preserve_newlines || !(last_type === 'TK_RESERVED' && in_array(flags.last_text.toLowerCase(), ['local', 'static', 'global', 'set', 'get'])))) {
+                // (last_type !== 'TK_OPERATOR' || (flags.last_text === '--' || flags.last_text === '++')) && last_type !== 'TK_EQUALS' &&
+                (opt.preserve_newlines || !(last_type === 'TK_RESERVED' && in_array(flags.last_text.toLowerCase(), ['local', 'static', 'global'])))) {
 
                 print_newline();
             }
@@ -1652,3 +1649,25 @@ class Beautifier {
         }
     }
 }
+
+interface IFlag {
+    mode: MODE,
+    parent: IFlag,
+    last_text: string,
+    last_word: string,
+    declaration_statement: boolean,
+    in_html_comment: boolean,
+    multiline_frame: boolean,
+    if_block: boolean,
+    else_block: boolean,
+    do_block: boolean,
+    do_while: boolean,
+    in_case_statement: boolean,
+    in_case: boolean,
+    case_body: boolean,
+    indentation_level: number,
+    line_indent_level: number,
+    start_line_index: number,
+    had_comment: boolean,
+    ternary_depth: number
+};

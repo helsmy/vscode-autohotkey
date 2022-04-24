@@ -385,7 +385,7 @@
     },
     "function-call": {
       "name": "meta.function.call.ahk",
-      "match": "\\b([[:alpha:]_][_$[:alnum:]]*)(\\(.*\\))",
+      "match": "\\b([[:alpha:]_][_$[:alnum:]]*)(?=\\(.*\\))",
       "captures": {
         "1": {
           "name": "punctuation.definition.function-call.begin.ahk",
@@ -483,18 +483,21 @@
       "patterns": [
         {
           "include": "#string-quoted-line"
+        },
+        {
+          "include": "#string-quoted-multi-line"
         }
       ]
     },
     "string-quoted-line": {
       "name": "string.quoted.ahk",
-      "begin": "([\\\"'])",
+      "begin": "([\\\"'])(?=.*\\1(?!=\\1))",
       "beginCaptures": {
         "0": {
           "name": "punctuation.definition.string.begin.ahk"
         }
       },
-      "end": "(?:(\\1)(?!\\1))|(?:^[\\s\\t]*\\)(\\1)(?!\\1))",
+      "end": "(?:(\\1)(?!\\1))",
       "endCaptures": {
         "0": {
           "name": "punctuation.definition.string.end.ahk"
@@ -503,15 +506,35 @@
       "patterns": [
         {
           "include": "#string-escaped-char"
-        },
-        {
-          "include": "#string-multi-line-modifier"
         }
       ]
     },
     "string-error-end": {
       "name": "invalid.string.end.ahk",
       "match": "^[\\s\\t]*(?:\\\")"
+    },
+    "string-quoted-multi-line": {
+      "name": "string.quoted.multi.ahk",
+      "begin": "(\")(?=\\s*\\n)",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.ahk"
+        }
+      },
+      "end": "(\\)\\s*\")",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.ahk"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#string-multi-line-modifier"
+        },
+        {
+          "include": "#string-escaped-char"
+        }
+      ]
     },
     "string-unquoted-multi-line": {
       "name": "string.unquoted.multi.ahk",

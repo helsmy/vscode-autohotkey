@@ -61,7 +61,7 @@
             {
                 "language": "ahk",
                 "scopeName": "source.ahk",
-                "path": "./syntaxes/ahk.tmGrammar.json"
+                "path": "./syntaxes/ahk.tmLanguage.json"
             }
         ],
         "snippets": [

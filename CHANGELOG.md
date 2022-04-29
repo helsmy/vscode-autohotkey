@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.8.27
+1. add command `AutohotkeySS.runCurrentFile`, `AutohotkeySS.formatDocument`
+2. add `run current file` button to menu
+3. add setting `ahk-simple-language-server.runtimePath`
+4. fix hightlighting bugs #9
+
 ## 0.8.0
 1. pre-release of recursive descent parser
 2. bug fixs in if for call and new

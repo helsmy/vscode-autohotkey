@@ -1800,9 +1800,9 @@
       "prefix": "local",
       "body": "local"
     },
-    "ByRef": {
-      "prefix": "ByRef",
-      "body": "ByRef"
+    "byref": {
+      "prefix": "byref",
+      "body": "byref"
     },
     "Seconds": {
       "prefix": "Seconds",

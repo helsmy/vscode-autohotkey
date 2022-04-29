@@ -7,21 +7,17 @@ AutoHotKey language support for VS Code
 
 ## What's New
 
-1. Settings name changed. `AutohotkeyLanguageServer --> ahk-simple-language-server`
-2. Better highlight
-3. **Recursive descent parser** is ready !! It is under alpha stage, if you want to use old one, you can go to [here](https://github.com/helsmy/vscode-autohotkey/releases/tag/0.5.10) to download it
-4. Experimental hint for where symbol is included on completion. ONLY work on global symbol.
-5. Enumerate include
-   * Documents must be explicitly included by `#include`
-   * **Notice** `#include DirName` are not implemented now
-   * Include completion
-   * Experimental support for `#include <LibName>`
-6. Build-in Variable and Function(partly) hint.
+1. Run button (run current file in terminal) and two command. For details, see changelog.
+2. Build-in Variable and Function(partly) hint.
    - Need documentions which is easy to be parsed by js/ts. If you find any, help please([Example](others/Contribute.md)).
 
 ## Notice
 
-* This is a parser based on regular expression. The results are not guaranteed.
+* **Recursive descent parser** is under alpha stage, if you want to use old one, you can go to [here](https://github.com/helsmy/vscode-autohotkey/releases/tag/0.5.10) to download it
+* Experimental hint for where symbol is included on completion. ONLY work on global symbol.
+* Enumerate include
+   * Documents must be explicitly included by `#include`
+   * **Notice** `#include DirName` are not implemented now
 * If you need a debugger, just install any debug extension in market. As recommended options, [AutoHotKey Debug](https://marketplace.visualstudio.com/items?itemName=helsmy.autohotkey-debug) by me or [vscode-autohotkey-debug](https://marketplace.visualstudio.com/items?itemName=zero-plusplus.vscode-autohotkey-debug) by zero-plusplus
 
 ## Run This in Vim
@@ -70,6 +66,9 @@ For vim user, how to use this extension in vim.
    Traces the communication between VS Code and the language server.
 
 ## Preveiw
+
+### Run File
+![](pic/runfile.gif)
 
 ### Code Completion
 

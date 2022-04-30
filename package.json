@@ -2,7 +2,7 @@
     "name": "ahk-simple-ls",
     "displayName": "AutoHotKey Simple Support",
     "description": "Simple ahkls with advanced features.",
-    "version": "0.8.28",
+    "version": "0.8.29",
     "author": "helsmy",
     "license": "LGPLv3.0",
     "repository": {
@@ -44,7 +44,7 @@
                 "configuration": "./ahk.configuration.json"
             }
         ],
-        "commands":[
+        "commands": [
             {
                 "category": "AutoHotkey",
                 "command": "AutohotkeySS.runCurrentFile",
@@ -85,7 +85,7 @@
                     "default": "off",
                     "description": "Traces the communication between VS Code and the language server."
                 },
-                "ahk-simple-language-server.traceServer.level" : {
+                "ahk-simple-language-server.traceServer.level": {
                     "scope": "window",
                     "type": "string",
                     "enum": [
@@ -99,7 +99,7 @@
                 },
                 "ahk-simple-language-server.sendError": {
                     "scope": "window",
-                    "type":"boolean",
+                    "type": "boolean",
                     "default": false,
                     "description": "(Preview)Send errors to client or not. Only for debugging now"
                 },
@@ -117,7 +117,7 @@
                     "scope": "window",
                     "type": "string",
                     "default": "",
-                    "description": "Autohotkey runtime path, Such as `C:\\Program Files\\AutoHotkey\\AutoHotkey.exe`"  
+                    "description": "Autohotkey runtime path, Such as `C:\\Program Files\\AutoHotkey\\AutoHotkey.exe`"
                 }
             }
         },
@@ -131,7 +131,7 @@
                     "command": "AutohotkeySS.formatDocument",
                     "when": "editorLangId == ahk"
                 }
-            ], 
+            ],
             "editor/title/run": [
                 {
                     "command": "AutohotkeySS.runCurrentFile",

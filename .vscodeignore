@@ -20,4 +20,4 @@ Abandoned
 pic
 scripts
 syntaxes/**
-!syntaxes/ahk.tmGrammar.json
+!syntaxes/ahk.tmLanguage.json

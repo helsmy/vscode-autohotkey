@@ -43,7 +43,7 @@ export class RunFileCommand implements ICommand {
         const runtime = workspace
                         .getConfiguration('ahk-simple-language-server')
                         .get('runtimePath') as string;
-        const activeEditor = window.activeTextEditor
+        const activeEditor = window.activeTextEditor;
         if (runtime === '' || /^[\s\t]+$/.test(runtime)) {
             window.showErrorMessage(
                 'RunTime path is empty. Please check Settings>Ahk-simple-language-server:runtimePath',

@@ -25,11 +25,9 @@ jobs:
       - uses: actions/checkout@v2
         with: 
           repository: helsmy/vscode-autohotkey 
-      - name: 'npm install'
-        uses: actions/npm@master
-        with:
-          args: install --unsafe-perm
-      - name: 'vsce package'
-        run: |
-          echo Package
-          vsce package
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3.1.1
+      - name: 'Install Dependencies'
+        run: npm install
+      - name: 'test finish'
+        run: echo finished

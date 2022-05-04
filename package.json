@@ -113,11 +113,11 @@
                     "default": "no",
                     "description": "Which language document(for built-in functions[not available now] and varibles) to be used.'no' means no documents shown.(In progress)"
                 },
-                "ahk-simple-language-server.runtimePath": {
+                "ahk-simple-language-server.interpreterPath": {
                     "scope": "window",
                     "type": "string",
                     "default": "",
-                    "description": "Autohotkey runtime path, Such as `C:\\Program Files\\AutoHotkey\\AutoHotkey.exe`"
+                    "description": "Autohotkey Interpreter path, Such as `C:\\Program Files\\AutoHotkey\\AutoHotkey.exe`"
                 }
             }
         },

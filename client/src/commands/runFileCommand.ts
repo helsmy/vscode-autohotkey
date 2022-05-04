@@ -28,6 +28,7 @@ export class RunFileCommand implements ICommand {
 
     private onDidCloseTerminal(eterminal: Terminal) {
         this.ownTerminal = undefined;
+        eterminal.dispose();
     }
 
     public subscript(commandName: string, context: ExtensionContext) {
@@ -42,18 +43,18 @@ export class RunFileCommand implements ICommand {
     public execute() {
         const runtime = workspace
                         .getConfiguration('ahk-simple-language-server')
-                        .get('runtimePath') as string;
+                        .get('interpreterPath') as string;
         const activeEditor = window.activeTextEditor;
         if (runtime === '' || /^[\s\t]+$/.test(runtime)) {
             window.showErrorMessage(
-                'RunTime path is empty. Please check Settings>Ahk-simple-language-server:runtimePath',
+                'RunTime path is empty. Please check Settings>Ahk-simple-language-server:interpreterPath',
                 'Go to settings'
             ).then(s => {
                 // if `Go to settings` button is pressed
                 if (s)
                     commands.executeCommand(
                         'workbench.action.openSettings', 
-                        'Ahk-simple-language-server:runtimePath'
+                        'Ahk-simple-language-server:interpreterPath'
                     );
             });
             return;

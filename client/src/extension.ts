@@ -9,7 +9,8 @@ import {
 	workspace, 
 	ExtensionContext,
 	DocumentSelector,
-	languages
+	languages,
+	window
 } from 'vscode';
 import {
 	LanguageClient,
@@ -18,6 +19,9 @@ import {
 	TransportKind
 } from 'vscode-languageclient';
 import { CommandManger } from './commands/commandManger';
+import { AHKSS_CLIENT_NAME, AHKSS_EXTENSION_ID, AUTOHOTKEY_LANGUAGE } from './constants';
+import { InterpreterDisplay } from "./display/interpreterDisplay";
+import { InterpreterService } from './display/interpreterSerive';
 
 let client: LanguageClient;
 
@@ -48,7 +52,7 @@ export function activate(context: ExtensionContext) {
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
 		// Register the server for plain text documents
-		documentSelector: [{ scheme: 'file', language: 'ahk' }],
+		documentSelector: [{ scheme: 'file', language: AUTOHOTKEY_LANGUAGE }],
 		synchronize: {
 			// Notify the server about file changes to '.clientrc files contained in the workspace
 			fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
@@ -57,14 +61,15 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	client = new LanguageClient(
-		'AutohotkeySimpleSupport',
-		'Autohotkey Simple Support',
+		AHKSS_EXTENSION_ID,
+		AHKSS_CLIENT_NAME,
 		serverOptions,
 		clientOptions
 	);
 	
 	// Start the client. This will also launch the server
 	client.start();
+	delayActive(context);
 }
 
 export function deactivate(): Thenable<void> | undefined {
@@ -73,3 +78,17 @@ export function deactivate(): Thenable<void> | undefined {
 	}
 	return client.stop();
 }
+
+async function delayActive(context: ExtensionContext) {
+	const interpreterDisplay = new InterpreterDisplay();
+	interpreterDisplay.activate();
+	context.subscriptions.push(
+		workspace.onDidChangeConfiguration(
+			interpreterDisplay.onDidChangeConfiguration.bind(interpreterDisplay)
+		)
+	);
+
+	setTimeout(async () => {
+		interpreterDisplay.updateDisplay();
+	}, 0);
+} 

@@ -1,5 +1,6 @@
 import { commands, DocumentSelector, ExtensionContext, languages, TextEditor, TextEditorEdit } from 'vscode';
 import { FormattingOptions } from 'vscode-languageclient';
+import { AUTOHOTKEY_LANGUAGE } from '../constants';
 import { FormatProvider } from './formattingProvider';
 import { ICommand } from './types';
 
@@ -12,7 +13,7 @@ export class FormatCommand implements ICommand {
 
     subscript(name: string, context: ExtensionContext): void {
         // TODO: Implement in language server
-        const ds: DocumentSelector = { language: "ahk" };
+        const ds: DocumentSelector = { language: AUTOHOTKEY_LANGUAGE };
         const fpHandler = languages.registerDocumentFormattingEditProvider(ds, this.provider);
         context.subscriptions.push(fpHandler);
 

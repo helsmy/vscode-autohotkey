@@ -11,3 +11,19 @@ export type AUTOHOTKEY_VERSION = {
 	build: number;
 	isBeta: boolean;
 }
+
+/**
+ * 当前解释器是否是可用的解释器
+ */
+export enum InterpreterStatus {
+	/**
+	 * Interpreter is a correct ahk interpreter
+	 */
+	available,
+	/**
+	 * Any other program
+	 */
+	unknown
+}
+
+export type StatusChangeHandler = (InterpreterStatus: InterpreterStatus) => void;

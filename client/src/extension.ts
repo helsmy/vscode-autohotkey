@@ -7,10 +7,7 @@
 import * as path from 'path';
 import { 
 	workspace, 
-	ExtensionContext,
-	DocumentSelector,
-	languages,
-	window
+	ExtensionContext
 } from 'vscode';
 import {
 	LanguageClient,
@@ -20,14 +17,14 @@ import {
 } from 'vscode-languageclient';
 import { CommandManger } from './commands/commandManger';
 import { AHKSS_CLIENT_NAME, AHKSS_EXTENSION_ID, AUTOHOTKEY_LANGUAGE } from './constants';
-import { InterpreterDisplay } from "./display/interpreterDisplay";
-import { InterpreterService } from './display/interpreterSerive';
+import { InterpreterService } from "./display/interpreterService";
 
 let client: LanguageClient;
+const interpreterService = new InterpreterService();
 
-export function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
 	// Register command
-	const commandManger = new CommandManger();
+	const commandManger = new CommandManger(interpreterService);
 	commandManger.subscript(context);
 
 	// The server is implemented in node
@@ -80,15 +77,9 @@ export function deactivate(): Thenable<void> | undefined {
 }
 
 async function delayActive(context: ExtensionContext) {
-	const interpreterDisplay = new InterpreterDisplay();
-	interpreterDisplay.activate();
-	context.subscriptions.push(
-		workspace.onDidChangeConfiguration(
-			interpreterDisplay.onDidChangeConfiguration.bind(interpreterDisplay)
-		)
-	);
+	interpreterService.activate(context);
 
 	setTimeout(async () => {
-		interpreterDisplay.updateDisplay();
+		interpreterService.updateDisplay();
 	}, 0);
 } 

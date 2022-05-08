@@ -13,8 +13,9 @@ AutoHotKey language support for VS Code
 
 ## What's New
 
-1. Run button (run current file in terminal) and two command. For details, see changelog.
-2. Build-in Variable and Function(partly) hint.
+1. [Language Status Bar](#language-status-bar)
+2. Run button (run current file in terminal) and two command. For details, see changelog.
+3. Build-in Variable and Function(partly) hint.
    - Need documentions which is easy to be parsed by js/ts. If you find any, help please([Example](others/Contribute.md)).
 
 ## Notice
@@ -72,6 +73,9 @@ For vim user, how to use this extension in vim.
    Traces the communication between VS Code and the language server.
 
 ## Preveiw
+
+### Language Status Bar
+![](pic/lsbar.gif)
 
 ### Run File
 ![](pic/runfile.gif)

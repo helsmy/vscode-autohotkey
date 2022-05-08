@@ -47,7 +47,7 @@ export class InterpreterService extends EventEmitter {
             const interpreter = await this.getInerpreterStatus();
             if (interpreter) {
                 this.languageStatus.text = interpreter.version;
-                this.languageStatus.detail = 'Autohotkey';
+                this.languageStatus.detail = 'Autohotkey Version';
                 this.languageStatus.command.tooltip = interpreter.path;
                 this.emit('StatusChange', InterpreterStatus.available);
             }

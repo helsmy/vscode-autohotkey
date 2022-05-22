@@ -86,7 +86,7 @@
       "patterns": [
         {
           "name": "meta.class.ahk",
-          "begin": "(?<!\\.|\\$)\\b(?:(class))\\b",
+          "begin": "(?<!\\.|\\$)\\b(?i:(class))\\b",
           "end": "(?<=\\})",
           "beginCaptures": {
             "1": {
@@ -385,8 +385,8 @@
     },
     "function-call": {
       "name": "meta.function.call.ahk",
-      "match": "\\b([[:alpha:]_][_$[:alnum:]]*)(?=\\(.*\\))",
-      "captures": {
+      "begin": "\\b([[:alpha:]_][_$[:alnum:]]*)(?=\\()",
+      "beginCaptures": {
         "1": {
           "name": "punctuation.definition.function-call.begin.ahk",
           "patterns": [
@@ -394,22 +394,20 @@
               "include": "#function-name"
             }
           ]
-        },
-        "2": {
-          "name": "punctuation.definition.arguments.ahk",
-          "patterns": [
-            {
-              "include": "#comment"
-            },
-            {
-              "include": "#function-arguments"
-            },
-            {
-              "include": "#expression"
-            }
-          ]
         }
-      }
+      },
+      "end": "(?=\\))",
+      "patterns": [
+        {
+          "include": "#comment"
+        },
+        {
+          "include": "#function-arguments"
+        },
+        {
+          "include": "#expression"
+        }
+      ]
     },
     "function-name": {
       "patterns": [

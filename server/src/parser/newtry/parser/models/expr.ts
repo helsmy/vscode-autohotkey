@@ -192,6 +192,37 @@ export class Binary extends Expr {
 }
 
 /**
+ * Class repersenting all expressions contained in pair of paren
+ * `( Expression )`
+ */
+export class ParenExpr extends Expr {
+    
+    constructor(
+        public readonly openParen: Token,
+        public readonly expr: Expr,
+        public readonly closeParen: Token
+    ) {
+        super();
+    }
+
+    public get ranges(): Range[] {
+        return [this.openParen, ...this.expr.ranges, this.closeParen];
+    }
+
+    public toLines(): string[] {
+        return [`(${this.expr.toLines().join(`\n`)})`]
+    }
+
+    public get start(): Position {
+        return this.openParen.start;
+    }
+
+    public get end(): Position {
+        return this.closeParen.end;
+    }
+}
+
+/**
  * Class for all factor to be calcuated
  */
 export class Factor extends Expr {

@@ -2,6 +2,7 @@ import { Position, Range } from 'vscode-languageserver';
 import { TokenType } from '../../tokenizor/tokenTypes';
 import { IExpr, IStmt, IStmtVisitor, Token } from '../../types';
 import { joinLines } from '../utils/stringUtils';
+import { DelimitedList } from './delimtiedList';
 import { NodeBase } from './nodeBase';
 import { Block, Stmt } from "./stmt";
 
@@ -117,24 +118,22 @@ export class ClassDef extends Decl {
     /**
      * @param classToken class keyword
      * @param name class name
-     * @param extendsToken extens keyword
-     * @param parentName parent class name
      * @param body body of class
+     * @param classBaseClause extends and parent class
      */
     constructor(
         public readonly classToken: Token,
         public readonly name: Token,
         public readonly body: Block,
-        public readonly extendsToken?: Token,
-        public readonly parentName?: Token
+        public readonly classBaseClause?: ClassBaseClause
     ) {
         super();
     }
 
     public toLines(): string[] {
         const defLine = [`${this.classToken.content} ${this.name.content}`];
-        if (this.extendsToken !== undefined && this.parentName !== undefined) {
-            defLine[0] += `${this.extendsToken.content} ${this.parentName.content}`;
+        if (this.classBaseClause !== undefined) {
+            defLine[0] += `${this.classBaseClause.toLines()[0]}`;
         }
         const block = this.body.toLines();
 
@@ -150,17 +149,41 @@ export class ClassDef extends Decl {
     }
 
     public get ranges(): Range[] {
-        return (this.extendsToken !== undefined && this.parentName !== undefined) ?
-                [this.classToken, this.name, this.extendsToken, this.parentName, ...this.body.ranges] :
+        return this.classBaseClause ?
+                [this.classToken, this.name, ...this.classBaseClause.ranges, ...this.body.ranges] :
                 [this.classToken, this.name, ...this.body.ranges];
     }
 
     public accept<T extends (...args: any) => any>(
         visitor: IStmtVisitor<T>,
         parameters: Parameters<T>,
-      ): ReturnType<T> {
+    ): ReturnType<T> {
         return visitor.visitDeclClass(this, parameters);
-      }
+    }
+}
+
+export class ClassBaseClause extends NodeBase {
+    constructor(
+        public readonly extendsToken: Token,
+        public readonly baseClass: DelimitedList<Token>
+    ) {
+        super();
+    }
+
+    public get ranges(): Range[] {
+        return [Range.create(this.extendsToken.start, this.extendsToken.end)]
+            .concat(...this.baseClass.ranges);
+    }
+    public toLines(): string[] {
+        throw new Error('Method not implemented.');
+    }
+    public get start(): Position {
+        return this.extendsToken.start;
+    }
+    public get end(): Position {
+        return this.baseClass.end;
+    }
+    
 }
 
 export class Label extends Decl {

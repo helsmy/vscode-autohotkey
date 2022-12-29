@@ -1,3 +1,7 @@
+/**
+ * File for basic types and classes for the whole parser
+ */
+
 import { Position, Range } from 'vscode-languageserver';
 import { ParseError } from './parser/models/parseError';
 import { TokenType } from './tokenizor/tokenTypes';
@@ -33,6 +37,28 @@ export class Token implements IToken {
 		this.content = content;
 		this.start = start;
 		this.end = end;
+	}
+}
+
+export class MissingToken extends Token {
+	constructor(type: TokenType, start: Position) {
+		super(
+			type,
+			'',
+			start,
+			start
+		);
+	}
+}
+
+export class SkipedToken extends Token {
+	constructor(token: IToken) {
+		super(
+			token.type,
+			token.content,
+			token.start,
+			token.end
+		)
 	}
 }
 

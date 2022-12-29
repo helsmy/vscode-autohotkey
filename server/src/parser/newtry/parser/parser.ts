@@ -1,5 +1,5 @@
 import { Tokenizer } from "../tokenizor/tokenizer";
-import { Atom, IAST, IExpr, IStmt, SuffixTermTrailer, Token } from "../types";
+import { Atom, IAST, IExpr, IStmt, IToken, MissingToken, SuffixTermTrailer, Token } from "../types";
 import { isValidIdentifier, TokenType } from "../tokenizor/tokenTypes";
 import {
     INodeResult,
@@ -16,11 +16,16 @@ import { IDiagnosticInfo, TokenKind } from '../tokenizor/types';
 import { mockLogger } from '../../../utilities/logger';
 import { Script } from '../models/script';
 import { Position } from 'vscode-languageserver-types';
+import { DelimitedList, ListChild } from './models/delimtiedList';
+import { NodeBase } from './models/nodeBase';
 
 type NodeConstructor =
     | Constructor<Expr.Expr>
     | Constructor<Stmt.Stmt>
     | Constructor;
+
+type IsStartFn = (t: Token) => boolean;
+type ParseFn<T> = () => T; 
 
 export class AHKParser {
     private tokenizer: Tokenizer;
@@ -299,24 +304,22 @@ export class AHKParser {
 
     private classDefine(): INodeResult<Decl.ClassDef> {
         const classToken = this.eat();
-        const name = this.eatAndThrow(
-            TokenType.id,
-            'Expect an identifier in class define',
-            Decl.ClassDef
-        );
-        if (this.currentToken.type === TokenType.extends) {
-            const extendsToken = this.eat();
-            const parentName = this.eatAndThrow(
-                TokenType.id,
-                'Expect an identifier after "extends" keyword',
-                Decl.ClassDef
+        const name = this.eatType(TokenType.id);
+        const extendsToken = this.eatOptional(TokenType.extends)
+        if (extendsToken !== undefined) {
+            const list = this.delimitedList(
+                TokenType.dot,
+                token => isValidIdentifier(token.type),
+                () => this.eat()
+            );
+            const baseClass = new Decl.ClassBaseClause(
+                extendsToken, list.value
             );
             const body = this.block();
             return nodeResult(
                 new Decl.ClassDef(
                     classToken, name,
-                    body.value, extendsToken,
-                    parentName
+                    body.value, baseClass
                 ),
                 body.errors
             );
@@ -326,6 +329,26 @@ export class AHKParser {
             new Decl.ClassDef(classToken, name, body.value),
             body.errors
         );
+    }
+
+    private delimitedList<T extends NodeBase | Token>(
+        delimiter: TokenType, isElementStartFn: IsStartFn, parseElementFn: ParseFn<T>, allowEmptyElement = false
+    ): INodeResult<DelimitedList<T>> {
+        let list = new DelimitedList<T>();
+        while (true) {
+            if (isElementStartFn(this.currentToken)) {
+                list.addElement(parseElementFn());
+            }
+            else if (!allowEmptyElement) {
+                break;
+            }
+            const delimiterToken = this.eatOptional(delimiter);
+            if (delimiterToken === undefined) {
+                break;
+            }
+            list.addElement(delimiterToken);
+        }
+        return nodeResult(list, []);
     }
 
     // TODO:  class block statement
@@ -989,48 +1012,32 @@ export class AHKParser {
     private assign(): INodeResult<Stmt.AssignStmt|Stmt.ExprStmt> {
         const left = this.factor();
         const errors = [...left.errors];
-        if (this.currentToken.type >= TokenType.aassign &&
-            this.currentToken.type <= TokenType.lshifteq) {
-            const assign = this.currentToken;
-            this.advance();
-            const expr = this.expression();
-            errors.push(...expr.errors);
-            const trailers: Expr.Expr[] = [];
 
-            if (this.eatDiscardCR(TokenType.comma)) {
-                do {
-                    const trailer = this.expression();
-                    trailers.push(trailer.value);
-                    errors.push(...trailer.errors);
-                } while (this.eatDiscardCR(TokenType.comma));
-            }
-
-            this.terminal(Stmt.AssignStmt);
-            return nodeResult(
-                new Stmt.AssignStmt(left.value, assign, expr.value, trailers),
-                errors
-            );
-        }
-        if (this.currentToken.type === TokenType.equal) {
+        if (this.check(TokenType.equal)) {
             // if is a `=` let tokenizer take literal token(string)
             this.tokenizer.isLiteralToken = true;
             this.tokenizer.setLiteralDeref(false);
+        }
+
+        if (this.checkFromTo(TokenType.aassign, TokenType.lshifteq) ||
+            this.check(TokenType.equal)) {
             const assign = this.eat();
             const expr = this.expression();
             errors.push(...expr.errors);
-            const trailers: Expr.Expr[] = [];
 
-            if (this.eatDiscardCR(TokenType.comma)) {
-                do {
-                    const trailer = this.expression();
-                    trailers.push(trailer.value);
-                    errors.push(...trailer.errors);
-                } while (this.eatDiscardCR(TokenType.comma));
+            const delimiter = this.eatOptional(TokenType.comma);
+            // If there are `,`
+            if (delimiter) {
+                const trailer = this.tailorExpr(delimiter);
+                return nodeResult(
+                    new Stmt.AssignStmt(left.value, assign, expr.value, trailer.value),
+                    errors.concat(trailer.errors)
+                );
             }
 
             this.terminal(Stmt.AssignStmt);
             return nodeResult(
-                new Stmt.AssignStmt(left.value, assign, expr.value, trailers),
+                new Stmt.AssignStmt(left.value, assign, expr.value),
                 errors
             );
         }
@@ -1042,7 +1049,26 @@ export class AHKParser {
 
     }
 
-    // for test expresion
+    private tailorExpr(delimiter: Token): INodeResult<Stmt.TrailerExprList> {
+        const errors: ParseError[] = [];
+        const exprList = this.delimitedList(
+            TokenType.comma,
+            // TODO: 加上判断是否是表达式开始的函数
+            () => true,
+            () => {
+                const expr = this.expression();
+                errors.push(...expr.errors);
+                return expr.value;
+            }
+        )
+        const trailer = new Stmt.TrailerExprList(
+            delimiter,
+            exprList.value
+        );
+        return nodeResult(trailer, errors);
+    }
+
+    // for test expression
     public testExpr(): INodeResult<Expr.Expr> {
         this.tokens.pop();
         this.tokenizer.Reset();
@@ -1083,12 +1109,13 @@ export class AHKParser {
                         expr.errors);
                     break;
                 case TokenType.openParen:
-                    // TODO: Process paren expression
-                    let OPar = this.currentToken;
-                    this.advance();
+                    let OPar = this.eat();
                     result = this.expression();
-                    let CPar = this.currentToken;
-                    this.advance();
+                    let CPar = this.eatType(TokenType.closeParen);
+                    result = nodeResult(
+                        new Expr.ParenExpr(OPar, result.value, CPar),
+                        result.errors
+                    );
                     break;
                 case TokenType.number:
                 case TokenType.string:
@@ -1605,14 +1632,6 @@ export class AHKParser {
         const errors: ParseError[] = [...call.errors];
         const trailers: Expr.Expr[] = [];
         
-        if (this.eatDiscardCR(TokenType.comma)) {
-            do {
-                const trailer = this.expression();
-                trailers.push(trailer.value);
-                errors.push(...trailer.errors);
-            } while (this.eatDiscardCR(TokenType.comma));
-        }
-
         const callFactor = new Expr.Factor(
             new SuffixTerm.SuffixTerm(
                 new SuffixTerm.Identifier(name),
@@ -1620,9 +1639,21 @@ export class AHKParser {
             )
         );
 
+        const delimiter = this.eatOptional(TokenType.comma);
+        // If there are `,`
+        if (delimiter) {
+            const trailer = this.tailorExpr(delimiter);
+            this.terminal(Stmt.AssignStmt);
+
+            return nodeResult(
+                new Stmt.ExprStmt(callFactor, trailer.value),
+                errors.concat(trailer.errors)
+            );
+        }
+
         this.terminal(Stmt.AssignStmt);
         return nodeResult(
-            new Stmt.ExprStmt(callFactor, trailers),
+            new Stmt.ExprStmt(callFactor),
             errors
         );
     }
@@ -1809,9 +1840,69 @@ export class AHKParser {
         return t === this.currentToken.type;
     }
 
+    /**
+     * Retrieve the current token, and check if it's TokenType is between t1 and t2.
+     * @param t1 Start TokenType
+     * @param t2 End TokenType
+     * @returns boolean
+     */
+    private checkFromTo(t1: TokenType, t2: TokenType): boolean {
+        return this.currentToken.type >= t1 && this.currentToken.type <= t2;
+    }
+
     private eat(): Token {
         this.advance();
         return this.previous();
+    }
+
+    /**
+     * Retrieve the current token, and check that it's of the TokenType.
+     * If so, advance and return the token. Otherwise return a MissingToken for
+     * the expected token.
+     * 
+     * @param t token type
+     * @returns Token
+     */
+    private eatType(t: TokenType): Token {
+        if (this.currentToken.type === t) {
+            this.advance();
+            return this.previous();
+        }
+        return new MissingToken(t, this.currentToken.start);
+    }
+
+    /**
+     * Retrieve the current token, and check that it's of the TokenType.
+     * If so, advance and return the token. Otherwise return a MissingToken for
+     * the expected token.
+     * 
+     * Used for checking mutli-types
+     * 
+     * @param t token type
+     * @returns Token
+     */
+    private eatTypes(...ts: TokenType[]): Token {
+        if (this.matchTokens(ts)) {
+            this.advance();
+            return this.previous();
+        }
+        return new MissingToken(ts[0], this.currentToken.start);
+    }
+
+    private eatOptional(t: TokenType): Maybe<Token> {
+        if (this.currentToken.type === t) {
+            this.advance();
+            return this.previous();
+        }
+        return undefined;
+    }
+
+    private eatOptionals(...ts: TokenType[]): Maybe<Token> {
+        if (this.matchTokens(ts)) {
+            this.advance();
+            return this.previous();
+        }
+        return undefined;
     }
 
     private eatAndThrow(t: TokenType, message: string, failed: Maybe<NodeConstructor>) {

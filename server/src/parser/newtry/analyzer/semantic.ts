@@ -218,14 +218,24 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const errors: Diagnostics = [];
 		errors.push(...this.processAssignVar(stmt.left, stmt));
 		errors.push(...this.processExpr(stmt.expr));
-		for (const expr of stmt.trailerExpr) {
-			errors.push(...this.processExpr(expr));
-		}
+		errors.push(...this.processTrailerExpr(stmt.trailerExpr));
 		return errors;
 	}
 
 	public visitExpr(stmt: Stmt.ExprStmt): Diagnostics {
-		return this.processExpr(stmt.suffix);
+		const errors: Diagnostics = [];
+		errors.push(...this.processExpr(stmt.suffix));
+		errors.push(...this.processTrailerExpr(stmt.trailerExpr));
+		return errors;
+	}
+
+	private processTrailerExpr(trailer: Maybe<Stmt.TrailerExprList>): Diagnostics {
+		const errors: Diagnostics = [];
+		if (!trailer) return errors;
+		for (const expr of trailer.exprList.getElements()) {
+			errors.push(...this.processExpr(expr));
+		}
+		return errors;
 	}
 
 	private processExpr(expr: IExpr): Diagnostics {
@@ -264,6 +274,9 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			errors.push(...this.processExpr(expr.condition));
 			errors.push(...this.processExpr(expr.trueExpr));
 			errors.push(...this.processExpr(expr.falseExpr));
+		}
+		else if (expr instanceof Expr.ParenExpr) {
+			errors.push(...this.processExpr(expr.expr));
 		}
 		
 		return errors;

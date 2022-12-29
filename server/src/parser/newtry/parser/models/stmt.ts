@@ -3,6 +3,7 @@ import { IExpr, IStmt, IStmtVisitor, SyntaxKind, Token } from '../../types';
 import { NodeBase } from './nodeBase';
 import * as Expr from './expr'
 import { joinLines } from '../utils/stringUtils';
+import { DelimitedList } from './delimtiedList';
 
 /**
  * Statement base class
@@ -90,7 +91,7 @@ export class AssignStmt extends Stmt {
 		public readonly left: Expr.Factor,
 		public readonly assign: Token,
 		public readonly expr: Expr.Expr,
-		public readonly trailerExpr: Expr.Expr[]
+		public readonly trailerExpr?: TrailerExprList
 	) {
 		super();
 	}
@@ -127,7 +128,7 @@ export class AssignStmt extends Stmt {
 export class ExprStmt extends Stmt {
 	constructor(
 		public readonly suffix: Expr.Factor,
-		public readonly trailerExpr?: Expr.Expr[]
+		public readonly trailerExpr?: TrailerExprList
 	) {
 		super();
 	}
@@ -157,6 +158,36 @@ export class ExprStmt extends Stmt {
 	): ReturnType<T> {
 		return visitor.visitExpr(this, parameters);
 	}
+}
+
+export class TrailerExprList extends Stmt {
+	constructor(
+		public readonly delimiter: Token,
+		public readonly exprList: DelimitedList<Expr.Expr>
+	) {
+		super();
+	}
+
+	// TODO
+	public get ranges(): Range[] {
+		throw new Error('Method not implemented.');
+	}
+	public toLines(): string[] {
+		throw new Error('Method not implemented.');
+	}
+	public get start(): Position {
+		throw new Error('Method not implemented.');
+	}
+	public get end(): Position {
+		throw new Error('Method not implemented.');
+	}
+	public accept<T extends (...args: any) => any>(
+		visitor: IStmtVisitor<T>,
+		parameters: Parameters<T>,
+	): ReturnType<T> {
+			throw new Error('Method not implemented.');
+	}
+	
 }
 
 export class Block extends Stmt {

@@ -27,7 +27,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		
 	) {
 		super();
-		this.table = new SymbolTable('global', 1);
+		this.table = new SymbolTable(script.uri, 'global', 1);
 		this.stack = [this.table];
 		this.currentScoop = this.stack[this.stack.length-1];
 	}

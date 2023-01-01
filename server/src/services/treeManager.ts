@@ -51,9 +51,11 @@ import { IoEntity, IoKind, IoService } from './ioService';
 import { SymbolTable } from '../parser/newtry/analyzer/models/symbolTable';
 import { AHKParser } from '../parser/newtry/parser/parser';
 import { PreProcesser } from '../parser/newtry/analyzer/semantic';
-import { IAST, IParseError } from '../parser/newtry/types';
+import { IParseError, Token } from '../parser/newtry/types';
 import { IScoop, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
-import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, ScopedSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
+import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotkeySymbol, HotStringSymbol, ScopedSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
+import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
+import { DocInfo, IASTProvider } from './types';
 
 // if belongs to FuncNode
 function isFuncNode(node: ISymbolNode): node is IFuncNode{
@@ -75,7 +77,7 @@ function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     return [d12, d21];
 }
 
-export class TreeManager
+export class TreeManager implements IASTProvider
 {
     private conn: IConnection;
 	/**
@@ -146,6 +148,10 @@ export class TreeManager
         this.SLibDir = 'C:\\Program Files\\AutoHotkey\\Lib'
         this.ULibDir = homedir() + '\\Documents\\AutoHotkey\\Lib'
         this.logger = logger;
+    }
+
+    public getDocInfo(uri: string): Maybe<DocInfo> {
+        return this.docsAST.get(uri);
     }
     
     /**
@@ -520,11 +526,49 @@ export class TreeManager
         if (scoop.name === 'global') return this.getGlobalCompletion()
                                     .concat(keywordCompletions)
                                     .concat(builtinVarCompletions);
+        // Now scoop is a method.
         const symbols = scoop.allSymbols();
         return symbols.map(sym => this.convertSymCompletion(sym))
                 .concat(this.getGlobalCompletion())
                 .concat(keywordCompletions)
                 .concat(builtinVarCompletions);
+    }
+
+    private getNamedTokensAtPosition(pos: Position, tokens: Token[]): Token[] {
+        let list: Token[] = [];
+        const tokenIndex = this.getTokenIndexAtPos(pos, tokens);
+        if (!tokenIndex) return [];
+        let p = tokenIndex - 1;
+        // Use delimiter `.` Token as a placeholder for the unfinished property
+        // And to check next token
+        if (tokens[tokenIndex].type === TokenType.dot) p--;
+        list.push(tokens[tokenIndex]);
+        while (tokens[p].type === TokenType.dot) {
+            p--;
+            list.push(tokens[p]);
+            p--;
+        }
+        return list;
+    }
+
+    private getTokenIndexAtPos(pos: Position, tokens: Token[]): Maybe<number> {
+        let start = 0;
+        let end = tokens.length - 1;
+        while (start <= end) {
+            const mid = Math.floor((start + end) / 2);
+            const token = tokens[mid];
+            // start <= pos
+            const isAfterStart = this.isGreatEqPosition(pos, token.start);
+            // end >= pos
+            const isBeforeEnd = this.isLessEqPosition(pos, token.end);
+            if (isAfterStart && isBeforeEnd)
+                return mid;
+            else if (!isBeforeEnd)
+                start = mid + 1;
+            else
+                end = mid - 1;
+        }
+        return undefined;
     }
 
     /**
@@ -537,8 +581,8 @@ export class TreeManager
         const symbols = table.allSymbols();
         for (const sym of symbols) {
             if (sym instanceof AHKMethodSymbol || sym instanceof AHKObjectSymbol) {
-                if (this.isLessPosition(sym.range.start, pos)
-                    && this.isLessPosition(pos, sym.range.end) ) {
+                if (this.isLessEqPosition(sym.range.start, pos)
+                    && this.isLessEqPosition(pos, sym.range.end) ) {
                     return this.getCurrentScoop(pos, sym);
                 }
             }
@@ -552,12 +596,25 @@ export class TreeManager
      * @param pos1 position 1
      * @param pos2 position 2
      */
-    private isLessPosition(pos1: Position, pos2: Position): boolean {
+    private isLessEqPosition(pos1: Position, pos2: Position): boolean {
         if (pos1.line < pos2.line) return true;
-        if (pos1.line === pos2.line && pos1.character < pos1.character) 
+        if (pos1.line === pos2.line && pos1.character <= pos2.character) 
             return true;
         return false;
     }
+
+    /**
+     * Return if pos1 is after pos2
+     * @param pos1 position 1
+     * @param pos2 position 2
+     */
+    private isGreatEqPosition(pos1: Position, pos2: Position): boolean {
+        if (pos1.line > pos2.line) return true;
+        if (pos1.line === pos2.line && pos1.character >= pos1.character) 
+            return true;
+        return false;
+    }
+
 
     public includeDirCompletion(position: Position): Maybe<CompletionItem[]> {
         const context = this.LineTextToPosition(position);
@@ -705,7 +762,7 @@ export class TreeManager
 			ci['kind'] = CompletionItemKind.Method;
             sym.requiredParameters
 			ci.data = sym.toString();
-		} else if (sym instanceof VaribaleSymbol) {
+		} else if (sym instanceof VaribaleSymbol || sym instanceof BuiltinVaribelSymbol) {
 			ci.kind = sym.tag === VarKind.property ? 
                       CompletionItemKind.Property :
                       CompletionItemKind.Variable;
@@ -965,14 +1022,4 @@ function arrayFilter<T>(list: Array<T>, callback: (item: T) => boolean): T[] {
             break;
     }
     return items;
-}
-
-interface DocInfo {
-    AST: IAST;
-    table: SymbolTable;
-}
-
-interface NodeInfomation {
-    symbol: ISymbol;
-    uri: string;
 }

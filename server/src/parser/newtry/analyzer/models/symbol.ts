@@ -1,6 +1,8 @@
 import { IScoop, ISymbol, ISymType, VarKind } from '../types';
 import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver';
 
+type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
+
 export abstract class AHKSymbol implements ISymbol {
 	public readonly name: string;
 	public readonly type: Maybe<ISymType>;
@@ -129,13 +131,14 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScoop {
 	}
 
 	public define(sym: ISymbol): void {
-		this.symbols.set(sym.name, sym);
+		this.symbols.set(sym.name.toLowerCase(), sym);
 	}
 
 	public resolve(name: string): Maybe<ISymbol> {
-		if (this.symbols.has(name)) 
-			return this.symbols.get(name);
-		return this.enclosingScoop?.resolve(name);
+		const searchName = name.toLocaleLowerCase();
+		if (this.symbols.has(searchName))
+			return this.symbols.get(searchName);
+		return this.enclosingScoop?.resolve(searchName);
 	}
 
 	public addScoop(scoop: IScoop) {
@@ -144,7 +147,7 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScoop {
 
 	public allSymbols(): ISymbol[] {
 		const syms: ISymbol[] = [];
-		for (const [name, sym] of this.symbols) 
+		for (const [, sym] of this.symbols) 
 			syms.push(sym);
 		return syms
 	}
@@ -227,9 +230,10 @@ export class AHKBuiltinObjectSymbol extends ScopedSymbol implements ISymType {
 	 * @param name Property symbol name
 	 */
 	resolveProp(name: string): Maybe<ISymbol> {
-		if (this.symbols.has(name))
-			return this.symbols.get(name);
-		return this.parentScoop?.resolve(name);
+		const searchName = name.toLocaleLowerCase();
+		if (this.symbols.has(searchName))
+			return this.symbols.get(searchName);
+		return this.parentScoop?.resolve(searchName);
 	}
 }
 
@@ -269,6 +273,8 @@ export class AHKMethodSymbol extends ScopedSymbol {
 
 
 export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
+
+	public readonly parentScoop: AHKClassSymbol;
 	/**
 	 * @param name Name of class symbol
 	 * @param range range of symbol
@@ -279,10 +285,12 @@ export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 		public readonly uri: string,
 		name: string,
 		public readonly range: Range,
-		public readonly parentScoop?: AHKObjectSymbol,
+		parentScoop?: AHKObjectSymbol,
 		enclosingScoop?: IScoop
 	) {
 		super(name, enclosingScoop);
+		// All object is extended from Base object
+		this.parentScoop = parentScoop ?? new AHKBaseObject(); 
 	}
 
 	/**
@@ -290,8 +298,26 @@ export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 	 * @param name Property symbol name
 	 */
 	public resolveProp(name: string): Maybe<ISymbol> {
-		if (this.symbols.has(name))
-			return this.symbols.get(name);
-		return this.parentScoop?.resolveProp(name);
+		const searchName = name.toLocaleLowerCase();
+		if (this.symbols.has(searchName))
+			return this.symbols.get(searchName);
+		return this.parentScoop.resolveProp(searchName);
+	}
+
+	public allSymbols(): ISymbol[] {
+		let sym = new Set(super.allSymbols());
+		for (const s of this.parentScoop.allSymbols()) 
+			sym.add(s);
+		return [...sym];
+
+	}
+}
+
+export class AHKBaseObject extends AHKBuiltinObjectSymbol {
+	constructor() {
+		super('base', undefined);
+		this.define(new BuiltinVaribelSymbol('__Class', VarKind.property, undefined));
+		for (const name of ['__New', '__Delete', '__Init'])
+			this.define(new AHKBuiltinMethodSymbol(name, [], []));
 	}
 }

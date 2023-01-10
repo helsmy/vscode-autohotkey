@@ -205,20 +205,45 @@ export class TreeManager implements IASTProvider
             table: docTable
         });
         
-        let useneed, useless: string[];
-        if (oldInclude && ast.script.include) {
+        let [useneed, useless] = this.compareInclude(oldInclude, ast.script.include)
+        this.deleteUnusedInclude(doc.uri, useless);
+
+
+        if (useneed.length === 0) {
+            // just link its include and go.
+            this.linkInclude(docTable, uri);
+            return
+        }
+        // EnumIncludes
+        await this.EnumIncludes(useneed, uri);
+        // 一顿操作数组和解析器了之后，
+        // 这个table和docinfo里的table之间的引用怎么没了得
+        // 神秘
+        this.linkInclude(docTable, uri);
+        this.docsAST.set(uri, {
+            AST: ast,
+            table: docTable
+        });
+    }
+
+    private compareInclude(oldInc: Maybe<Set<string>>, newInc: Maybe<Set<string>>): [string[], string[]] {
+        if (oldInc && newInc) {
             // useless need delete, useneed need to add
             // FIXME: delete useless include
-            [useless, useneed] = setDiffSet(oldInclude, ast.script.include);
-            this.logger.info(`Got ${ast.script.include.size} include file. ${useneed.length} file to load.` )
+            const [useless, useneed] = setDiffSet(oldInc, newInc);
+            this.logger.info(`Got ${newInc} include file. ${useneed.length} file to load.` )
+            return [useless, useneed]
         }
         else {
-            useneed = ast.script.include ? [... ast.script.include] : [];
-            useless = [];
+            const useneed = newInc ? [... newInc] : [];
             this.logger.info(`Got ${useneed.length} include file to load.` )
+            return [[], useneed]
         }
+    }
+
+    private deleteUnusedInclude(uri: string, useless: string[]) {
         // delete unused incinfo
-        let incInfo = this.incInfos.get(doc.uri);
+        let incInfo = this.incInfos.get(uri);
         if (incInfo) {
             let tempInfo: string[] = [];
             // acquire absulte uri to detele 
@@ -231,14 +256,10 @@ export class TreeManager implements IASTProvider
             for (const abs of tempInfo)
                 incInfo.delete(abs);
         } 
+    }
 
-        if (useneed.length === 0) {
-            // just link its include and go.
-            this.linkInclude(docTable, uri);
-            return
-        }
-        // EnumIncludes
-        let incQueue: string[] = [...useneed];
+    private async EnumIncludes(inc2update: string[], uri: string) {
+        let incQueue: string[] = [...inc2update];
         // this code works why?
         // no return async always fails?
         let path = incQueue.shift();
@@ -246,7 +267,7 @@ export class TreeManager implements IASTProvider
             const docDir = dirname(URI.parse(this.currentDocUri).fsPath);
             const p = this.include2Path(path, docDir);
             if (!p) {
-                this.logger.info(`${p} is an invalid file name.`);
+                this.logger.info(`${docDir} is an invalid file name.`);
                 path = incQueue.shift();
                 continue;
             }
@@ -259,9 +280,7 @@ export class TreeManager implements IASTProvider
                 path = incQueue.shift();
                 continue;
             }
-            // if is lib include, use lib dir
-            // 我有必要一遍遍读IO来确认库文件存不存在吗？
-            
+
             const doc = await this.loadDocumnet(p);
             if (doc) {
                 const parser = new AHKParser(doc.getText(), doc.uri, this.logger);
@@ -282,14 +301,6 @@ export class TreeManager implements IASTProvider
             }
             path = incQueue.shift();
         }
-        // 一顿操作数组和解析器了之后，
-        // 这个table和docinfo里的table之间的引用怎么没了得
-        // 神秘
-        this.linkInclude(docTable, uri);
-        this.docsAST.set(uri, {
-            AST: ast,
-            table: docTable
-        });
     }
     
     /**
@@ -415,6 +426,7 @@ export class TreeManager implements IASTProvider
                     return normalize(scriptDir + '\\' + normalized);
                 else    // absolute path
                     return normalized;
+            // lib include <lib name>
             case '':
                 if (rawPath[0] === '<' && rawPath[rawPath.length-1] === '>') {
                     let searchDir: string[] = []

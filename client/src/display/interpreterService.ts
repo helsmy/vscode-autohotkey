@@ -1,4 +1,4 @@
-import { ConfigurationChangeEvent, ExtensionContext, languages, LanguageStatusItem, LanguageStatusSeverity, TextEditor, window, workspace } from 'vscode';
+import { ConfigurationChangeEvent, ExtensionContext, languages, LanguageStatusItem, LanguageStatusSeverity, workspace } from 'vscode';
 import { AUTOHOTKEY_LANGUAGE } from '../constants';
 import * as child_process from 'child_process';
 import * as fs from 'fs';
@@ -72,7 +72,10 @@ export class InterpreterService extends EventEmitter {
             return undefined;
         if (!this.fileExistsSync(nruntime))
             return undefined;
-        const rawStdout = await this.getVersion(nruntime);
+        const rawStdout = await this.getVersion(nruntime).catch((error) => {
+            console.log(error);
+            return undefined;
+        });
         if (!rawStdout) 
             return undefined;
         return {
@@ -98,7 +101,9 @@ export class InterpreterService extends EventEmitter {
             });
             child.stdin.write('stdout := FileOpen("*", "w"),stdout.Write(A_AhkVersion)');
             child.stdin.end();
-        })
+            // kill it if no respond after 1000ms
+            setTimeout(() => child.kill(), 1000);
+        });
     }
 
     private fileExistsSync(path: string): boolean {

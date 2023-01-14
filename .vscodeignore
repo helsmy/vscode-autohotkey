@@ -4,6 +4,7 @@
 **/*.test.ts
 **/*.map
 .gitignore
+.github
 **/tsconfig.json
 **/tsconfig.base.json
 contributing.md

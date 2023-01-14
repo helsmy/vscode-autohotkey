@@ -9,7 +9,7 @@ export type AUTOHOTKEY_VERSION = {
 	minor: number;
 	patch: number;
 	build: number;
-	isBeta: boolean;
+	testVersion?: 'alpha' | 'beta';
 }
 
 /**

@@ -18,7 +18,7 @@
 			"skipFiles": [
 				"<node_internals>/**"
 			],
-			"type": "pwa-node",
+			"type": "node",
 			"outFiles": ["${workspaceRoot}/server/out/test/**/*.test.js",
 						 "${workspaceRoot}/server/out/**/*.js"]
 		},

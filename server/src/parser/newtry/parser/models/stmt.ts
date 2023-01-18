@@ -190,6 +190,38 @@ export class TrailerExprList extends Stmt {
 	
 }
 
+export class CommandCall extends Stmt {
+	constructor(
+		public readonly command: Token,
+		public readonly args: DelimitedList<Expr.Expr>
+	) {
+		super();
+	}
+
+	public toLines(): string[] {
+		return [this.command.content, ...this.args.toLines()];
+	}
+
+	public get start(): Position {
+		return this.command.start;
+	}
+
+	public get end(): Position {
+		return this.args.end;
+	}
+
+	public get ranges(): Range[] {
+		return [this.command, ...this.args.ranges];
+	}
+
+	public accept<T extends (...args: any) => any>(
+	  visitor: IStmtVisitor<T>,
+	  parameters: Parameters<T>,
+	): ReturnType<T> {
+		return visitor.visitCommandCall(this, parameters);
+	}
+}
+
 export class Block extends Stmt {
 
 	constructor(
@@ -429,14 +461,14 @@ export class CaseStmt extends Stmt {
 export class CaseExpr extends NodeBase {
 	constructor(
 		public readonly caseToken: Token,
-		public readonly conditions: IExpr[],
+		public readonly conditions: DelimitedList<Expr.Expr>,
 		public readonly colon: Token
 	) {
 		super();
 	}
 
 	public toLines(): string[] {
-		const conditionLines = this.conditions.flatMap(cond => cond.toLines());
+		const conditionLines = this.conditions.toLines();
 
 		conditionLines[0] = `${this.caseToken.content} ${conditionLines[0]}`;
 		conditionLines[conditionLines.length - 1] += this.colon.content;
@@ -452,7 +484,7 @@ export class CaseExpr extends NodeBase {
 	}
 
 	public get ranges(): Range[] {
-		const condRange = this.conditions.flatMap(cond => cond.ranges);
+		const condRange = this.conditions.ranges;
 		return [this.caseToken, ...condRange, this.colon];
 	}
 

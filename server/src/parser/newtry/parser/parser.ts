@@ -1,32 +1,23 @@
 import { Tokenizer } from "../tokenizor/tokenizer";
-import { Atom, IAST, IExpr, IStmt, IToken, MissingToken, SuffixTermTrailer, Token } from "../types";
+import { Atom, IAST, IExpr, MissingToken, SkipedToken, SuffixTermTrailer, Token } from "../types";
 import { isValidIdentifier, TokenType } from "../tokenizor/tokenTypes";
-import {
-    INodeResult,
-    IParseError,
-} from "../types";
-import { constructorToFailed, FailedConstructor, ParseError } from './models/parseError';
+import { IParseError } from "../types";
+import { constructorToFailed, ParseError } from './models/parseError';
 import * as Stmt from './models/stmt';
 import * as Expr from './models/expr';
 import * as SuffixTerm from './models/suffixterm';
 import { Precedences, UnaryPrecedence } from './models/precedences';
-import { nodeResult } from './utils/parseResult';
 import * as Decl from './models/declaration';
 import { IDiagnosticInfo, TokenKind } from '../tokenizor/types';
 import { mockLogger } from '../../../utilities/logger';
 import { Script } from '../models/script';
 import { Position } from 'vscode-languageserver-types';
-import { DelimitedList, ListChild } from './models/delimtiedList';
+import { DelimitedList } from './models/delimtiedList';
 import { NodeBase } from './models/nodeBase';
-
-type NodeConstructor =
-    | Constructor<Expr.Expr>
-    | Constructor<Stmt.Stmt>
-    | Constructor;
+import { ParseContext } from './models/parseContext';
 
 type IsStartFn = (t: Token) => boolean;
 type ParseFn<T> = () => T; 
-
 export class AHKParser {
     private tokenizer: Tokenizer;
     private currentToken: Token;
@@ -36,6 +27,7 @@ export class AHKParser {
      * list for storaging all tokens
      */
     private readonly uri: string;
+    private currentParseContext: number; 
     private tokens: Token[] = [];
     private tokenErrors: IDiagnosticInfo[] = [];
     private comments: Token[] = [];
@@ -50,6 +42,7 @@ export class AHKParser {
         this.tokens.push(this.currentToken);
         this.logger = logger;
         this.uri = uri;
+        this.currentParseContext = 0;
     }
 
     private nextToken(preType: TokenType): Token {
@@ -129,31 +122,46 @@ export class AHKParser {
         return token;
     }
 
-    private error(token: Token, message: string, failed: Maybe<NodeConstructor>): ParseError {
-        return new ParseError(
-            token,
-            message,
-            constructorToFailed(failed)
-        );
+    private delimitedList<T extends NodeBase | Token>(
+        delimiter: TokenType, isElementStartFn: IsStartFn, parseElementFn: ParseFn<T>, allowEmptyElement = false
+    ): DelimitedList<T> {
+        let list = new DelimitedList<T>();
+        while (true) {
+            if (isElementStartFn(this.currentToken)) {
+                list.addElement(parseElementFn());
+            }
+            else if (!allowEmptyElement) {
+                break;
+            }
+            const delimiterToken = this.eatOptional(delimiter);
+            if (delimiterToken === undefined) {
+                break;
+            }
+            list.addElement(delimiterToken);
+        }
+        return list;
+    }
+
+    /**
+     * Let tokenizer scan at Command mode. In other word,
+     * generate string token for command
+     * @param flag 
+     */
+    private setCommandScanMode(flag: boolean) {
+        this.tokenizer.isLiteralToken = flag;
     }
 
     public parse(): IAST {
-        const statment: IStmt[] = [];
         const diagnostics: IParseError[] = [];
         const baseName = this.uri.split('/').slice(-1)[0];
 
         this.logger.info(`Parsing started for ${baseName}`);
         
         try {
-            this.jumpWhiteSpace();
-            while (this.currentToken.type !== TokenType.EOF) {
-                let { errors, value } = this.declaration();
-                statment.push(value);
-                diagnostics.push(...errors);
-                this.jumpWhiteSpace();
-            }
-            
-            this.logger.info(`Parsing finished for ${baseName}`);
+            const start = Date.now();
+            const statment = this.parseList(ParseContext.SourceElements);
+            const end = Date.now();
+            this.logger.info(`Parsing finished for ${baseName}, take ${end - start} ms`);
 
             return {
                 script: new Script(
@@ -178,131 +186,178 @@ export class AHKParser {
         };
     }
 
-    public testDeclaration(): INodeResult<Stmt.Stmt> {
+    // Make Typescipt happy OTZ
+    private parseList(listParseContext: ParseContext.CaseStatementElements): Stmt.CaseStmt[]
+    private parseList(listParseContext: ParseContext.SourceElements): Stmt.Stmt[]
+    private parseList(listParseContext: ParseContext.DynamicPropertyElemnets): Stmt.Stmt[]
+    private parseList(listParseContext: ParseContext.BlockStatements): Stmt.Stmt[]
+    private parseList(listParseContext: ParseContext.ClassMembers): Stmt.Stmt[]
+    private parseList(listParseContext: ParseContext) {
+        const savedContext = this.currentParseContext;
+        this.currentParseContext |= 1 << listParseContext;
+        const parseListElementFn = this.getParseListElementFn(listParseContext);
+
+        let stmts: Stmt.Stmt[] = [];
+        this.jumpWhiteSpace()
+        while (!this.isListTerminator(listParseContext)) {
+            if (this.isValidListStart(listParseContext)) {
+                const element = parseListElementFn();
+                stmts.push(element);
+                this.jumpWhiteSpace();
+                continue;
+            }
+
+            // Current token is invaild. Generate a skippedToken, 
+            // and try to parse next one in current context
+            const token = new SkipedToken(this.currentToken);
+            stmts.push(new Stmt.Invalid(token.start, [token]));
+            this.advance();
+            this.jumpWhiteSpace();
+        }
+
+        return stmts;
+    }
+
+    private getParseListElementFn(listParseContext: ParseContext): () => Stmt.Stmt {
+        switch (listParseContext) {
+            case ParseContext.SourceElements:
+            case ParseContext.BlockStatements:
+            case ParseContext.IfClause2Elements:
+            case ParseContext.SwitchStatementElements:
+                return this.declaration.bind(this);
+            case ParseContext.CaseStatementElements:
+                return this.CaseStmtList.bind(this);
+            case ParseContext.ClassMembers:
+                return this.classMemberElement.bind(this);
+            case ParseContext.DynamicPropertyElemnets:
+                return this.dynamicPropertyMember.bind(this);
+        }
+    }
+
+    private isListTerminator(listParseContext: ParseContext): boolean {
+        const t = this.currentToken.type;
+        
+        if (t === TokenType.EOF) return true;
+
+        switch (listParseContext) {
+            case ParseContext.SourceElements:
+                return false;
+            case ParseContext.BlockStatements:
+            case ParseContext.ClassMembers:
+            case ParseContext.SwitchStatementElements:
+            case ParseContext.DynamicPropertyElemnets:
+                return t === TokenType.closeBrace;
+            case ParseContext.IfClause2Elements:
+                return t === TokenType.else;
+            case ParseContext.CaseStatementElements:
+                return t === TokenType.case || 
+                (t === TokenType.label && this.currentToken.content.toLowerCase() === 'default');
+        }
+    }
+
+    private isValidListStart(listParseContext: ParseContext): boolean {
+        switch (listParseContext) {
+            case ParseContext.SourceElements:
+            case ParseContext.BlockStatements:
+            case ParseContext.IfClause2Elements:
+            case ParseContext.CaseStatementElements:
+                return this.isStatementStart();
+            case ParseContext.ClassMembers:
+                return this.isClassMemberDeclarationStart();
+            // TODO: Handle default:
+            case ParseContext.SwitchStatementElements:
+                const token = this.currentToken;
+                return token.type === TokenType.case || 
+                (token.type === TokenType.label && token.content.toLowerCase() === 'default');
+            case ParseContext.DynamicPropertyElemnets:
+                return this.isDynamicPropertyStart();
+        }
+    }
+
+    private isStatementStart(): boolean {
+        const t = this.currentToken.type;
+            // All keyword
+        if (t >= TokenType.if && t <= TokenType.static ||
+            // `{` and identifier 
+            t === TokenType.openBrace ||t === TokenType.id ||
+            t === TokenType.key || t === TokenType.hotkeyModifer) 
+            return true;
+        return false;
+    }
+
+    private isClassMemberDeclarationStart(): boolean {
+        const t = this.currentToken.type;
+        if (t >= TokenType.if && t <= TokenType.byref ||
+            t === TokenType.id) 
+            return true;
+        return false;
+    }
+
+    private isDynamicPropertyStart(): boolean {
+        const token = this.currentToken;
+        const content = token.content.toLowerCase();
+        // 也许应该检查下个token是不是 `{`
+        return token.type === TokenType.id &&
+            (content === 'get' || content === 'set');
+    }
+
+    public testDeclaration(): Stmt.Stmt {
         return this.declaration();
     }
 
-    private declaration(): INodeResult<Stmt.Stmt> {
-        const start = this.pos;
-        try {
-            while (true) {
-                switch (this.currentToken.type) {
-                    case TokenType.id:
-                        return this.idLeadStatement();
-                    case TokenType.class:
-                        return this.classDefine();
-                    case TokenType.global:
-                    case TokenType.local:
-                    case TokenType.static:
-                        return this.varDecl();
-                    case TokenType.label:
-                        return this.label();
-                    case TokenType.key:
-                    // 所有热键的修饰符
-                    // case TokenType.sharp:
-                    // case TokenType.not:
-                    // case TokenType.xor:
-                    // case TokenType.plus:
-                    // case TokenType.less:
-                    // case TokenType.greater:
-                    // case TokenType.multi:
-                    // case TokenType.bnot:
-                    // case TokenType.dollar:
-                        return this.hotkey();
-                    case TokenType.hotstringOpen:
-                        return this.hotstring();
-                    // Skip empty statment
-                    case TokenType.EOL:
-                        this.jumpWhiteSpace();
-                        continue;
-                    default:
-                        return this.statement();
-                }
+    private declaration(): Stmt.Stmt {
+        while (true) {
+            switch (this.currentToken.type) {
+                case TokenType.id:
+                    return this.idLeadStatement();
+                case TokenType.class:
+                    return this.classDefine();
+                case TokenType.global:
+                case TokenType.local:
+                case TokenType.static:
+                    return this.varDecl();
+                case TokenType.label:
+                    return this.label();
+                case TokenType.key:
+                case TokenType.hotkeyModifer:
+                    return this.hotkey();
+                case TokenType.hotstringOpen:
+                    return this.hotstring();
+                // Skip empty statment
+                case TokenType.EOL:
+                    this.jumpWhiteSpace();
+                    continue;
+                default:
+                    return this.statement();
             }
-        }
-        catch (error) {
-            if (error instanceof ParseError) {
-                this.synchronize(error.failed);
-                const tokens = this.tokens.slice(start, this.pos);
-                tokens.push(this.currentToken);
-
-                return nodeResult(
-                    new Stmt.Invalid(
-                        tokens[0].start,
-                        tokens
-                    ),
-                    [error]
-                );
-            }
-            throw error;
         }
     }
 
-    private varDecl(): INodeResult<Decl.VarDecl> {
-        const scope = this.currentToken;
-        const assign: Decl.OptionalAssginStmt[] = [];
-        const errors: ParseError[] = [];
-        this.advance();
+    private varDecl(): Decl.VarDecl {
+        const scope = this.eat();
+
+        // if there are only declaration modifier
+        // `global` `Missing Variable` `\n`
         if (this.atLineEnd()) {
-            this.terminal(Decl.VarDecl);
-            return nodeResult(
-                new Decl.VarDecl(scope, []),
-                errors
-            );
+            this.terminal();
+            const assign = new DelimitedList<Expr.Expr>();
+            assign.addElement(new Expr.Invalid(scope.end, []));
+            return new Decl.VarDecl(scope, assign);
         }
-        // check if there are varible,
-        // if any parse them all
-        do {
-            // TODO: Deal with errors 
-            // when second declaration contains no identifer
-            if (this.currentToken.type === TokenType.id) {
-                let id = this.currentToken;
-                this.advance();
-                const saveToken = this.currentToken;
 
-                // check if there is an assignment
-                if (saveToken.type === TokenType.aassign ||
-                    saveToken.type === TokenType.equal) {
-                    this.advance();
-                    const expr = this.expression();
-                    errors.push(...expr.errors);
-                    assign.push(new Decl.OptionalAssginStmt(
-                        id, saveToken, expr.value
-                    ))
-                }
-                else
-                    assign.push(new Decl.OptionalAssginStmt(id));
+        const assign = this.delimitedList(
+            TokenType.comma,
+            // each declaration must start with identifier
+            token => isValidIdentifier(token.type),
+            () => this.expression(),
+        )
 
-            }
-            else {
-                // TODO: allow scoop declaration
-                // Generate error when no varible is found
-                errors.push(this.error(
-                    this.currentToken,
-                    'Expect an identifer in varible declaration',
-                    Decl.VarDecl
-                ));
-                // Generate Invalid Mark
-                assign.push(new Decl.OptionalAssginStmt(
-                    this.currentToken,
-                    undefined,
-                    new Expr.Invalid(
-                        this.currentToken.start,
-                        [this.currentToken]
-                    ))
-                );
-            }
-        } while (this.eatDiscardCR(TokenType.comma));
+        this.terminal();
 
-        this.terminal(Decl.VarDecl);
-
-        return nodeResult(
-            new Decl.VarDecl(scope, assign),
-            errors
-        );
+        return new Decl.VarDecl(scope, assign);
     }
 
-    private classDefine(): INodeResult<Decl.ClassDef> {
+    private classDefine(): Decl.ClassDef {
         const classToken = this.eat();
         const name = this.eatType(TokenType.id);
         const extendsToken = this.eatOptional(TokenType.extends)
@@ -313,168 +368,121 @@ export class AHKParser {
                 () => this.eat()
             );
             const baseClass = new Decl.ClassBaseClause(
-                extendsToken, list.value
+                extendsToken, list
             );
-            const body = this.block();
-            return nodeResult(
-                new Decl.ClassDef(
-                    classToken, name,
-                    body.value, baseClass
-                ),
-                body.errors
+            const body = this.classMember();
+            return new Decl.ClassDef(
+                classToken, name,
+                body, baseClass
             );
         }
-        const body = this.block();
-        return nodeResult(
-            new Decl.ClassDef(classToken, name, body.value),
-            body.errors
-        );
-    }
-
-    private delimitedList<T extends NodeBase | Token>(
-        delimiter: TokenType, isElementStartFn: IsStartFn, parseElementFn: ParseFn<T>, allowEmptyElement = false
-    ): INodeResult<DelimitedList<T>> {
-        let list = new DelimitedList<T>();
-        while (true) {
-            if (isElementStartFn(this.currentToken)) {
-                list.addElement(parseElementFn());
-            }
-            else if (!allowEmptyElement) {
-                break;
-            }
-            const delimiterToken = this.eatOptional(delimiter);
-            if (delimiterToken === undefined) {
-                break;
-            }
-            list.addElement(delimiterToken);
-        }
-        return nodeResult(list, []);
+        const body = this.classMember();
+        return new Decl.ClassDef(classToken, name, body);
     }
 
     // TODO:  class block statement
-    private classBlock(): INodeResult<Stmt.Block> {
-        const open = this.eatDiscardCR(TokenType.openBrace);
-        if (!open) {
-            throw this.error(
-                this.currentToken,
-                'Expect a "{" at begining of block',
-                Stmt.Block
-            );
-        }
-        const errors: ParseError[] = [];
-        const block: Stmt.Stmt[] = [];
+    private classMember(): Stmt.Block {
         this.jumpWhiteSpace();
-        while (this.currentToken.type !== TokenType.closeBrace &&
-            this.currentToken.type !== TokenType.EOF) {
-            switch (this.currentToken.type) {
-                case TokenType.id:
-                    const p = this.peek();
-                    // function
-                    if (p.type === TokenType.openParen) {
-                        const name = this.eat();
-                        const stmt = this.funcDefine(name);
-                        errors.push(...stmt.errors);
-                        block.push(stmt.value);
-                        break;
-                    }
-                    // getter setter with parameter
-                    else if (p.type === TokenType.openBracket) {
-                        const stmt = this.propMethod();
-                        errors.push(...stmt.errors);
-                        block.push(stmt.value);
-                        break;
-                    }
-                    else if (p.type === TokenType.openBrace) {
-                        const name = this.eat();
-                        const body = this.block();
-                        errors.push(...body.errors);
-                        block.push(new Decl.FuncDef(
-                            name, new Decl.Param(
-                                NullToken, [], [], NullToken
-                            ),
-                            body.value
-                        ));
-                        break;
-                    }
-            }
-            const stmt = this.declaration();
-            errors.push(...stmt.errors);
-            block.push(stmt.value);
-            this.jumpWhiteSpace();
+        const open = this.eatType(TokenType.openBrace)
+        const block = this.parseList(ParseContext.ClassMembers);
+        this.jumpWhiteSpace();
+        const close = this.eatType(TokenType.closeBrace);
+
+        return new Stmt.Block(open, block, close);
+    }
+
+    private classMemberElement(): Stmt.Stmt {
+        const token = this.currentToken;
+        if (token.type === TokenType.static)
+            return this.varDecl();
+        if (isValidIdentifier(this.currentToken.type))
+            return this.idLeadClassMember();
+        return this.assign();
+    }
+
+    private idLeadClassMember(): Stmt.Stmt {
+        const p = this.peek();
+        switch (p.type) {
+            // function
+            case TokenType.openParen:
+                const name = this.eat();
+                return this.funcDefine(name);
+            case TokenType.openBracket:
+            case TokenType.openBrace:
+                return this.dynamicProperty();
+            default:
+                return this.assign();
         }
-        const close = this.eatAndThrow(
-            TokenType.closeBrace,
-            'Expect a "}" at block end',
-            Stmt.Block
-        );
-
-        return nodeResult(
-            new Stmt.Block(open, block, close),
-            errors
-        );
     }
 
-    private propMethod(): INodeResult<Decl.FuncDef> {
+    /**
+     * Getter Setter method
+     * @returns 
+     */
+    private dynamicProperty(): Decl.DynamicProperty {
         const name = this.eat();
-        const parameter = this.parameters(TokenType.closeBracket, 'Expect a "]"');
-        const block = this.block();
-        return nodeResult(
-            new Decl.FuncDef(
-                name,
-                parameter.value,
-                block.value
-            ),
-            parameter.errors.concat(block.errors)
+        let parameter: Maybe<Decl.Param>;
+        if (this.currentToken.type == TokenType.openBracket)
+            parameter = this.parameters(TokenType.closeBracket);
+    
+        this.jumpWhiteSpace();
+        const open = this.eatType(TokenType.openBrace);
+        const block = this.parseList(ParseContext.DynamicPropertyElemnets);
+        this.jumpWhiteSpace();
+        const close = this.eatType(TokenType.closeBrace);
+        const body = new Stmt.Block(open, block, close);
+
+        return new Decl.DynamicProperty(
+            name, body, parameter
         );
     }
 
-    private label(): INodeResult<Decl.Label> {
+    private dynamicPropertyMember(): Decl.GetterSetter {
+        const name = this.eat();
+        this.jumpWhiteSpace();
+        const open = this.eatType(TokenType.openBrace);
+        const block = this.parseList(ParseContext.BlockStatements);
+        this.jumpWhiteSpace();
+        const close = this.eatType(TokenType.closeBrace);
+        const body = new Stmt.Block(open, block, close);
+        
+        return new Decl.GetterSetter(name, body);
+    }
+
+    private label(): Decl.Label {
         const name = this.currentToken;
         this.advance();
-        return nodeResult(new Decl.Label(name), []);
+        return new Decl.Label(name);
     }
 
     // v1 version
-    private hotkey(): INodeResult<Decl.Hotkey> {
-        const k1 = new Decl.Key(this.currentToken);
-        this.advance();
-        if (this.currentToken.type === TokenType.hotkeyand) {
-            const and = this.currentToken;
-            this.advance();
+    private hotkey(): Decl.Hotkey {
+        const modifier = this.eatOptional(TokenType.hotkeyModifer);
+        const k1 = new Decl.Key(this.eatType(TokenType.key), modifier);
+        const and = this.eatOptional(TokenType.hotkeyand);
+        if (and) {
             const k2 = new Decl.Key(this.currentToken);
             this.advance();
-            return nodeResult(new Decl.Hotkey(k1, and, k2), 
-                              []);
+            this.eatType(TokenType.hotkey);
+            return new Decl.Hotkey(k1, and, k2);
         }
-        this.eatAndThrow(
-            TokenType.hotkey,
-            'Expect a "::" at the end of hotkey declaration',
-            Decl.Hotkey
-        );
-        return nodeResult(new Decl.Hotkey(k1), []);
+        this.eatType(TokenType.hotkey);
+        return new Decl.Hotkey(k1);
     }
 
-    private hotstring(): INodeResult<Decl.HotString> {
+    private hotstring(): Decl.HotString {
         const option = this.eat();
-        const str = this.eatAndThrow(
-            TokenType.hotstringEnd,
-            'Expect a hotstring in hotstring',
-            Decl.HotString
-        );
+        const str = this.eatType(TokenType.hotstringEnd);
         // TODO: FINISH X OPTION
         if (this.atLineEnd()) {
             const expend = this.eat();
-            return nodeResult(new Decl.HotString(option, str, expend), []);
+            return new Decl.HotString(option, str, expend);
         }
-        const expend = this.eatAndThrow(
-            TokenType.string,
-            'Expect a expend string in hotstring',
-            Decl.HotString
-        );
-        return nodeResult(new Decl.HotString(option, str, expend), []);
+        const expend = this.eatType(TokenType.string);
+        return new Decl.HotString(option, str, expend);
     } 
 
-    private statement(): INodeResult<Stmt.Stmt> {
+    private statement(): Stmt.Stmt {
         switch (this.currentToken.type) {
             case TokenType.id:
                 return this.idLeadStatement();
@@ -507,131 +515,80 @@ export class AHKParser {
             case TokenType.command:
                 return this.command();
             default:
-                throw this.error(
-                    this.currentToken,
-                    'UnKnown statment found',
-                    undefined);
+                return this.idLeadStatement();
         }
     }
 
-    private idLeadStatement(): INodeResult<Stmt.Stmt> {
+    private idLeadStatement(): Stmt.Stmt {
         const p = this.peek()
         switch (p.type) {
             case TokenType.openParen:
                 return this.func();
-            case TokenType.equal:
-            case TokenType.aassign:
-            case TokenType.dot:
-            case TokenType.openBracket:
-                // expression is only allowed in assignment in AHK
-                return this.assign();
             case TokenType.hotkeyand:
             case TokenType.hotkey:
                 return this.hotkey();
             // 其他是语法错误，统一当作有错误的赋值语句
             default:
-                if (p.type >= TokenType.aassign && p.type <= TokenType.lshifteq)
-                    return this.assign();
-                throw this.error(p,
-                    'Invalid follower(s) of identifer',
-                    undefined);
+                return this.assign();
         }
     }
 
-    private block(): INodeResult<Stmt.Block> {
-        const open = this.eatDiscardCR(TokenType.openBrace);
-        if (!open) {
-            throw this.error(
-                this.currentToken,
-                'Expect a "{" at begining of block',
-                Stmt.Block
-            );
-        }
-        const errors: ParseError[] = [];
-        const block: Stmt.Stmt[] = [];
+    private block(): Stmt.Block {
         this.jumpWhiteSpace();
-        while (this.currentToken.type !== TokenType.closeBrace &&
-            this.currentToken.type !== TokenType.EOF) {
-            // FIXME: 在192行左右有什么错误
-            const stmt = this.declaration();
-            errors.push(...stmt.errors);
-            block.push(stmt.value);
-            this.jumpWhiteSpace();
-        }
-        const close = this.eatAndThrow(
-            TokenType.closeBrace,
-            'Expect a "}" at block end',
-            Stmt.Block
-        );
+        const open = this.eatType(TokenType.openBrace);
+        const block = this.parseList(ParseContext.BlockStatements);
+        this.jumpWhiteSpace();
+        const close = this.eatType(TokenType.closeBrace);
 
-        return nodeResult(
-            new Stmt.Block(open, block, close),
-            errors
-        );
+        return new Stmt.Block(open, block, close);
     }
 
-    private ifStmt(): INodeResult<Stmt.If> {
+    private ifStmt(): Stmt.If {
         const iftoken = this.currentToken;
         this.advance();
-        const errors: ParseError[] = [];
         const condition = this.expression();
-        errors.push(...condition.errors);
         // skip all EOL
         this.jumpWhiteSpace();
-        const body = this.declaration();
-        errors.push(...body.errors);
+
+        // FIXME: 这个if要怎么搞嘛还要可以单行语句
+        const body = this.statement();
 
         // parse else branch if found else
         this.jumpWhiteSpace();
         if (this.currentToken.type === TokenType.else) {
             const elseStmt = this.elseStmt();
-            errors.push(...elseStmt.errors);
-            return nodeResult(
-                new Stmt.If(
-                    iftoken,
-                    condition.value,
-                    elseStmt.value
-                ),
-                errors
+            return new Stmt.If(
+                iftoken,
+                condition,
+                body,
+                elseStmt
             );
         }
 
-        return nodeResult(
-            new Stmt.If(
-                iftoken,
-                condition.value,
-                body.value
-            ),
-            errors
+        return new Stmt.If(
+            iftoken,
+            condition,
+            body
         );
     }
 
-    private elseStmt(): INodeResult<Stmt.Else> {
+    private elseStmt(): Stmt.Else {
         const elsetoken = this.eat();
-        const errors: ParseError[] = [];
         if (this.matchTokens([TokenType.if])) {
             const elif = this.ifStmt();
-            errors.push(...elif.errors);
-            return nodeResult(
-                new Stmt.Else(
-                    elsetoken,
-                    elif.value
-                ),
-                errors
-            );
+            return new Stmt.Else(
+                elsetoken,
+                elif
+            )
         }
         const body = this.declaration();
-        errors.push(...body.errors);
-        return nodeResult(
-            new Stmt.Else(
-                elsetoken,
-                body.value
-            ),
-            errors
+        return new Stmt.Else(
+            elsetoken,
+            body
         );
     }
 
-    private breakStmt(): INodeResult<Stmt.Break> {
+    private breakStmt(): Stmt.Break {
         const breakToken = this.currentToken;
         this.advance();
 
@@ -640,23 +597,16 @@ export class AHKParser {
             
             // ',' is negotiable
             this.eatDiscardCR(TokenType.comma);
-            const label = this.eatAndThrow(
-                TokenType.id,
-                'Expect a label name',
-                Stmt.Break
-            );
-            this.terminal(Stmt.Break);
-            return nodeResult(
-                new Stmt.Break(breakToken, label),
-                []
-            );
+            const label = this.eatId();
+            this.terminal();
+            return new Stmt.Break(breakToken, label);
         }
 
-        this.terminal(Stmt.Break);
-        return nodeResult(new Stmt.Break(breakToken), []);
+        this.terminal();
+        return new Stmt.Break(breakToken);
     }
 
-    private returnStmt(): INodeResult<Stmt.Return> {
+    private returnStmt(): Stmt.Return {
         const returnToken = this.eat();
         
         // If expersions parse all
@@ -664,119 +614,60 @@ export class AHKParser {
             // ',' is negotiable
             this.eatDiscardCR(TokenType.comma);
             const expr = this.expression();
-            this.terminal(Stmt.Return)
-            return nodeResult(
-                new Stmt.Return(returnToken, expr.value),
-                expr.errors
-            );
+            this.terminal()
+            return new Stmt.Return(returnToken, expr);
         }
-        this.terminal(Stmt.Return);
-        return nodeResult(new Stmt.Return(returnToken), []);
+        this.terminal();
+        return new Stmt.Return(returnToken);
     }
 
-    private continueStmt(): INodeResult<Stmt.Continue> {
+    private continueStmt(): Stmt.Continue {
         const continueToken = this.eat();
-        if (!this.atLineEnd()) {
-            this.eatDiscardCR(TokenType.comma);
-            const label = this.eatAndThrow(
-                TokenType.id,
-                'Expect a label name',
-                Stmt.Continue
-            );
-            this.terminal(Stmt.Break);
-            return nodeResult(
-                new Stmt.Continue(continueToken, label),
-                []
-            );
+        const comma = this.eatDiscardCR(TokenType.comma);
+        if (!this.atLineEnd() && isValidIdentifier(this.currentToken.type)) {
+            const label = this.eat();
+            this.terminal();
+            return new Stmt.Continue(continueToken, label);
         }
-        return nodeResult(new Stmt.Continue(continueToken), []);
+        this.terminal();
+        return new Stmt.Continue(continueToken);
     }
 
-    private switchStmt(): INodeResult<Stmt.SwitchStmt> {
+    private switchStmt(): Stmt.SwitchStmt {
         const switchToken = this.eat();
-        const errors: ParseError[] = [];
-
         const cond = this.expression();
-        errors.push(...cond.errors);
 
         this.jumpWhiteSpace();
-        const open = this.eatAndThrow(
-            TokenType.openBrace,
-            'Expect a "{"',
-            Stmt.SwitchStmt
+        const open = this.eatType(TokenType.openBrace);
+        const cases = this.parseList(ParseContext.CaseStatementElements);
+        const close = this.eatType(TokenType.closeBrace);
+        return new Stmt.SwitchStmt(
+            switchToken, cond,
+            open, cases, close
         );
-        
-        const cases: Stmt.CaseStmt[] = [];
-        let inloop = true;
-        while (inloop) {
-            switch (this.currentToken.type) {
-                case TokenType.closeBrace:
-                    // TODO: warning 0 case found
-                    inloop = false;
-                    break;
-                case TokenType.case:
-                    const caseToken = this.eat();
-                    const conditions: IExpr[] = []
-                    
-                    do {
-                        const cond = this.expression();
-                        errors.push(...cond.errors);
-                        conditions.push(cond.value);
-                    } while (this.eatDiscardCR(TokenType.comma));
-                    
-                    const colon = this.eatAndThrow(
-                        TokenType.colon,
-                        'Expect a ":" at end of case',
-                        Stmt.SwitchStmt
-                    );
-                    const stmts = this.stmtList();
-                    errors.push(...stmts.errors);
-                    cases.push(
-                        new Stmt.CaseStmt(
-                            new Stmt.CaseExpr(caseToken, conditions, colon),
-                            stmts.value
-                        )
-                    );
-                    break;
-                case TokenType.label:
-                    if (this.currentToken.content === 'default') {
-                        // TODO: warning multidefault found
-                        const caseToken = this.eat();
-                        const CaseNode = new Stmt.DefaultCase(caseToken);
-                        const stmts = this.stmtList();
-                        errors.push(...stmts.errors);
-                        cases.push(
-                            new Stmt.CaseStmt(
-                                CaseNode,
-                                stmts.value
-                            )
-                        );
-                        break;
-                    }
-                // skip WhiteSpace
-                case TokenType.EOL:
-                    this.jumpWhiteSpace();
-                    continue;
-                // throw other label to default
-                default:
-                    throw this.error(
-                        this.currentToken,
-                        'Expect "case" statement or "default:"',
-                        Stmt.SwitchStmt
-                    );
-            }
+    }
 
+    private CaseStmtList(): Stmt.CaseStmt {
+        const caseToken = this.eat();
+        if (caseToken.type === TokenType.case) {
+            const conditions = this.delimitedList(
+                TokenType.comma,
+                this.isExpressionStart,
+                () => this.expression()
+            );
+            const colon = this.eatType(TokenType.colon);
+            const stmts = this.parseList(ParseContext.CaseStatementElements);
+            return new Stmt.CaseStmt(
+                new Stmt.CaseExpr(caseToken, conditions, colon),
+                stmts
+            );
         }
-        const close = this.eatAndThrow(
-            TokenType.closeBrace,
-            'Expect a "}"',
-            Stmt.SwitchStmt
-        );
-        return nodeResult(
-            new Stmt.SwitchStmt(
-                switchToken, cond.value,
-                open, cases, close
-            ), errors
+
+        const CaseNode = new Stmt.DefaultCase(caseToken);
+        const stmts = this.parseList(ParseContext.CaseStatementElements);
+        return new Stmt.CaseStmt(
+            CaseNode,
+            stmts
         );
     }
 
@@ -785,13 +676,12 @@ export class AHKParser {
      * for switch-case statement
      * 用来解析switch下面的没有大括号的语句
      */
-    private stmtList(): INodeResult<Stmt.Stmt[]> {
+    private stmtList(): Stmt.Stmt[] {
         const stmts: Stmt.Stmt[] = [];
         const errors: ParseError[] = [];
         do {
             const stmt = this.declaration();
-            stmts.push(stmt.value);
-            errors.push(...stmt.errors);
+            stmts.push(stmt);
 
             // stop at default case
             if (this.currentToken.type === TokenType.label && 
@@ -803,10 +693,10 @@ export class AHKParser {
             TokenType.closeBrace
         ]));
 
-        return nodeResult(stmts, errors);
+        return stmts;
     }
 
-    private loopStmt(): INodeResult<Stmt.LoopStmt> {
+    private loopStmt(): Stmt.LoopStmt {
         const loop = this.eat();
         // TODO: LOOP Funtoins
         // if no expression follows, check if is until loop
@@ -817,24 +707,13 @@ export class AHKParser {
         ])) {
             this.jumpWhiteSpace();
             const body = this.declaration();
-            if (this.matchTokens([TokenType.until])) {
-                const until = this.eatAndThrow(
-                    TokenType.until,
-                    'Expect a until in loop-until',
-                    Stmt.UntilLoop
-                );
+            const until = this.eatOptional(TokenType.until)
+            if (until) {
                 const cond = this.expression();
-                this.terminal(Stmt.UntilLoop);
-                return nodeResult(
-                    new Stmt.UntilLoop(loop, body.value, 
-                        until, cond.value),
-                    body.errors.concat(cond.errors)
-                );
+                this.terminal();
+                return new Stmt.UntilLoop(loop, body, until, cond);
             }
-            return nodeResult(
-                new Stmt.Loop(loop, body.value),
-                body.errors
-            );
+            return new Stmt.Loop(loop, body);
         }
         
         // TODO: syntax check for loop command
@@ -849,22 +728,16 @@ export class AHKParser {
             }
             if (this.atLineEnd()) this.advance();
             const body = this.declaration();
-            return nodeResult(
-                new Stmt.Loop(loop, body.value, new Expr.Invalid(loop.start, [])),
-                body.errors
-            );
+            return new Stmt.Loop(loop, body, new Expr.Invalid(loop.start, []));
         }
 
         const cond = this.expression();
         this.jumpWhiteSpace();
         const body = this.declaration();
-        return nodeResult(
-            new Stmt.Loop(loop, body.value, cond.value),
-            cond.errors.concat(body.errors)
-        );
+        return new Stmt.Loop(loop, body, cond);
     }
 
-    private whileStmt(): INodeResult<Stmt.WhileStmt> {
+    private whileStmt(): Stmt.WhileStmt {
         const whileToken = this.currentToken;
         this.advance();
         const cond = this.expression();
@@ -872,146 +745,95 @@ export class AHKParser {
         this.jumpWhiteSpace();
         const body = this.declaration();
 
-        return nodeResult(
-            new Stmt.WhileStmt(whileToken, cond.value, body.value),
-            cond.errors.concat(body.errors)
-        );
+        return new Stmt.WhileStmt(whileToken, cond, body)
     }
 
-    private forStmt(): INodeResult<Stmt.ForStmt> {
-        const forToken = this.currentToken;
-        this.advance();
-        const id1 = this.eatAndThrow(
-            TokenType.id,
-            'Expect an identifer in for loop',
-            Stmt.ForStmt
-        );
+    private forStmt(): Stmt.ForStmt {
+        const forToken = this.eat();
+        const id1 = this.eatId();
         if (this.currentToken.type === TokenType.comma) {
             const comma = this.eat();
-            const id2 = this.eatAndThrow(
-                TokenType.id,
-                'Expect second identifer after `,` in for loop',
-                Stmt.ForStmt
-            );
-            const inToken = this.eatAndThrow(
-                TokenType.in,
-                'Expect in keyword in for loop',
-                Stmt.ForStmt
-            );
+            const id2 = this.eatId();
+            const inToken = this.eatType(TokenType.in);
             const iterable = this.expression();
             const body = this.declaration();
-            return nodeResult(
-                new Stmt.ForStmt(
-                    forToken, inToken,
-                    iterable.value,
-                    body.value, 
-                    id1, comma, id2
-                ),
-                iterable.errors.concat(body.errors)
+            return new Stmt.ForStmt(
+                forToken, inToken,
+                iterable, body, 
+                id1, comma, id2
             );
         }
 
-        const inToken = this.eatAndThrow(
-            TokenType.in,
-            'Expect in keyword in for loop',
-            Stmt.ForStmt
-        );
+        const inToken = this.eatType(TokenType.in);
         const iterable = this.expression();
         const body = this.declaration();
-        return nodeResult(
-            new Stmt.ForStmt(
-                forToken, inToken,
-                iterable.value,
-                body.value,
-                id1
-            ),
-            iterable.errors.concat(body.errors)
+        return new Stmt.ForStmt(
+            forToken, inToken,
+            iterable, body, id1
         );
     }
 
-    private tryStmt(): INodeResult<Stmt.TryStmt> {
-        const tryToken = this.currentToken;
-        this.advance();
+    private tryStmt(): Stmt.TryStmt {
+        const tryToken = this.eat();
         this.jumpWhiteSpace();
         const body = this.declaration();
-        const errors = body.errors;
         let catchStmt: Maybe<Stmt.CatchStmt>;
         let finallyStmt: Maybe<Stmt.FinallyStmt>;
 
-        if (this.eatDiscardCR(TokenType.catch)) {
-            const catchToken = this.previous();
-            const errorVar = this.eatAndThrow(
-                TokenType.id,
-                'Expect an identifer as output variable',
-                Stmt.TryStmt
-            );
-            this.jumpWhiteSpace();
+        this.jumpWhiteSpace();
+        const catchToken = this.eatOptional(TokenType.catch);
+        if (catchToken) {
+            const errorVar = this.eatId();
             const body = this.declaration();
-            errors.push(...body.errors);
             catchStmt = new Stmt.CatchStmt(
-                catchToken, errorVar, body.value
+                catchToken, errorVar, body
             );
         }
 
-        if (this.eatDiscardCR(TokenType.finally)) {
-            const finallyToken = this.previous();
-            this.jumpWhiteSpace();
+        this.jumpWhiteSpace();
+        const finallyToken = this.eatOptional(TokenType.finally);
+        if (finallyToken) {
             const body = this.declaration();
-            errors.push(...body.errors);
-            finallyStmt = new Stmt.FinallyStmt(finallyToken, body.value);
+            finallyStmt = new Stmt.FinallyStmt(finallyToken, body);
         }
 
-        return nodeResult(
-            new Stmt.TryStmt(tryToken, body.value, catchStmt, finallyStmt),
-            errors
-        );
+        return new Stmt.TryStmt(tryToken, body, catchStmt, finallyStmt);
     }
 
-    private throwStmt(): INodeResult<Stmt.Throw> {
+    private throwStmt(): Stmt.Throw {
         const throwToken = this.eat();
         const expr = this.expression();
-        return nodeResult(
-            new Stmt.Throw(throwToken, expr.value),
-            expr.errors
-        );
+        this.terminal();
+        return new Stmt.Throw(throwToken, expr);
     }
 
     // TODO: Need Finish
-    private drective(): INodeResult<Stmt.Drective> {
+    private drective(): Stmt.Drective {
         const drective = this.currentToken;
         if (drective.content.toLowerCase() === 'include') {
             this.tokenizer.isLiteralToken = true;
             this.advance();
             const includePath = this.eat();
             this.includes.add(includePath.content);
-            this.terminal(Stmt.Drective);
-            return nodeResult(
-                new Stmt.Drective(drective, []),
-                []
-            )
+            this.terminal();
+            return new Stmt.Drective(drective, [])
         }
-        const errors: ParseError[] = [];
         const args: IExpr[] = [];
         this.advance();
         while (!this.atLineEnd()) {
             if (this.matchTokens([TokenType.comma]))
                 this.eat();
             const a = this.expression();
-            errors.push(...a.errors);
-            args.push(a.value);
+            args.push(a);
         }
 
-        this.terminal(Stmt.Drective);
-        return nodeResult(
-            new Stmt.Drective(drective, args),
-            errors
-        );
+        this.terminal();
+        return new Stmt.Drective(drective, args)
     }
 
     // assignment statemnet
-    private assign(): INodeResult<Stmt.AssignStmt|Stmt.ExprStmt> {
+    private assign(): Stmt.AssignStmt|Stmt.ExprStmt {
         const left = this.factor();
-        const errors = [...left.errors];
 
         if (this.check(TokenType.equal)) {
             // if is a `=` let tokenizer take literal token(string)
@@ -1023,53 +845,37 @@ export class AHKParser {
             this.check(TokenType.equal)) {
             const assign = this.eat();
             const expr = this.expression();
-            errors.push(...expr.errors);
 
             const delimiter = this.eatOptional(TokenType.comma);
             // If there are `,`
             if (delimiter) {
                 const trailer = this.tailorExpr(delimiter);
-                return nodeResult(
-                    new Stmt.AssignStmt(left.value, assign, expr.value, trailer.value),
-                    errors.concat(trailer.errors)
-                );
+                return new Stmt.AssignStmt(left, assign, expr, trailer);
             }
 
-            this.terminal(Stmt.AssignStmt);
-            return nodeResult(
-                new Stmt.AssignStmt(left.value, assign, expr.value),
-                errors
-            );
+            this.terminal();
+            return new Stmt.AssignStmt(left, assign, expr);
         }
 
-        return nodeResult(
-            new Stmt.ExprStmt(left.value),
-            left.errors
-        );
+        return new Stmt.ExprStmt(left);
 
     }
 
-    private tailorExpr(delimiter: Token): INodeResult<Stmt.TrailerExprList> {
+    private tailorExpr(delimiter: Token): Stmt.TrailerExprList {
         const errors: ParseError[] = [];
         const exprList = this.delimitedList(
             TokenType.comma,
-            // TODO: 加上判断是否是表达式开始的函数
-            () => true,
-            () => {
-                const expr = this.expression();
-                errors.push(...expr.errors);
-                return expr.value;
-            }
-        )
-        const trailer = new Stmt.TrailerExprList(
+            this.isExpressionStart,
+            () => this.expression()
+        ); 
+        return new Stmt.TrailerExprList(
             delimiter,
-            exprList.value
+            exprList
         );
-        return nodeResult(trailer, errors);
     }
 
     // for test expression
-    public testExpr(): INodeResult<Expr.Expr> {
+    public testExpr(): Expr.Expr {
         this.tokens.pop();
         this.tokenizer.Reset();
         this.tokenizer.isParseHotkey = false;
@@ -1078,493 +884,340 @@ export class AHKParser {
         return this.expression();
     }
 
-    private expression(p: number = 0): INodeResult<Expr.Expr> {
+    private isExpressionStart(token: Token): boolean {
+        switch (token.type) {
+            // all Unary operator
+            case TokenType.plus:
+            case TokenType.minus:
+            case TokenType.and:
+            case TokenType.multi:
+            case TokenType.not:
+            case TokenType.bnot:
+            case TokenType.pplus:
+            case TokenType.mminus:
+            case TokenType.new:
+
+            case TokenType.openParen:
+
+            case TokenType.number:
+            case TokenType.string:
+            case TokenType.openBrace:
+            case TokenType.openBracket:
+            case TokenType.id:
+            case TokenType.precent:
+                return true;
+
+            default:
+                // TODO: Allow all keywords as identifier and warn this
+                return isValidIdentifier(token.type);
+        }
+    }
+
+    private expression(p: number = 0): Expr.Expr {
         let start = this.pos;
         // let tokenizer parse operators as normal
         // 让分词器不进行热键分词正常返回符号
         this.tokenizer.isParseHotkey = false;
-        let result: INodeResult<Expr.Expr>;
+        let result: Expr.Expr;
 
-        try {
-            switch (this.currentToken.type) {
-                // all Unary operator
-                case TokenType.plus:
-                case TokenType.minus:
-                case TokenType.and:
-                case TokenType.multi:
-                case TokenType.not:
-                case TokenType.bnot:
-                case TokenType.pplus:
-                case TokenType.mminus:
-                case TokenType.new:
-                    const saveToken = this.currentToken;
-                    this.advance();
-                    const q = (saveToken.type >= TokenType.pplus &&
-                        saveToken.type <= TokenType.mminus) ?
-                        Precedences[TokenType.pplus] :
-                        UnaryPrecedence;
-                    const expr = this.expression(q);
-                    result = nodeResult(
-                        new Expr.Unary(saveToken, expr.value),
-                        expr.errors);
-                    break;
-                case TokenType.openParen:
-                    let OPar = this.eat();
-                    result = this.expression();
-                    let CPar = this.eatType(TokenType.closeParen);
-                    result = nodeResult(
-                        new Expr.ParenExpr(OPar, result.value, CPar),
-                        result.errors
-                    );
-                    break;
-                case TokenType.number:
-                case TokenType.string:
-                case TokenType.openBrace:
-                case TokenType.openBracket:
-                case TokenType.id:
-                case TokenType.precent:
-                    // TODO: process array, dict, and precent expression
+        switch (this.currentToken.type) {
+            // all Unary operator
+            case TokenType.plus:
+            case TokenType.minus:
+            case TokenType.and:
+            case TokenType.multi:
+            case TokenType.not:
+            case TokenType.bnot:
+            case TokenType.pplus:
+            case TokenType.mminus:
+            case TokenType.new:
+                const saveToken = this.currentToken;
+                this.advance();
+                const q = (saveToken.type >= TokenType.pplus &&
+                    saveToken.type <= TokenType.mminus) ?
+                    Precedences[TokenType.pplus] :
+                    UnaryPrecedence;
+                const expr = this.expression(q);
+                result = new Expr.Unary(saveToken, expr);
+                break;
+            case TokenType.openParen:
+                let OPar = this.eat();
+                result = this.expression();
+                let CPar = this.eatType(TokenType.closeParen);
+                result = new Expr.ParenExpr(OPar, result, CPar);
+                break;
+            case TokenType.number:
+            case TokenType.string:
+            case TokenType.openBrace:
+            case TokenType.openBracket:
+            case TokenType.id:
+            case TokenType.precent:
+                // TODO: process array, dict, and precent expression
+                result = this.factor();
+                break;
+            default:
+                // TODO: Allow all keywords as identifier and warn this
+                if (isValidIdentifier(this.currentToken.type)) {
                     result = this.factor();
                     break;
-                default:
-                    // TODO: Allow all keywords as identifier and warn this
-                    if (isValidIdentifier(this.currentToken.type)) {
-                        result = this.factor();
-                        break;
-                    }
-                    throw this.error(
-                        this.currentToken,
-                        'Expect an experssion',
-                        Expr.Factor
-                    );
-            }
+                }
+                return new Expr.Invalid(this.currentToken.start, [this.currentToken]);
+        }
 
-            // pratt parse
-            while (true) {
-                this.tokenizer.isParseHotkey = false;
+        // pratt parse
+        while (true) {
+            this.tokenizer.isParseHotkey = false;
+            // infix left-associative 
                 // infix left-associative 
-                if ((this.currentToken.type >= TokenType.power &&
-                    this.currentToken.type <= TokenType.logicor) &&
-                    Precedences[this.currentToken.type] >= p) {
-                    const saveToken = this.currentToken;
-                    this.advance();
-                    // array extend expression
-                    if (saveToken.type === TokenType.multi && !this.matchTokens([
-                        TokenType.plus, TokenType.minus, TokenType.and,
-                        TokenType.multi, TokenType.not, TokenType.bnot,
-                        TokenType.pplus, TokenType.mminus, TokenType.new,
-                        TokenType.openParen, TokenType.number, TokenType.string,
-                        TokenType.openBrace, TokenType.openBracket, TokenType.id,
-                        TokenType.precent
-                    ])) {
-                        return nodeResult(
-                            new Expr.Unary(
-                                saveToken,
-                                result.value
-                            ), result.errors
-                        );
-                    }
-                    const q = Precedences[saveToken.type];
-                    const right = this.expression(q + 1);
-                    result = nodeResult(
-                        new Expr.Binary(
-                            result.value,
-                            saveToken,
-                            right.value
-                        ),
-                        result.errors.concat(right.errors)
-                    );
-                    continue;
-                }
-
-                // postfix
-                if ((this.currentToken.type >= TokenType.pplus &&
-                    this.currentToken.type <= TokenType.mminus) &&
-                    Precedences[this.currentToken.type] >= p) {
-                    const saveToken = this.currentToken;
-                    this.advance();
-                    const q = Precedences[saveToken.type];
-                    result = nodeResult(
-                        new Expr.Unary(
-                            saveToken,
-                            result.value
-                        ),
-                        result.errors
-                    );
-                    continue;
-                }
-
-                // infix and ternary, right-associative 
-                if ((this.currentToken.type >= TokenType.question &&
-                    this.currentToken.type <= TokenType.lshifteq) &&
-                    Precedences[this.currentToken.type] >= p) {
-                    const saveToken = this.currentToken;
-                    this.advance();
-                    const q = Precedences[saveToken.type];
-
-                    // ternary expression
-                    if (saveToken.type === TokenType.question) {
-                        // This expression has no relation 
-                        // with next expressions. Thus, 0 precedence
-                        const trueExpr = this.expression();
-                        const colon = this.eatAndThrow(
-                            TokenType.colon,
-                            'Expect a ":" in ternary expression',
-                            Expr.Ternary
-                        );
-                        // right-associative 
-                        const falseExpr = this.expression(q);
-                        result = nodeResult(
-                            new Expr.Ternary(
-                                result.value,
-                                saveToken,
-                                trueExpr.value,
-                                colon,
-                                falseExpr.value
-                            ),
-                            result.errors
-                                .concat(trueExpr.errors)
-                                .concat(falseExpr.errors)
-                        );
-                    }
-                    // other assignments
-                    else {
-                        // right-associative 
-                        const right = this.expression(q);
-                        result = nodeResult(
-                            new Expr.Binary(
-                                result.value,
-                                saveToken,
-                                right.value
-                            ),
-                            result.errors.concat(right.errors)
-                        );
-                    }
-                    continue;
-                }
-
-                // Implicit connect
-                if ((this.currentToken.type >= TokenType.string &&
-                    this.currentToken.type <= TokenType.precent) &&
-                    Precedences[TokenType.sconnect] >= p) {
-                    const right = this.expression(Precedences[TokenType.sconnect] + 1);
-                    result = nodeResult(
-                        new Expr.Binary(
-                            result.value,
-                            new Token(TokenType.implconn, ' ',
-                                result.value.end,
-                                right.value.start),
-                            right.value
-                        ),
-                        result.errors.concat(right.errors)
-                    );
-                    continue;
-                }
-
-                break;
-            }
-            this.tokenizer.isParseHotkey = true;
-            return result;
-        }
-        catch (error) {
-            if (error instanceof ParseError) {
-                // this.logger.verbose(JSON.stringify(error.partial));
-                // this.synchronize(error.failed);
-                this.synchronize(error.failed);
-
-                // TODO: Correct error token list
-                const tokens = this.tokens.slice(start, this.pos);
-                tokens.push(this.currentToken);
-
-                return nodeResult(
-                    new Expr.Invalid(
-                        tokens[0].start,
-                        tokens
-                    ),
-                    [error]
-                );
-            }
-
-            throw error;
-        }
-    }
-
-    private factor(): INodeResult<Expr.Factor> {
-        const suffixTerm = this.suffixTerm();
-        const factor = new Expr.Factor(suffixTerm.value);
-        const errors = suffixTerm.errors;
-
-        // check is if factor has a suffix
-        if (this.currentToken.type === TokenType.dot) {
-            // create first suffix for connecting all suffix togther
-            // TODO: Why use linked list here?
-            // Is linked list more efficient than Array?
-            let dot = this.currentToken;
-            this.advance();
-            let suffixTerm = this.suffixTerm(true);
-            errors.push(...suffixTerm.errors);
-
-            // link suffix to factor with trailer
-            let trailer = new SuffixTerm.SuffixTrailer(suffixTerm.value);
-            factor.dot = dot;
-            factor.trailer = trailer;
-            let current = trailer;
-
-            // parse down and link all while is suffix
-            while (this.currentToken.type === TokenType.dot) {
-                let dot = this.currentToken;
+            // infix left-associative 
+            if ((this.currentToken.type >= TokenType.power &&
+                this.currentToken.type <= TokenType.logicor) &&
+                Precedences[this.currentToken.type] >= p) {
+                const saveToken = this.currentToken;
                 this.advance();
-                let suffixTerm = this.suffixTerm(true);
-                errors.push(...suffixTerm.errors);
-
-                let trailer = new SuffixTerm.SuffixTrailer(suffixTerm.value);
-                current.dot = dot;
-                current.trailer = trailer;
+                // array extend expression
+                if (saveToken.type === TokenType.multi && !this.matchTokens([
+                    TokenType.plus, TokenType.minus, TokenType.and,
+                    TokenType.multi, TokenType.not, TokenType.bnot,
+                    TokenType.pplus, TokenType.mminus, TokenType.new,
+                    TokenType.openParen, TokenType.number, TokenType.string,
+                    TokenType.openBrace, TokenType.openBracket, TokenType.id,
+                    TokenType.precent
+                ])) {
+                    return new Expr.Unary(
+                        saveToken,
+                        result
+                    );
+                }
+                const q = Precedences[saveToken.type];
+                const right = this.expression(q + 1);
+                result = new Expr.Binary(
+                    result,
+                    saveToken,
+                    right
+                );
+                continue;
             }
+
+            // postfix
+            if ((this.currentToken.type >= TokenType.pplus &&
+                this.currentToken.type <= TokenType.mminus) &&
+                Precedences[this.currentToken.type] >= p) {
+                const saveToken = this.currentToken;
+                this.advance();
+                result = new Expr.Unary(
+                    saveToken,
+                    result
+                )
+                continue;
+            }
+
+            // infix and ternary, right-associative 
+                // infix and ternary, right-associative 
+            // infix and ternary, right-associative 
+            if ((this.currentToken.type >= TokenType.question &&
+                this.currentToken.type <= TokenType.lshifteq) &&
+                Precedences[this.currentToken.type] >= p) {
+                const saveToken = this.currentToken;
+                this.advance();
+                const q = Precedences[saveToken.type];
+
+                // ternary expression
+                if (saveToken.type === TokenType.question) {
+                    // This expression has no relation 
+                        // This expression has no relation 
+                    // This expression has no relation 
+                    // with next expressions. Thus, 0 precedence
+                    const trueExpr = this.expression();
+                    const colon = this.eatType(TokenType.colon);
+                    // right-associative 
+                        // right-associative 
+                    // right-associative 
+                    const falseExpr = this.expression(q);
+                    result = new Expr.Ternary(
+                        result,
+                        saveToken,
+                        trueExpr,
+                        colon,
+                        falseExpr
+                    );
+                }
+                // other assignments
+                else {
+                    // right-associative 
+                        // right-associative 
+                    // right-associative 
+                    const right = this.expression(q);
+                    result = new Expr.Binary(
+                        result,
+                        saveToken,
+                        right
+                    );
+                }
+                continue;
+            }
+
+            // Implicit connect
+            if ((this.currentToken.type >= TokenType.string &&
+                this.currentToken.type <= TokenType.precent) &&
+                Precedences[TokenType.sconnect] >= p) {
+                const right = this.expression(Precedences[TokenType.sconnect] + 1);
+                result = new Expr.Binary(
+                    result,
+                    new Token(TokenType.implconn, ' ',
+                        result.end,
+                        right.start),
+                    right
+                );
+                continue;
+            }
+
+            break;
         }
-        return nodeResult(factor, errors);
+        this.tokenizer.isParseHotkey = true;
+        return result;
     }
 
-    private suffixTerm(isTailor: boolean = false): INodeResult<SuffixTerm.SuffixTerm> {
+    private factor(): Expr.Factor {
+        const suffixTerm = this.suffixTerm();
+        // const factor = new Expr.Factor(suffixTerm.value);
+        const dot = this.eatOptional(TokenType.dot);
+
+        // if factor has a suffix
+        if (dot) {
+            const tailor = this.delimitedList(
+                TokenType.dot,
+                token => isValidIdentifier(token.type),
+                () => this.suffixTerm(true)
+            )
+
+            return new Expr.Factor(
+                suffixTerm,
+                new SuffixTerm.SuffixTrailer(dot, tailor)
+            );
+        }
+
+        return new Expr.Factor(suffixTerm);
+    }
+
+    private suffixTerm(isTailor: boolean = false): SuffixTerm.SuffixTerm {
         const atom = this.atom(isTailor);
+        const isValid = !(atom instanceof SuffixTerm.Invalid);
+        
+        if (isValid) {
+            const trailers = this.suffixTermTailor();
+            return new SuffixTerm.SuffixTerm(atom, trailers);
+        }
+        return new SuffixTerm.SuffixTerm(atom, []);
+    }
+
+    private suffixTermTailor(): SuffixTermTrailer[] {
         const trailers: SuffixTermTrailer[] = [];
-        const errors: ParseError[] = [...atom.errors];
-
-        const isValid = !(atom.value instanceof SuffixTerm.Invalid);
-
         // parse all exist trailor  
-        while (isValid) {
+        while (true) {
             if (this.currentToken.type === TokenType.openBracket) {
                 const bracket = this.arrayBracket();
-                errors.push(...bracket.errors);
-                trailers.push(bracket.value);
+                trailers.push(bracket);
             }
             else if (this.currentToken.type === TokenType.openParen) {
                 const callTrailer = this.funcCallTrailer();
-                errors.push(...callTrailer.errors);
-                trailers.push(callTrailer.value);
+                trailers.push(callTrailer);
             }
             else
                 break;
         }
-
-        return nodeResult(
-            new SuffixTerm.SuffixTerm(atom.value, trailers),
-            errors
-        );
+        return trailers;
     }
 
-    private atom(isTailor: boolean = false): INodeResult<Atom> {
+    private atom(isTailor: boolean = false): Atom {
         switch (this.currentToken.type) {
             // TODO: All keywords is allowed in suffix.
             // But not allowed at first atom
             case TokenType.id:
                 this.advance();
-                return nodeResult(new SuffixTerm.Identifier(this.previous()), []);
+                return new SuffixTerm.Identifier(this.previous());
             case TokenType.number:
             case TokenType.string:
-                let t = this.currentToken;
-                this.advance();
-                return nodeResult(new SuffixTerm.Literal(t), []);
+                let t = this.eat();
+                return new SuffixTerm.Literal(t);
             case TokenType.precent:
-                // TODO: Finish precent deference expresion
-                let open = this.currentToken;
-                this.advance();
-                let derefAtom = this.atom();
-                const errors = derefAtom.errors;
-                if (this.currentToken.type === TokenType.precent) {
-                    this.advance();
-                    return nodeResult(derefAtom.value, errors);
-                }
-                else
-                    throw this.error(
-                        this.currentToken,
-                        'Expect "%" in precent expression',
-                        SuffixTerm.Identifier
-                    );
+                const open = this.eat();
+                const derefAtom = this.eatId();
+                const close = this.eatType(TokenType.precent);
+                return new SuffixTerm.PercentDereference(
+                    open, close, derefAtom
+                );
             case TokenType.openBracket:
                 return this.arrayTerm();
             case TokenType.openBrace:
                 return this.associativeArray();
             default:
                 // TODO: Allow all keywords here, and warn this
-                if (isValidIdentifier(this.currentToken.type)) {
-                    this.advance();
-                    return nodeResult(new SuffixTerm.Identifier(this.previous()), []);
+                const id = this.eatId();
+                if (id instanceof MissingToken) {
+                    return new SuffixTerm.Invalid(id);
                 }
-                if (isTailor) {
-                    const previous = this.previous();
-
-                    return nodeResult(new SuffixTerm.Invalid(previous.end), [
-                        this.error(previous, 'Expected suffix', undefined)
-                    ]);
-                }
-
-                throw this.error(this.currentToken, 'Expected an expression', undefined);
+                return new SuffixTerm.Identifier(id);
+                
         }
     }
 
-    private arrayTerm(): INodeResult<SuffixTerm.ArrayTerm> {
-        const open = this.currentToken;
-        this.advance();
-        const items: IExpr[] = [];
-        const errors: ParseError[] = [];
-
-        // if there are items parse them all
-        if (this.currentToken.type !== TokenType.closeBracket &&
-            this.currentToken.type !== TokenType.EOF) {
-            let a = this.expression();
-            items.push(a.value);
-            errors.push(...a.errors);
-            while (this.eatDiscardCR(TokenType.comma)) {
-                a = this.expression();
-                items.push(a.value);
-                errors.push(...a.errors);
-            }
-        }
-
-        const close = this.eatAndThrow(
-            TokenType.closeBracket,
-            'Expect a "]" to end array',
-            SuffixTerm.ArrayTerm
-        );
-
-        return nodeResult(
-            new SuffixTerm.ArrayTerm(open, close, items),
-            errors
-        );
-    }
-
-    private associativeArray(): INodeResult<SuffixTerm.AssociativeArray> {
-        const open = this.currentToken;
-        this.advance();
-        const pairs: SuffixTerm.Pair[] = [];
-        const errors: ParseError[] = [];
-
-        // if there are pairs parse them all
-        if (this.currentToken.type !== TokenType.closeBrace &&
-            this.currentToken.type !== TokenType.EOF) {
-            do {
-                let a = this.pair();
-                pairs.push(a.value);
-                errors.push(...a.errors);
-            } while (this.eatDiscardCR(TokenType.comma))
-        }
-
-        // try to skip every wrong pair and close dictionary
-        if (this.currentToken.type !== TokenType.closeBrace) {
-            errors.push(this.error(
-                this.currentToken,
-                'Wrong Expression for key-value pairs',
-                SuffixTerm.Pair
-            ));
-            while (!this.matchTokens([TokenType.closeBrace]) && !this.atLineEnd()) {
-                this.advance();
-            }
-        }
-        const close = this.eatAndThrow(
-            TokenType.closeBrace,
-            'Expect a "}" at the end of associative array',
-            SuffixTerm.AssociativeArray
+    private arrayTerm(): SuffixTerm.ArrayTerm {
+        const open = this.eat();
+        
+        const items = this.delimitedList(
+            TokenType.comma,
+            this.isExpressionStart,
+            () => this.expression()
         )
 
-        return nodeResult(
-            new SuffixTerm.AssociativeArray(open, close, pairs),
-            errors
-        );
+        const close = this.eatType(TokenType.closeBracket);
+
+        return new SuffixTerm.ArrayTerm(open, close, items);
     }
 
-    private pair(): INodeResult<SuffixTerm.Pair> {
+    private associativeArray(): SuffixTerm.AssociativeArray {
+        const open = this.eat();
+        const pairs = this.delimitedList(
+            TokenType.comma,
+            this.isExpressionStart,
+            () => this.pair()
+        )
+        const close = this.eatType(TokenType.closeBrace);
+
+        return new SuffixTerm.AssociativeArray(open, close, pairs);
+    }
+
+    private pair(): SuffixTerm.Pair {
         const key = this.expression();
-        const errors = key.errors;
-        if (this.eatDiscardCR(TokenType.colon)) {
-            const colon = this.previous();
-            const value = this.expression();
-            errors.push(...value.errors);
-            return nodeResult(
-                new SuffixTerm.Pair(key.value, colon, value.value),
-                errors
-            );
-        }
-
-        // if no colon, generate an error
-        // and contiune parsing rest of dict
-        errors.push(this.error(
-            this.currentToken,
-            'Expect a ":" on key-value pairs in associative array',
-            SuffixTerm.Pair
-        ));
-        return nodeResult(
-            new SuffixTerm.Pair(
-                key.value,
-                this.currentToken,
-                new Expr.Invalid(this.currentToken.start, [this.currentToken])
-            ),
-            errors
-        );
+        const colon = this.eatType(TokenType.colon);
+        const value = this.expression();
+        return new SuffixTerm.Pair(key, colon, value);
     }
 
-    private arrayBracket(): INodeResult<SuffixTerm.BracketIndex> {
-        const open = this.currentToken;
-        this.advance();
-        const indexs: Expr.Expr[] = [];
-        const errors: ParseError[] = [];
-        
-        // Found all index and parse them
-        // [index, index, ...]
-        do {
-            const index = this.expression();
-            errors.push(...index.errors);
-            indexs.push(index.value);
-        } while (this.eatDiscardCR(TokenType.comma))
-
-        const close = this.eatAndThrow(
-            TokenType.closeBracket,
-            'Expected a "]" at end of array index ',
-            SuffixTerm.BracketIndex
-            );
-
-        return nodeResult(
-            new SuffixTerm.BracketIndex(open, indexs, close),
-            errors
+    private arrayBracket(): SuffixTerm.BracketIndex {
+        const open = this.eat();
+        const indexs = this.delimitedList(
+            TokenType.comma,
+            this.isExpressionStart,
+            () => this.expression()
         );
+        const close = this.eatType(TokenType.closeBracket);
+
+        return new SuffixTerm.BracketIndex(open, indexs, close);
     }
 
-    private funcCallTrailer(): INodeResult<SuffixTerm.Call> {
-        const open = this.currentToken;
-        this.advance();
-        const args: IExpr[] = [];
-        const errors: ParseError[] = [];
-
-        // if there are arguments parse them all
-        if (this.currentToken.type !== TokenType.closeParen &&
-            this.currentToken.type !== TokenType.EOF) {
-            if (this.currentToken.type === TokenType.comma)
-                args.push(this.emptyArg());
-            else {
-                let a = this.expression();
-                args.push(a.value);
-                errors.push(...a.errors);
-            }
-            while (this.eatDiscardCR(TokenType.comma)) {
-                if (this.currentToken.type === TokenType.comma)
-                    args.push(this.emptyArg());
-                else {
-                    let a = this.expression();
-                    args.push(a.value);
-                    errors.push(...a.errors);
-                }
-            }
-        }
-        const close = this.eatAndThrow(
-            TokenType.closeParen,
-            'Expected a ")" at end of call',
-            SuffixTerm.Call
+    private funcCallTrailer(): SuffixTerm.Call {
+        const open = this.eat();
+        // TODO: 想个更好的办法来处理空参数
+        const args = this.delimitedList(
+            TokenType.comma,
+            this.isExpressionStart,
+            () => this.expression(),
+            true
         );
-        return nodeResult(
-            new SuffixTerm.Call(open, args, close),
-            errors
-        );
+        const close = this.eatType(TokenType.closeParen);
+        return new SuffixTerm.Call(open, args, close);
     }
 
     private emptyArg(): Expr.Expr {
@@ -1582,9 +1235,8 @@ export class AHKParser {
     /**
      * Parse all condition related to Function statements
      */
-    private func(): INodeResult<Stmt.ExprStmt|Decl.FuncDef> {
-        let token = this.currentToken
-        this.advance();
+    private func(): Stmt.ExprStmt|Decl.FuncDef {
+        let token = this.eat();
         const pos = this.pos;
         let unclosed: number = 1;
         while (unclosed > 0 && !this.atLineEnd()) {
@@ -1606,20 +1258,16 @@ export class AHKParser {
         return this.funcCall(token);
     }
 
-    private funcDefine(name: Token): INodeResult<Decl.FuncDef> {
+    private funcDefine(name: Token): Decl.FuncDef {
         // getter/setter 的语法和函数的参数语法就差个括号形式不一样
         // 整个解析函数就差最后失败原因的参数，结果就只能写得这么蠢OTZ
-        let parameters = this.parameters(TokenType.closeParen, 'Expect a ")"');
+        let parameters = this.parameters(TokenType.closeParen);
         let block = this.block();
-        let errors = parameters.errors.concat(block.errors);
-        return {
-            errors: errors,
-            value: new Decl.FuncDef(
-                name,
-                parameters.value,
-                block.value
-            )
-        };
+        return new Decl.FuncDef(
+            name,
+            parameters,
+            block
+        )
     }
 
     /**
@@ -1627,15 +1275,13 @@ export class AHKParser {
      * also parse statement with ',' expression trailer
      * @param name Name token of a function call
      */
-    private funcCall(name: Token): INodeResult<Stmt.ExprStmt> {
-        const call = this.funcCallTrailer();
-        const errors: ParseError[] = [...call.errors];
-        const trailers: Expr.Expr[] = [];
+    private funcCall(name: Token): Stmt.ExprStmt {
+        const call = this.suffixTermTailor();
         
         const callFactor = new Expr.Factor(
             new SuffixTerm.SuffixTerm(
                 new SuffixTerm.Identifier(name),
-                [call.value]
+                call
             )
         );
 
@@ -1643,169 +1289,115 @@ export class AHKParser {
         // If there are `,`
         if (delimiter) {
             const trailer = this.tailorExpr(delimiter);
-            this.terminal(Stmt.AssignStmt);
+            this.terminal();
 
-            return nodeResult(
-                new Stmt.ExprStmt(callFactor, trailer.value),
-                errors.concat(trailer.errors)
-            );
+            return new Stmt.ExprStmt(callFactor, trailer);
         }
 
-        this.terminal(Stmt.AssignStmt);
-        return nodeResult(
-            new Stmt.ExprStmt(callFactor),
-            errors
-        );
+        this.terminal();
+        return new Stmt.ExprStmt(callFactor);
     }
 
-    private parameters(closeTokenType: TokenType, closeFailMessage: string): INodeResult<Decl.Param> {
+    private parameters(closeTokenType: TokenType): Decl.Param {
         const open = this.eat();
-        const errors: ParseError[] = [];
         const requiredParameters: Decl.Parameter[] = [];
         const DefaultParameters: Decl.DefaultParam[] = [];
         let isDefaultParam = false;
-
-        if (this.currentToken.type !== TokenType.closeParen) {
-            do {
-                if (TokenType.byref === this.currentToken.type) 
-                    this.eat();
-                try {
-                    if (isDefaultParam) {
-                        const param = this.defaultParameter();
-                        errors.push(...param.errors);
-                        DefaultParameters.push(param.value);
-                    }
-                    else {
-                        const p = this.peek();
-                        // check if it is a default parameter
-                        if (p.type === TokenType.aassign || p.type === TokenType.equal) {
-                            isDefaultParam = true;
-                            const param = this.defaultParameter();
-                            errors.push(...param.errors);
-                            DefaultParameters.push(param.value);
-                        }
-                        else if (p.type === TokenType.multi) {
-                            isDefaultParam = true;
-                            const param = this.defaultParameter(true);
-                            errors.push(...param.errors);
-                            DefaultParameters.push(param.value);
-                        }
-                        else {
-                            const param = this.requiredParameter();
-                            requiredParameters.push(param.value);
-                        }
-                    }
+        const allParameters = this.delimitedList(
+            TokenType.comma,
+            token => isValidIdentifier(token.type),
+            () => {
+                const byref = this.eatOptional(TokenType.byref);
+                if (isDefaultParam) {
+                    const param = this.defaultParameter();
+                    DefaultParameters.push(param);
+                    return param;
                 }
-                catch (e) {
-                    if (e instanceof ParseError) {
-                        // synchronize parser, try to parse next parameter
-                        while (!this.matchTokens([
-                            TokenType.comma,
-                            TokenType.closeParen
-                        ])) {
-                            this.advance();
-                        }
-                    }
-                    else
-                        throw e;
+                const p = this.peek();
+                // check if it is a default parameter
+                if (p.type === TokenType.aassign || p.type === TokenType.equal) {
+                    isDefaultParam = true;
+                    const param = this.defaultParameter();
+                    DefaultParameters.push(param);
+                    return param;
                 }
+                if (p.type === TokenType.multi) {
+                    isDefaultParam = true;
+                    const param = this.defaultParameter(true);
+                    DefaultParameters.push(param);
+                    return param;
+                }
+                const param = this.requiredParameter();
+                requiredParameters.push(param);
+                return param;
 
-                
-            } while(this.eatDiscardCR(TokenType.comma));
-        }
+            }
+        )
 
-        const close = this.eatAndThrow(
-            closeTokenType,
-            closeFailMessage,
-            Decl.Param
-        );
-        return nodeResult(
-            new Decl.Param(
-                open,
-                requiredParameters,
-                DefaultParameters,
-                close
-            ), errors
+        const close = this.eatType(closeTokenType);
+        return new Decl.Param(
+            open,
+            allParameters,
+            requiredParameters,
+            DefaultParameters,
+            close
         );
     }
 
-    private requiredParameter():  INodeResult<Decl.Parameter> {
-        const name = this.eatAndThrow(
-            TokenType.id,
-            'Expect an identifier in parameter',
-            Decl.Parameter
-        );
-
-        return nodeResult(new Decl.Parameter(name), []);
+    private requiredParameter():  Decl.Parameter {
+        const name = this.eatType(TokenType.id);
+        return new Decl.Parameter(name);
     }
 
     /**
      * Parse default parameter of function
      * @param isExtend if parameter is array extend parameter
      */
-    private defaultParameter(isExtend: Boolean = false):  INodeResult<Decl.DefaultParam> {
-        const errors: ParseError[] = [];
-        const name = this.eatAndThrow(
-            TokenType.id,
-            'Expect an identifier in parameter',
-            Decl.DefaultParam
-        );
+    private defaultParameter(isExtend: Boolean = false):  Decl.DefaultParam {
+        const name = this.eatType(TokenType.id);
 
         // if is parameter*
         if (isExtend || this.currentToken.type === TokenType.multi) {
             const star = this.eat();
-            return nodeResult(
-                new Decl.DefaultParam(
+            return new Decl.DefaultParam(
                     name, star, new Expr.Invalid(star.start, [star])
-                ), []
             );
         }
 
-        if (this.matchTokens([
+        const assign = this.eatTypes(
             TokenType.aassign,
             TokenType.equal
-        ])) {
-            const assign = this.eat();
-            const dflt = this.expression();
-            errors.push(...dflt.errors);
-            return nodeResult(
-                new Decl.DefaultParam(
-                    name, assign, dflt.value
-                ),
-                errors
-            );
-        }
-        throw this.error(
-            this.currentToken,
-            'Expect a optional parameter',
-            Decl.DefaultParam
+        );
+        const dflt = this.expression();
+        return new Decl.DefaultParam(
+                name, assign, dflt
         );
     }
 
-    private command(): INodeResult<Stmt.Stmt> {
+    private command(): Stmt.Stmt {
         const cmd = this.eat();
-        // TODO: syntax check for command
-        // just jump everything for now
-        while (!this.atLineEnd()) {
-            this.advance();
-        }
-        return nodeResult(
-            new Stmt.Invalid(cmd.start, []),
-            []
-        );
+        this.setCommandScanMode(true);
+        
+        const args = this.delimitedList(
+            TokenType.comma,
+            this.isExpressionStart,
+            () => this.expression(),
+            true
+        )
+
+        this.setCommandScanMode(false);
+        this.terminal();
+
+        return new Stmt.CommandCall(cmd, args);
     }
 
     /**
      * Check the the statement is terminated
      * @param failed failed constructor context
      */
-    private terminal(failed: Maybe<NodeConstructor>) {
+    private terminal() {
         if (this.currentToken.type !== TokenType.EOF)
-            this.eatAndThrow(
-                TokenType.EOL,
-                'Expect "`n" to terminate statement',
-                failed
-            );
+            this.eatType(TokenType.EOL);
     }
 
     /**
@@ -1850,6 +1442,12 @@ export class AHKParser {
         return this.currentToken.type >= t1 && this.currentToken.type <= t2;
     }
 
+    /**
+     * Retrieve the current token and custom it.
+     * Used for token which type is checked
+     * 
+     * @returns Token
+     */
     private eat(): Token {
         this.advance();
         return this.previous();
@@ -1889,6 +1487,12 @@ export class AHKParser {
         return new MissingToken(ts[0], this.currentToken.start);
     }
 
+    private eatId(): Token {
+        if (isValidIdentifier(this.currentToken.type)) 
+            return this.eat();
+        return new MissingToken(TokenType.id, this.currentToken.start);
+    }
+
     private eatOptional(t: TokenType): Maybe<Token> {
         if (this.currentToken.type === t) {
             this.advance();
@@ -1903,15 +1507,6 @@ export class AHKParser {
             return this.previous();
         }
         return undefined;
-    }
-
-    private eatAndThrow(t: TokenType, message: string, failed: Maybe<NodeConstructor>) {
-        if (this.currentToken.type === t) {
-            this.advance();
-            return this.previous();
-        }
-        else
-            throw this.error(this.currentToken, message, failed);
     }
 
     /**
@@ -1936,62 +1531,4 @@ export class AHKParser {
         return this.currentToken.type === TokenType.EOL ||
                this.currentToken.type === TokenType.EOF;
     }
-
-    // attempt to synchronize parser
-    private synchronize(failed: FailedConstructor): void {
-        // need to confirm this is the only case
-        // if this is not a statement fail, 
-        // we no need to skip all expressions 
-        // Just check if next some is able to parse 
-        if (failed.stmt === undefined) {
-          this.advance();
-        }
-
-        while (this.currentToken.type !== TokenType.EOF) {
-            // try to parse next statement
-            if (this.previous().type === TokenType.EOL) return;
-            // skip until next statement
-            // and try to parse them
-            switch (this.currentToken.type) {
-                // declarations
-                case TokenType.local:
-                case TokenType.global:
-                case TokenType.static:
-                case TokenType.class:
-
-                // commands
-                case TokenType.command:
-
-                // control flow
-                case TokenType.if:
-                case TokenType.loop:
-                case TokenType.while:
-                case TokenType.until:
-                case TokenType.return:
-                case TokenType.break:
-                case TokenType.switch:
-                case TokenType.for: 
-                case TokenType.try:
-                case TokenType.throw:
-                
-                // drective
-                case TokenType.drective:
-
-                // expression spliter
-                // case TokenType.comma:
-                    return
-                // close scope
-                case TokenType.closeBrace:
-                    return;
-                
-                default:
-                    break;
-            }
-
-            this.advance();
-        }
-    }
-
 }
-
-const NullToken = new Token(TokenType.unknown, '', Position.create(-1, -1), Position.create(-1, -1));

@@ -89,6 +89,7 @@ export enum TokenType {
      */
     colon,
     hotkey,
+    hotkeyModifer,
     hotkeyand,
     /**
      * ':热字串的修饰符:'

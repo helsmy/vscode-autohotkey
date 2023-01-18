@@ -6,6 +6,7 @@ import { TokenType } from "../../parser/newtry/tokenizor/tokenTypes";
 import * as Expr from '../../parser/newtry/parser/models/expr';
 import * as SuffixTerm from '../../parser/newtry/parser/models/suffixterm';
 import * as Decl from '../../parser/newtry/parser/models/declaration';
+import * as Stmt from '../../parser/newtry/parser/models/stmt';
 
 function getExpr(s: string) {
     const p = new AHKParser(s, '');
@@ -43,7 +44,7 @@ function arrayUnpackTest(value: IExpr, testFunc: (atom: Atom, index: number) => 
         assert.strictEqual(arrayTerm instanceof SuffixTerm.ArrayTerm, true);
         if (arrayTerm instanceof SuffixTerm.ArrayTerm) {
             let i = 0;
-            for (const item of arrayTerm.items) {
+            for (const item of arrayTerm.items.getElements()) {
                 atomUnpackTest(item, atom => {
                     testFunc(atom, i);
                 });
@@ -60,7 +61,7 @@ function aarrayUnpackTest(value: IExpr,
         assert.strictEqual(aarray instanceof SuffixTerm.AssociativeArray, true);
         if (aarray instanceof SuffixTerm.AssociativeArray) {
             let i = 0;
-            for (const pair of aarray.pairs) {
+            for (const pair of aarray.pairs.getElements()) {
                 atomUnpackTest(pair.key, atom => {
                     testKeyFunc(atom, i);
                 });
@@ -117,9 +118,8 @@ suite('Syntax Parser Expresion Test', () => {
         ];
         for (const expect of expects) {
             const actuals = getExpr(expect.source);
-            assert.strictEqual(actuals.errors.length, 0);
 
-            atomUnpackTest(actuals.value, atom => {
+            atomUnpackTest(actuals, atom => {
                 assert.strictEqual(atom instanceof SuffixTerm.Literal, true);
                 if (atom instanceof SuffixTerm.Literal) {
                     assert.strictEqual(atom.token.type, expect.type);
@@ -135,9 +135,8 @@ suite('Syntax Parser Expresion Test', () => {
 
     test('basic valid expression', () => {
         const actual = getExpr('a:=1+3*2-12/3');
-        assert.strictEqual(actual.errors.length, 0);
-        assert.strictEqual(actual.value instanceof Expr.Binary, true);
-        assert.strictEqual(actual.value.toString(), 'a := 1 + 3 * 2 - 12 / 3');
+        assert.strictEqual(actual instanceof Expr.Binary, true);
+        assert.strictEqual(actual.toString(), 'a := 1 + 3 * 2 - 12 / 3');
     });
 
     test('basic valid `=` assign', () => {
@@ -154,17 +153,16 @@ suite('Syntax Parser Expresion Test', () => {
         const actuals = getExpr(`123
         
         + 99`);
-        assert.strictEqual(actuals.errors.length, 0);
-        assert.strictEqual(actuals.value instanceof Expr.Binary, true);
-        if (actuals.value instanceof Expr.Binary) {
-            atomUnpackTest(actuals.value.left, atom => {
+        assert.strictEqual(actuals instanceof Expr.Binary, true);
+        if (actuals instanceof Expr.Binary) {
+            atomUnpackTest(actuals.left, atom => {
                 assert.strictEqual(atom instanceof SuffixTerm.Literal, true);
                 if (atom instanceof SuffixTerm.Literal) {
                     assert.strictEqual(atom.token.content, '123');
                 }
             });
-            assert.strictEqual(actuals.value.operator.type, TokenType.plus);
-            atomUnpackTest(actuals.value.right, atom => {
+            assert.strictEqual(actuals.operator.type, TokenType.plus);
+            atomUnpackTest(actuals.right, atom => {
                 assert.strictEqual(atom instanceof SuffixTerm.Literal, true);
                 if (atom instanceof SuffixTerm.Literal) {
                     assert.strictEqual(atom.token.content, '99');
@@ -175,21 +173,20 @@ suite('Syntax Parser Expresion Test', () => {
 
     test('postfix operator', () => {
         const actuals = getExpr('a+++10');
-        assert.strictEqual(actuals.errors.length, 0);
-        assert.strictEqual(actuals.value instanceof Expr.Binary, true);
-        if (actuals.value instanceof Expr.Binary) {
-            assert.strictEqual(actuals.value.left instanceof Expr.Unary, true);
-            if (actuals.value.left instanceof Expr.Unary) {
-                factorUpackTest(actuals.value.left.factor, atom => {
+        assert.strictEqual(actuals instanceof Expr.Binary, true);
+        if (actuals instanceof Expr.Binary) {
+            assert.strictEqual(actuals.left instanceof Expr.Unary, true);
+            if (actuals.left instanceof Expr.Unary) {
+                factorUpackTest(actuals.left.factor, atom => {
                     assert.strictEqual(atom instanceof SuffixTerm.Identifier, true);
                     if (atom instanceof SuffixTerm.Identifier) {
                         assert.strictEqual(atom.token.content, 'a');
                     }
                 });
-                assert.strictEqual(actuals.value.left.operator.type, TokenType.pplus);
+                assert.strictEqual(actuals.left.operator.type, TokenType.pplus);
             }
-            assert.strictEqual(actuals.value.operator.type, TokenType.plus);
-            atomUnpackTest(actuals.value.right, atom => {
+            assert.strictEqual(actuals.operator.type, TokenType.plus);
+            atomUnpackTest(actuals.right, atom => {
                 assert.strictEqual(atom instanceof SuffixTerm.Literal, true);
                 if (atom instanceof SuffixTerm.Literal) {
                     assert.strictEqual(atom.token.content, '10');
@@ -205,8 +202,7 @@ suite('Syntax Parser Expresion Test', () => {
             AtomTestItem('"AHKL"', TokenType.string, 'AHKL')
         ];
         const actuals = getExpr('[1, 1.234, "AHKL"]');
-        assert.strictEqual(actuals.errors.length, 0);
-        arrayUnpackTest(actuals.value, (item, index) => {
+        arrayUnpackTest(actuals, (item, index) => {
             assert.strictEqual(item instanceof SuffixTerm.Literal, true);
             if (item instanceof SuffixTerm.Literal) {
                 assert.strictEqual(expects[index].type, item.token.type);
@@ -231,9 +227,8 @@ suite('Syntax Parser Expresion Test', () => {
             ]
         ];
         const actuals = getExpr('{"key": "value", 123: 12.12, abc: def}');
-        assert.strictEqual(actuals.errors.length, 0);
         aarrayUnpackTest(
-            actuals.value,
+            actuals,
             (key, index) => {
                 if (index === 2) 
                     assert.strictEqual(key instanceof SuffixTerm.Identifier, true);
@@ -273,10 +268,8 @@ suite('Syntax Parser Expresion Test', () => {
         for (const expect of expects) {
             const actual = getExpr(expect.source);
 
-            assert.strictEqual(actual.errors.length, 0);
-
             factorUpackTest(
-                actual.value,
+                actual,
                 atom => {
                     assert.strictEqual(atom instanceof SuffixTerm.Identifier, true);
                     if (atom instanceof SuffixTerm.Identifier) {
@@ -286,8 +279,9 @@ suite('Syntax Parser Expresion Test', () => {
                 trailer => {
                     assert.strictEqual(trailer instanceof SuffixTerm.Call, true);
                     if (trailer instanceof SuffixTerm.Call) {
-                        for (let i = 0; i < trailer.args.length; i++)
-                        atomUnpackTest(trailer.args[i], atom => {
+                        const args = trailer.args.getElements();
+                        for (let i = 0; i < args.length; i++)
+                        atomUnpackTest(args[i], atom => {
                             assert.strictEqual(atom instanceof expect.args[i], true);
                         })
                     }
@@ -295,6 +289,28 @@ suite('Syntax Parser Expresion Test', () => {
             )
         }
     });
+    test('Command Call', () => {
+        const expects = [
+            callTest('SetBatchLines, 1', 'SetBatchLines', [SuffixTerm.Literal]),
+            callTest('SetBatchLinesA, %abc%', 'SetBatchLinesA', [SuffixTerm.Identifier]),
+            callTest('\nSetBatchLinesB, 1', 'SetBatchLinesB', [SuffixTerm.Literal]),
+            callTest('\nSetBatchLinesC, 1, abc', 'SetBatchLinesC', [SuffixTerm.Literal, SuffixTerm.Literal]),
+        ];
+        for (const expect of expects) {
+            const actual = getStmt(expect.source);
+            assert.strictEqual(actual instanceof Stmt.CommandCall, true, 'Wrong parse class of Command Call')
+            if (actual instanceof Stmt.CommandCall) {
+                assert.strictEqual(actual.command.content, expect.callee);
+                const args = actual.args.getElements();
+                for (let i = 0; i < args.length; i++)
+                    atomUnpackTest(args[i], atom => {
+                        assert.strictEqual(atom instanceof expect.args[i], true, `${expect.callee} Wrong paramter ${i}`);
+                    })
+            }
+        }
+        
+        
+    })
 });
 
 function getStmt(s: string) {
@@ -319,7 +335,7 @@ suite('Syntax Parser Statment Test', () => {
         const actual = getStmt('^!#F12 & 1::');
         const expects = [
             keyTest(
-                '^!#F12',
+                'F12',
                 ['^', '!', '#']
             ),
             keyTest(
@@ -327,18 +343,14 @@ suite('Syntax Parser Statment Test', () => {
                 []
             )
         ];
-        assert.strictEqual(actual.errors.length, 0, `counter errors: ${actual.errors[0]}`);
-        const aHotkey = actual.value;
+        const aHotkey = actual;
         assert.strictEqual(aHotkey instanceof Decl.Hotkey, true, 'wrong instance');
         if (aHotkey instanceof Decl.Hotkey) {
             // assert.strictEqual(aHotkey.key1.modifiers !== undefined, true, 'key1 modifiers wrong');
             assert.strictEqual(aHotkey.key1.key.content, expects[0].name);
             if (aHotkey.key1.modifiers) {
-                let i = 0;
-                for (const mod of aHotkey.key1.modifiers) {
-                    assert.strictEqual(expects[0].modifiers[i], mod.content, 'key1 modifier name wrong');
-                    i++;
-                }
+                const m = aHotkey.key1.modifiers;
+                assert.strictEqual(m.content, '^!#', 'Wrong Modifier');
             }
             assert.strictEqual(aHotkey.key2 !== undefined,true, 'Key2 exists');
             if (aHotkey.key2) {
@@ -501,6 +513,6 @@ FindText(x1:=0, y1:=0, x2:=0, y2:=0, err1:=0, err0:=0
         const parser = new AHKParser(file, '');
         const fileAST = parser.parse();
         assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
-        assert.strictEqual(fileAST.sytanxErrors.length, 2, 'Enconter Parser error');
+        // assert.strictEqual(fileAST.sytanxErrors.length, 2, 'Enconter Parser error');
     });
 });

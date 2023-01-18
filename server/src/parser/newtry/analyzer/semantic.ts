@@ -50,7 +50,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const [e, vs] = this.createVarSym(decl.assigns);
 		errors.push(...e);
 		if (decl.scope.type === TokenType.static) {
-			if (!(this.currentScoop instanceof AHKObjectSymbol)) {
+			if (!(this.currentScoop instanceof AHKObjectSymbol) &&
+				!(this.currentScoop instanceof AHKMethodSymbol)) {
 				errors.push(
 					this.error(
 						Range.create(decl.start, decl.end),
@@ -140,7 +141,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		}
 		return syms;
 	}
-
+	
 	public visitDeclClass(decl: Decl.ClassDef): Diagnostics {
 		// TODO: parent scoop of class
 		const parentScoop = undefined;
@@ -158,6 +159,26 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		errors.push(... decl.body.accept(this, []));
 		this.leaveScoop();
 		return errors;
+	}
+
+	public visitDynamicProperty(decl: Decl.DynamicProperty): Diagnostics {
+		const errors: Diagnostics = [];
+		if (!(this.currentScoop instanceof AHKObjectSymbol)) return errors;
+		this.currentScoop.define(
+			new VaribaleSymbol(
+				this.script.uri,
+				decl.name.content,
+				copyRange(decl),
+				VarKind.property,
+				undefined
+			)
+		);
+		errors.push(...decl.body.accept(this, []));
+		return errors;
+	}
+
+	public visitDeclGetterSetter(decl: Decl.GetterSetter): Diagnostics {
+		return decl.body.accept(this, []);
 	}
 
 	public visitDeclHotkey(decl: Decl.Hotkey): Diagnostics {
@@ -228,6 +249,16 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		errors.push(...this.processTrailerExpr(stmt.trailerExpr));
 		return errors;
 	}
+
+	public visitCommandCall(stmt: Stmt.CommandCall): Diagnostics {
+		const errors: Diagnostics = [];
+		for (const arg of stmt.args.getElements()) {
+			errors.push(...this.processExpr(arg));
+		}
+
+		return errors;
+	}
+
 
 	private processTrailerExpr(trailer: Maybe<Stmt.TrailerExprList>): Diagnostics {
 		const errors: Diagnostics = [];
@@ -315,9 +346,11 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 					));
 					return errors;
 				}
-				const trailer = left.trailer;
-				if (trailer.trailer === undefined) {
-					const prop = trailer.suffixTerm.atom;
+				// if only one property behind this
+				// 就一个属性的时候, 是给这个属性赋值
+				const trailer = left.trailer.suffixTerm.childern;
+				if (trailer.length === 1) {
+					const prop = trailer[0];
 					if (prop instanceof SuffixTerm.Identifier) {
 						if (!this.currentScoop.parentScoop.resolve(prop.token.content)) {
 							const sym = new VaribaleSymbol(
@@ -393,7 +426,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const errors: Diagnostics = [];
 		// if is case <experssion>, process every expressions
 		if (stmt.CaseNode instanceof Stmt.CaseExpr) {
-			for (const cond of stmt.CaseNode.conditions) {
+			for (const cond of stmt.CaseNode.conditions.getElements()) {
 				errors.push(...this.processExpr(cond));
 			}
 		}
@@ -499,18 +532,22 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		this.currentScoop = this.stack[this.stack.length-1];
 	}
 
-	private createVarSym(assigns: Decl.OptionalAssginStmt[]): [Diagnostics, VaribaleSymbol[]] {
+	private createVarSym(assigns: Expr.ExpersionList): [Diagnostics, VaribaleSymbol[]] {
 		const errors: Diagnostics = [];
 		const varSym: VaribaleSymbol[] = [];
-		for (const assign of assigns) {
+		for (const assign of assigns.getElements()) {
 			// if there are any assign in variable declaration, 如果scoop声明里有赋值
-			if (assign.assign) {
+			if (assign instanceof Expr.Binary && 
+				assign.operator.type === TokenType.aassign &&
+				assign.left instanceof Expr.Factor &&
+				assign.left.suffixTerm.atom instanceof SuffixTerm.Identifier) {
 				const kind = this.currentScoop instanceof AHKObjectSymbol ?
 							 VarKind.property : VarKind.variable;
+				const id = assign.left.suffixTerm.atom.token;
 				const sym = new VaribaleSymbol(
 					this.script.uri,
-					assign.identifer.content,
-					Range.create(assign.start, assign.end),
+					id.content,
+					copyRange(id),
 					kind,
 					undefined
 				);

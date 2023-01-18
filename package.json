@@ -2,7 +2,7 @@
     "name": "ahk-simple-ls",
     "displayName": "AutoHotKey Simple Support",
     "description": "Simple ahkls with advanced features.",
-    "version": "0.8.30.1",
+    "version": "0.8.31",
     "author": "helsmy",
     "license": "LGPLv3.0",
     "repository": {
@@ -23,7 +23,7 @@
     ],
     "icon": "icon.png",
     "engines": {
-        "vscode": "^1.65.0"
+        "vscode": "^1.74.3"
     },
     "activationEvents": [
         "onLanguage:ahk"
@@ -157,6 +157,6 @@
         "@typescript-eslint/parser": "^5.2.0",
         "eslint": "^8.1.0",
         "mocha": "^9.0.0",
-        "typescript": "^3.9.4"
+        "typescript": "^4.9.4"
     }
 }

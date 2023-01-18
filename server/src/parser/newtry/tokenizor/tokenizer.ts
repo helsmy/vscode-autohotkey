@@ -63,15 +63,21 @@ export class Tokenizer {
      * @returns Peek Character
      */
     private Peek(len: number = 1, skipWhite: boolean = false): string {
-        if (this.pos >= this.document.length) {
+        if (this.pos+len >= this.document.length) {
             return "EOF";
         }
         if (skipWhite) {
-            let nwp = 0;
-            while (this.isWhiteSpace(this.document[this.pos + nwp])) {
-                ++nwp;
+            if (!this.isWhiteSpace(this.currChar)) {
+                return this.document[this.pos+len];
             }
-            return this.document[this.pos + nwp + len - 1];
+            let char = this.currChar;
+            let pos = this.pos;
+            do {
+                char = this.document[pos];
+                pos++;
+            } while(this.isWhiteSpace(char))
+            if (pos >= this.document.length) return "EOF";
+            return char;
         }
         return this.document[this.pos + len];
     }
@@ -285,14 +291,15 @@ export class Tokenizer {
         }
         if (preType === TokenType.EOL && this.currChar === ':') {
             const pchar = this.Peek(1, true); 
-            if (this.isWhiteSpace(pchar) || pchar === '\n') {
+            if (this.isWhiteSpace(pchar) || pchar === '\n' || pchar === 'EOF') {
                 this.Advance();
                 return this.CreateToken(TokenType.label, value, p, this.genPosition());
             }
             // only store the name of label
         }
+        const isNextComma = this.currChar === ',' || (this.isWhiteSpace(this.currChar) && this.Peek(1, true) == ',');
         // A id token confirmed, check if it is a command start
-        if (preType === TokenType.EOL && this.Peek(1, true) === ',') {
+        if (preType === TokenType.EOL && isNextComma) {
             // set command scan start flag
             this.isLiteralToken = true;
             return this.CreateToken(TokenType.command, value, p, this.genPosition());

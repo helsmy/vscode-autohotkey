@@ -3,13 +3,12 @@ import { TokenType } from '../../tokenizor/tokenTypes';
 import { Token } from '../../types';
 import { NodeBase } from './nodeBase';
 
-export type ListChild = NodeBase | Token;
-type PropEqual<T, U extends keyof T, V> =  V extends T[U] ? T : never;
+type PropEqual<T, U extends keyof T, V> =   T[U] extends V ? T : never;
 type TokenTypeEqual<V> = PropEqual<Token, "type", V>;
-type Delimiter = TokenTypeEqual<TokenType.dot> | TokenTypeEqual<TokenType.comma>;
+type Delimiter = TokenType.dot | TokenType.comma;
 
 export class DelimitedList<T extends NodeBase | Token> extends NodeBase {
-    public readonly childern: Array<T | Delimiter>;
+    public readonly childern: Array<T | Token>;
     private readonly delimiter = [TokenType.dot, TokenType.comma];
 
     constructor() {
@@ -28,7 +27,7 @@ export class DelimitedList<T extends NodeBase | Token> extends NodeBase {
         return result;
     }
 
-    public addElement(e: T | Delimiter) {
+    public addElement(e: T | Token) {
         this.childern.push(e);
     }
     
@@ -54,6 +53,6 @@ export class DelimitedList<T extends NodeBase | Token> extends NodeBase {
     }
 
     public get end(): Position {
-        return this.childern[this.childern.length].end;
+        return this.childern[this.childern.length - 1].end;
     }
 }

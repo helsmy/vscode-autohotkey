@@ -3,6 +3,7 @@ import { TokenType } from '../../tokenizor/tokenTypes';
 import { IExpr, IStmt, IStmtVisitor, Token } from '../../types';
 import { joinLines } from '../utils/stringUtils';
 import { DelimitedList } from './delimtiedList';
+import { ExpersionList } from './expr';
 import { NodeBase } from './nodeBase';
 import { Block, Stmt } from "./stmt";
 
@@ -23,14 +24,14 @@ export class VarDecl extends Decl {
      */
     constructor(
         public readonly scope: Token,
-        public readonly assigns: OptionalAssginStmt[]
+        public readonly assigns: ExpersionList
     ) {
         super();
     }
 
     public toLines(): string[] {
         const scopeLine = this.scope.content;
-        const assignsLines = this.assigns.flatMap(assign => assign.toLines());
+        const assignsLines = this.assigns.toLines();
         assignsLines[0] = scopeLine + assignsLines[0];
         return assignsLines;
     }
@@ -40,14 +41,11 @@ export class VarDecl extends Decl {
     }
 
     public get end(): Position {
-        if (this.assigns.length === 0)
-            return this.scope.end;
-        return this.assigns[this.assigns.length - 1].end;
+        return this.assigns.end;
     }
 
     public get ranges(): Range[] {
-        return [this.scope as Range]
-            .concat(this.assigns.flatMap(assign => assign.ranges));
+        return [this.scope as Range,...this.assigns.ranges];
     }
 
 	public accept<T extends (...args: any) => any>(
@@ -56,62 +54,6 @@ export class VarDecl extends Decl {
 	): ReturnType<T> {
 	  return visitor.visitDeclVariable(this, parameters);
 	}
-}
-
-/**
- * Assignment statement for declarations,
- * part of assignment is optional
- */
-export class OptionalAssginStmt extends Stmt {
-    /**
-     * 
-     * @param identifer varible identifer
-     * @param assign assign token
-     * @param expr expresions
-     */
-    constructor(
-        public readonly identifer: Token,
-        public readonly assign?: Token,
-        public readonly expr?: IExpr
-    ) {
-        super();
-    }
-
-    public toLines(): string[] {
-        const idLines = this.identifer.content;
-        if (this.assign !== undefined && this.expr !== undefined) {
-            const exprLines = this.expr.toLines();
-            const assignLines = this.assign.content;
-            exprLines[0] = `${idLines} ${assignLines} ${exprLines[0]}`
-            return exprLines;
-        }
-        else {
-            return [idLines];
-        }
-    }
-
-    public get start(): Position {
-        return this.identifer.start;
-    }
-
-    public get end(): Position {
-        return this.expr !== undefined ?
-            this.expr.end :
-            this.identifer.end;
-    }
-
-    public get ranges(): Range[] {
-        return (this.expr !== undefined && this.assign !== undefined) ?
-            [this.identifer, this.assign, this.expr] :
-            [this.identifer];
-    }
-    // optional assign will be process directly, this is to make ts happy.
-    public accept<T extends (...args: any) => any>(
-        visitor: IStmtVisitor<T>, 
-        parameters: Parameters<T>
-    ): ReturnType<T> {
-        throw new Error('Method not implemented.');
-    }
 }
 
 export class ClassDef extends Decl {
@@ -182,8 +124,39 @@ export class ClassBaseClause extends NodeBase {
     }
     public get end(): Position {
         return this.baseClass.end;
+    } 
+}
+
+export class  DynamicProperty extends Decl {
+    constructor(
+        public readonly name: Token,
+        public readonly body: Block,
+        public readonly param: Maybe<Param>
+    ) {
+        super();
     }
-    
+
+    public get ranges(): Range[] {
+        if (this.param)
+            return [this.name, ...this.param.ranges, ...this.body.ranges];
+        return [this.name, ...this.body.ranges];
+    }
+    public toLines(): string[] {
+        throw new Error('Method not implemented.');
+    }
+    public get start(): Position {
+        return this.name.start
+    }
+    public get end(): Position {
+        return this.body.end
+    }
+    public accept<T extends (...args: any) => any>(
+        visitor: IStmtVisitor<T>,
+        parameters: Parameters<T>,
+    ): ReturnType<T> {
+        return visitor.visitDynamicProperty(this, parameters);
+    }
+
 }
 
 export class Label extends Decl {
@@ -281,7 +254,7 @@ export class Key extends NodeBase {
      */
     constructor(
         public readonly key: Token, 
-        public readonly modifiers?: Token[]
+        public readonly modifiers?: Token
     ) {
         super();
     }
@@ -289,9 +262,7 @@ export class Key extends NodeBase {
     public toLines(): string[] {
         if (this.modifiers !== undefined) {
             let modifiersLine = '';
-            for (const t of this.modifiers) {
-                modifiersLine += t.content;
-            }
+            modifiersLine += this.modifiers.content;
             return [`${modifiersLine}${this.key.content}`]
         }
         return [`${this.key.content}`];
@@ -299,7 +270,7 @@ export class Key extends NodeBase {
 
     public get start(): Position {
         return this.modifiers !== undefined ?
-               this.modifiers[0].start:
+               this.modifiers.start:
                this.key.start;
     }
 
@@ -309,7 +280,7 @@ export class Key extends NodeBase {
 
     public get ranges(): Range[] {
         return this.modifiers !== undefined ?
-               this.modifiers.concat(this.key) :
+               [this.modifiers, this.key] :
                [this.key];
     }
 }
@@ -403,6 +374,7 @@ export class Param extends Decl {
 
     constructor(
         public readonly open: Token,
+        public readonly ParamaterList: DelimitedList<Parameter|DefaultParam>,
         public readonly requiredParameters: Parameter[],
         public readonly optionalParameters: DefaultParam[],
         public readonly close: Token
@@ -518,5 +490,45 @@ export class DefaultParam extends Parameter {
 
     public get isKeyword(): boolean {
         return this.identifier.type !== TokenType.id;
+    }
+}
+
+export class GetterSetter extends Decl {
+    /**
+     * @param nameToken name of function
+     * @param params parameters of function
+     * @param body body of function defination
+     */
+    constructor(
+        public readonly nameToken: Token,
+        public readonly body: Block
+    ) {
+        super();
+    }
+
+    public toLines(): string[] {
+        const idLines = this.nameToken.content;
+        const block = this.body.toLines();    
+
+        return joinLines(' ', block);
+    }
+
+    public get start(): Position {
+        return this.nameToken.start;
+    }
+
+    public get end(): Position {
+        return this.body.end;
+    }
+
+    public get ranges(): Range[] {
+        return [this.nameToken, ...this.body.ranges];
+    }
+
+    public accept<T extends (...args: any) => any>(
+        visitor: IStmtVisitor<T>,
+        parameters: Parameters<T>,
+    ): ReturnType<T> {
+        return visitor.visitDeclGetterSetter(this, parameters);
     }
 }

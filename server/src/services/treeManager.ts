@@ -55,11 +55,6 @@ import { IAST, IParseError } from '../parser/newtry/types';
 import { IScoop, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
 import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, ScopedSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
 
-// if belongs to FuncNode
-function isFuncNode(node: ISymbolNode): node is IFuncNode{
-    return typeof (node as IFuncNode)['params'] !== 'undefined';
-}
-
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];
     for(let item of set1) {

@@ -9,7 +9,7 @@ type Maybe<T> = T | undefined;
  * or classes
  * ref: vscode-kos-language-server
  */
- type Constructor<T = {}> = new (...args: any[]) => T;
+type Constructor<T = {}> = new (...args: any[]) => T;
 
 /**
  * Base logger interface, mirror vscodes logger

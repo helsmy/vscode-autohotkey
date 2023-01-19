@@ -48,6 +48,8 @@ statement -> ( statementBlock
     | catch
     | finally
     | directive
+    | assign
+    | hotkey
 )
 
 // directive

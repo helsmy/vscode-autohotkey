@@ -16,7 +16,11 @@ export enum TokenKind {
 	/**
 	 * got a comment
 	 */
-	Commnet
+	Commnet,
+	/**
+	 * Hotkey which contains all tokens in list
+	 */
+	Multi
 }
 
 export interface Result<T, TokenKind> {
@@ -41,8 +45,10 @@ export interface IDiagnosticInfo {
 export type TakeToken = Result<Token, TokenKind.Token>;
 export type TakeDiagnostic = Result<IDiagnosticInfo, TokenKind.Diagnostic>;
 export type TakeComment = Result<Token, TokenKind.Commnet>;
+export type TakeHotkey = Result<Token[], TokenKind.Multi>;
 
 export type TokenResult = 
 	| TakeToken
 	| TakeDiagnostic
-	| TakeComment;
+	| TakeComment
+	| TakeHotkey;

@@ -57,11 +57,6 @@ import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, Hotk
 import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
 import { DocInfo, IASTProvider } from './types';
 
-// if belongs to FuncNode
-function isFuncNode(node: ISymbolNode): node is IFuncNode{
-    return typeof (node as IFuncNode)['params'] !== 'undefined';
-}
-
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];
     for(let item of set1) {

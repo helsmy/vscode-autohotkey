@@ -8,6 +8,8 @@ import {
     SyntaxKind,
     Token
 } from '../../types';
+import { DelimitedList } from './delimtiedList';
+import { Expr } from './expr';
 import { NodeBase } from './nodeBase';
 
 /**
@@ -28,18 +30,18 @@ export abstract class SuffixTermBase extends NodeBase implements ISuffixTerm {
 export class Invalid extends SuffixTermBase {
     /**
      * Invalid suffix term constructor
-     * @param tokens tokens in the invalid range
+     * @param token token in the invalid range
      */
-    constructor(public readonly position: Position) {
+    constructor(public readonly token: Token) {
         super();
     }
 
     public get start(): Position {
-        return this.position;
+        return this.token.start;
     }
 
     public get end(): Position {
-        return this.position;
+        return this.token.end;
     }
 
     public get ranges(): Range[] {
@@ -62,9 +64,8 @@ export class SuffixTrailer extends SuffixTermBase {
      * @param trailer the suffix trailer
      */
     constructor(
-        public readonly suffixTerm: SuffixTerm,
-        public dot?: Token,
-        public trailer?: SuffixTrailer,
+        public readonly dot: Token,
+        public readonly suffixTerm: DelimitedList<SuffixTerm>,
     ) {
         super();
     }
@@ -74,38 +75,16 @@ export class SuffixTrailer extends SuffixTermBase {
     }
 
     public get end(): Position {
-        return (this.trailer === undefined) ? this.suffixTerm.end : this.trailer.end;
+        return this.suffixTerm.end;
     }
 
     public get ranges(): Range[] {
-        if (!(this.dot === undefined) && !(this.trailer === undefined)) {
-            return [this.suffixTerm, this.dot, this.trailer];
-        }
-
-        return [this.suffixTerm];
+        return [this.dot, ...this.suffixTerm.ranges]
     }
 
     public toLines(): string[] {
         const suffixTermLines = this.suffixTerm.toLines();
-
-        if (!(this.dot === undefined) && !(this.trailer === undefined)) {
-            const [joinLine, ...restLines] = this.trailer.toLines();
-
-            if (suffixTermLines.length === 1) {
-                return [`${suffixTermLines[0]}${this.dot.content}${joinLine}`].concat(
-                    restLines,
-                );
-            }
-
-            return suffixTermLines
-                .slice(0, suffixTermLines.length - 2)
-                .concat(
-                    `${suffixTermLines[0]}${this.dot.content}${joinLine}`,
-                    restLines,
-                );
-        }
-
-        return suffixTermLines;
+        return [this.dot.content, ...suffixTermLines];
     }
 }
 
@@ -163,7 +142,7 @@ export class Call extends SuffixTermBase {
      */
     constructor(
         public readonly open: Token,
-        public readonly args: IExpr[],
+        public readonly args: DelimitedList<Expr>,
         public readonly close: Token,
     ) {
         super();
@@ -178,24 +157,11 @@ export class Call extends SuffixTermBase {
     }
 
     public get ranges(): Range[] {
-        return [this.open, ...this.args, this.close];
+        return [this.open, ...this.args.ranges, this.close];
     }
 
     public toLines(): string[] {
-        if (this.args.length === 0) {
-            return [`${this.open.content}${this.close.content}`];
-        }
-
-        const argsLines = this.args.map(a => a.toLines());
-        const argsResult = argsLines.flatMap(l => {
-            l.join(',');
-            return l;
-        });
-
-        argsResult[0] = `${this.open.content}${argsResult[0]}`;
-        argsResult[argsResult.length - 1] = `${argsResult[argsResult.length - 1]}${this.close.content
-            }`;
-        return argsResult;
+        return [this.open.content, ...this.args.toLines(), this.close.content];
     }
 }
 
@@ -211,7 +177,7 @@ export class BracketIndex extends SuffixTermBase {
      */
     constructor(
         public readonly open: Token,
-        public readonly indexs: IExpr[],
+        public readonly indexs: DelimitedList<Expr>,
         public readonly close: Token,
     ) {
         super();
@@ -226,11 +192,11 @@ export class BracketIndex extends SuffixTermBase {
     }
 
     public get ranges(): Range[] {
-        return [this.open, ...this.indexs, this.close];
+        return [this.open, ...this.indexs.ranges, this.close];
     }
 
     public toLines(): string[] {
-        const lines = this.indexs.flatMap(i => i.toLines());
+        const lines = this.indexs.toLines();
 
         lines[0] = `${this.open.content}${lines[0]}`;
         lines[lines.length - 1] = `${lines[lines.length - 1]}${this.close.content}`;
@@ -319,7 +285,7 @@ export class ArrayTerm extends SuffixTermBase {
     constructor(
         public readonly open: Token,
         public readonly close: Token,
-        public readonly items: IExpr[]
+        public readonly items: DelimitedList<Expr>
         ) {
         super();
     }
@@ -333,14 +299,11 @@ export class ArrayTerm extends SuffixTermBase {
     }
 
     public get ranges(): Range[] {
-        const itemsRange = this.items.flatMap(item => item.ranges);
-        return [this.open as Range]
-               .concat(itemsRange)
-               .concat(this.close);
+        return [this.open, ...this.items.ranges, this.close]
     }
 
     public toLines(): string[] {
-        const itemLines = this.items.flatMap(item => item.toLines());
+        const itemLines = this.items.toLines();
         itemLines[0] = this.open.content + itemLines[0];
         itemLines[itemLines.length-1] += this.close.content;
         return itemLines;
@@ -360,7 +323,7 @@ export class ArrayTerm extends SuffixTermBase {
     constructor(
         public readonly open: Token,
         public readonly close: Token,
-        public readonly pairs: Pair[]
+        public readonly pairs: DelimitedList<Pair>
         ) {
         super();
     }
@@ -374,14 +337,11 @@ export class ArrayTerm extends SuffixTermBase {
     }
 
     public get ranges(): Range[] {
-        const pairsRange = this.pairs.flatMap(item => item.ranges);
-        return [this.open as Range]
-               .concat(pairsRange)
-               .concat(this.close);
+        return [this.open, ...this.pairs.ranges, this.close];
     }
 
     public toLines(): string[] {
-        const pairLines = this.pairs.flatMap(item => item.toLines());
+        const pairLines = this.pairs.toLines();
         pairLines[0] = this.open.content + pairLines[0];
         pairLines[pairLines.length-1] += this.close.content;
         return pairLines;

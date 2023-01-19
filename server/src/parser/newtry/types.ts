@@ -1,3 +1,7 @@
+/**
+ * File for basic types and classes for the whole parser
+ */
+
 import { Position, Range } from 'vscode-languageserver';
 import { ParseError } from './parser/models/parseError';
 import { TokenType } from './tokenizor/tokenTypes';
@@ -33,6 +37,28 @@ export class Token implements IToken {
 		this.content = content;
 		this.start = start;
 		this.end = end;
+	}
+}
+
+export class MissingToken extends Token {
+	constructor(type: TokenType, start: Position) {
+		super(
+			type,
+			'',
+			start,
+			start
+		);
+	}
+}
+
+export class SkipedToken extends Token {
+	constructor(token: IToken) {
+		super(
+			token.type,
+			token.content,
+			token.start,
+			token.end
+		)
 	}
 }
 
@@ -118,20 +144,23 @@ export interface IExprClass<T = Expr.Expr>
 
 export interface IStmtVisitor<T extends (...args: any) => any> {
 	visitDeclVariable(decl: Decl.VarDecl, parameters: Parameters<T>): ReturnType<T>; 
-	visitDeclClass(decl: Decl.ClassDef, parameters: Parameters<T>): ReturnType<T>; 
+	visitDeclClass(decl: Decl.ClassDef, parameters: Parameters<T>): ReturnType<T>;
+	visitDynamicProperty(decl: Decl.DynamicProperty, parameters: Parameters<T>): ReturnType<T>;
 	visitDeclHotkey(decl: Decl.Hotkey, parameters: Parameters<T>): ReturnType<T>;
 	visitDeclHotString(decl: Decl.HotString, parameters: Parameters<T>): ReturnType<T>;
 	visitDeclFunction(decl: Decl.FuncDef, parameters: Parameters<T>): ReturnType<T>;
 	visitDeclParameter(decl: Decl.Param, parameters: Parameters<T>): ReturnType<T>;
+	visitDeclGetterSetter(decl: Decl.GetterSetter, parameters: Parameters<T>): ReturnType<T>;
 	visitDeclLabel(decl: Decl.Label, parameters: Parameters<T>): ReturnType<T>;
-  
+	
 	visitStmtInvalid(
-	  stmt: Stmt.Invalid,
-	  parameters: Parameters<T>,
+		stmt: Stmt.Invalid,
+		parameters: Parameters<T>,
 	): ReturnType<T>;
 	visitDrective(stmt: Stmt.Drective, parameters: Parameters<T>): ReturnType<T>;
 	visitBlock(stmt: Stmt.Block, parameters: Parameters<T>): ReturnType<T>;
 	visitExpr(stmt: Stmt.ExprStmt, parameters: Parameters<T>): ReturnType<T>;
+	visitCommandCall(stmt: Stmt.CommandCall, parameters: Parameters<T>): ReturnType<T>;
 	visitAssign(stmt: Stmt.AssignStmt, parameters: Parameters<T>): ReturnType<T>;
 	// visitCommand(stmt: Stmt.Command, parameters: Parameters<T>): ReturnType<T>;
 	// visitCommandExpr(

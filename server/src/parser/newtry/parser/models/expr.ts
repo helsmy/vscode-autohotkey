@@ -1,3 +1,4 @@
+import { type } from 'os';
 import { Position, Range } from 'vscode-languageserver';
 import { TokenType } from '../../tokenizor/tokenTypes';
 import {
@@ -6,8 +7,11 @@ import {
     Token,
     SyntaxNode
 } from '../../types';
+import { DelimitedList } from './delimtiedList';
 import { NodeBase } from './nodeBase';
-import * as SuffixTerm from './suffixterm'
+import * as SuffixTerm from './suffixterm';
+
+export type ExpersionList = DelimitedList<Expr>;
 
 /**
  * Expression base class
@@ -192,6 +196,37 @@ export class Binary extends Expr {
 }
 
 /**
+ * Class repersenting all expressions contained in pair of paren
+ * `( Expression )`
+ */
+export class ParenExpr extends Expr {
+    
+    constructor(
+        public readonly openParen: Token,
+        public readonly expr: Expr,
+        public readonly closeParen: Token
+    ) {
+        super();
+    }
+
+    public get ranges(): Range[] {
+        return [this.openParen, ...this.expr.ranges, this.closeParen];
+    }
+
+    public toLines(): string[] {
+        return [`(${this.expr.toLines().join(`\n`)})`]
+    }
+
+    public get start(): Position {
+        return this.openParen.start;
+    }
+
+    public get end(): Position {
+        return this.closeParen.end;
+    }
+}
+
+/**
  * Class for all factor to be calcuated
  */
 export class Factor extends Expr {
@@ -203,8 +238,7 @@ export class Factor extends Expr {
      */
     constructor(
         public readonly suffixTerm: SuffixTerm.SuffixTerm,
-        public dot?: Token,
-        public trailer?: SuffixTerm.SuffixTrailer,
+        public readonly trailer?: SuffixTerm.SuffixTrailer,
     ) {
         super();
     }
@@ -218,8 +252,8 @@ export class Factor extends Expr {
     }
 
     public get ranges(): Range[] {
-        if (!(this.dot === undefined) && !(this.trailer === undefined)) {
-            return [this.suffixTerm, this.dot, this.trailer];
+        if (!(this.trailer === undefined)) {
+            return [this.suffixTerm, this.trailer];
         }
 
         return [this.suffixTerm];
@@ -228,9 +262,9 @@ export class Factor extends Expr {
     public toLines(): string[] {
         const suffixTermLines = this.suffixTerm.toLines();
 
-        if (!(this.dot === undefined) && !(this.trailer === undefined)) {
+        if (!(this.trailer === undefined)) {
             const trailerLines = this.trailer.toLines();
-            return [suffixTermLines + this.dot.content + trailerLines];
+            return [...suffixTermLines,...trailerLines];
         }
 
         return suffixTermLines;

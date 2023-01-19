@@ -3,6 +3,7 @@ import { IExpr, IStmt, IStmtVisitor, SyntaxKind, Token } from '../../types';
 import { NodeBase } from './nodeBase';
 import * as Expr from './expr'
 import { joinLines } from '../utils/stringUtils';
+import { DelimitedList } from './delimtiedList';
 
 /**
  * Statement base class
@@ -90,7 +91,7 @@ export class AssignStmt extends Stmt {
 		public readonly left: Expr.Factor,
 		public readonly assign: Token,
 		public readonly expr: Expr.Expr,
-		public readonly trailerExpr: Expr.Expr[]
+		public readonly trailerExpr?: TrailerExprList
 	) {
 		super();
 	}
@@ -127,7 +128,7 @@ export class AssignStmt extends Stmt {
 export class ExprStmt extends Stmt {
 	constructor(
 		public readonly suffix: Expr.Factor,
-		public readonly trailerExpr?: Expr.Expr[]
+		public readonly trailerExpr?: TrailerExprList
 	) {
 		super();
 	}
@@ -156,6 +157,68 @@ export class ExprStmt extends Stmt {
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
 		return visitor.visitExpr(this, parameters);
+	}
+}
+
+export class TrailerExprList extends Stmt {
+	constructor(
+		public readonly delimiter: Token,
+		public readonly exprList: DelimitedList<Expr.Expr>
+	) {
+		super();
+	}
+
+	// TODO
+	public get ranges(): Range[] {
+		throw new Error('Method not implemented.');
+	}
+	public toLines(): string[] {
+		throw new Error('Method not implemented.');
+	}
+	public get start(): Position {
+		throw new Error('Method not implemented.');
+	}
+	public get end(): Position {
+		throw new Error('Method not implemented.');
+	}
+	public accept<T extends (...args: any) => any>(
+		visitor: IStmtVisitor<T>,
+		parameters: Parameters<T>,
+	): ReturnType<T> {
+			throw new Error('Method not implemented.');
+	}
+	
+}
+
+export class CommandCall extends Stmt {
+	constructor(
+		public readonly command: Token,
+		public readonly args: DelimitedList<Expr.Expr>
+	) {
+		super();
+	}
+
+	public toLines(): string[] {
+		return [this.command.content, ...this.args.toLines()];
+	}
+
+	public get start(): Position {
+		return this.command.start;
+	}
+
+	public get end(): Position {
+		return this.args.end;
+	}
+
+	public get ranges(): Range[] {
+		return [this.command, ...this.args.ranges];
+	}
+
+	public accept<T extends (...args: any) => any>(
+	  visitor: IStmtVisitor<T>,
+	  parameters: Parameters<T>,
+	): ReturnType<T> {
+		return visitor.visitCommandCall(this, parameters);
 	}
 }
 
@@ -398,14 +461,14 @@ export class CaseStmt extends Stmt {
 export class CaseExpr extends NodeBase {
 	constructor(
 		public readonly caseToken: Token,
-		public readonly conditions: IExpr[],
+		public readonly conditions: DelimitedList<Expr.Expr>,
 		public readonly colon: Token
 	) {
 		super();
 	}
 
 	public toLines(): string[] {
-		const conditionLines = this.conditions.flatMap(cond => cond.toLines());
+		const conditionLines = this.conditions.toLines();
 
 		conditionLines[0] = `${this.caseToken.content} ${conditionLines[0]}`;
 		conditionLines[conditionLines.length - 1] += this.colon.content;
@@ -421,7 +484,7 @@ export class CaseExpr extends NodeBase {
 	}
 
 	public get ranges(): Range[] {
-		const condRange = this.conditions.flatMap(cond => cond.ranges);
+		const condRange = this.conditions.ranges;
 		return [this.caseToken, ...condRange, this.colon];
 	}
 

@@ -68,13 +68,11 @@ export class InterpreterService extends EventEmitter {
                         .getConfiguration('ahk-simple-language-server')
                         .get('interpreterPath') as string;
         const nruntime = path.normalize(runtime);
-        const scriptPath = path.join(path.dirname(__filename),
-                                '..', '..', 'src', 'helperahk', 'getAHKVersion.ahk');
         if (!path.isAbsolute(nruntime))
             return undefined;
         if (!this.fileExistsSync(nruntime))
             return undefined;
-        const rawStdout = await this.runScript(nruntime, scriptPath);
+        const rawStdout = await this.getVersion(nruntime);
         if (!rawStdout) 
             return undefined;
         return {
@@ -84,23 +82,23 @@ export class InterpreterService extends EventEmitter {
     }
 
     /**
-     * Get stdout of ahk script with interpreter at certain path
-     * @param runtime Interpreter path
-     * @param script Path of script for running
-     * @returns Stdout of script
+     * Run a dectection script to get version of runtime
+     * @param runtime Executable path of autohotkey runtime
+     * @returns Version of runtime
      */
-    public async runScript(runtime: string, script: string): Promise<string> {
+    private async getVersion(runtime: string): Promise<string> {
         return new Promise((resolve, reject) => {
-            child_process.execFile(
-                runtime, [script], 
-                (error, stdout, stderr) => {
-                    if (error) {
-                        reject(error);
-                    }
-                    resolve(stdout);
+            // Use stdin as input file of runtime, 
+            // so that no actually file on disk is needed.
+            const child = child_process.exec(`"${runtime}" *`, (error, stdout, stderr) => {
+                if (error) {
+                    reject(error);
                 }
-            )
-        });
+                resolve(stdout);
+            });
+            child.stdin.write('stdout := FileOpen("*", "w"),stdout.Write(A_AhkVersion)');
+            child.stdin.end();
+        })
     }
 
     private fileExistsSync(path: string): boolean {

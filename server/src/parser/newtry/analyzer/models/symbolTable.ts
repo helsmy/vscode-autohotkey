@@ -10,11 +10,13 @@ export class SymbolTable implements IScoop {
 	private symbols: Map<string, AHKSymbol> = new Map();
 	public readonly name: string;
 	public readonly enclosingScoop: Maybe<SymbolTable>;
-	private includeTable: Set<IScoop>;
+	private includeTable: Set<SymbolTable>;
 	public readonly dependcyScoop: Set<IScoop>;
 	public readonly scoopLevel: number;
+	public readonly uri: string;
 
-	constructor(name: string, scoopLevel: number, enclosingScoop?: Maybe<SymbolTable>) {
+	constructor(uri: string, name: string, scoopLevel: number, enclosingScoop?: Maybe<SymbolTable>) {
+		this.uri = uri;
 		this.name = name;
 		this.scoopLevel = scoopLevel;
 		this.enclosingScoop = enclosingScoop;
@@ -29,18 +31,19 @@ export class SymbolTable implements IScoop {
 	}
 
 	public define(sym: AHKSymbol) {
-		this.symbols.set(sym.name, sym);
+		this.symbols.set(sym.name.toLocaleLowerCase(), sym);
 	}
 
 	public resolve(name: string): Maybe<AHKSymbol> {
-		let result = this.symbols.get(name);
+		const searchName = name.toLocaleLowerCase();
+		let result = this.symbols.get(searchName);
 		if (result) return result;
 		// then check parent scoop
-		result = this.enclosingScoop?.resolve(name);
+		result = this.enclosingScoop?.resolve(searchName);
 		if (result) return result;
 		// finally check include symbol table
 		for (const table of this.includeTable) {
-			result = table.resolve(name);
+			result = table.resolve(searchName);
 			if (result) return result;
 		}
 		return undefined;
@@ -50,7 +53,7 @@ export class SymbolTable implements IScoop {
 		this.dependcyScoop.add(scoop);
 	}
 
-	public addInclude(table: IScoop) {
+	public addInclude(table: SymbolTable) {
 		this.includeTable.add(table);
 	}
 
@@ -59,6 +62,18 @@ export class SymbolTable implements IScoop {
 		for (const [name, sym] of this.symbols) 
 			syms.push(sym);
 		return syms
+	}
+	
+	/**
+	 * return uri and symbol of included files
+	 * @returns Map<Uri of file, Symbol list>
+	 */
+	public includeSymbols(): Map<string, ISymbol[]> {
+		let result: Map<string, ISymbol[]> = new Map();
+		for (const include of this.includeTable) {
+			result.set(include.uri, include.allSymbols())
+		}
+		return result;
 	}
 
 	public symbolInformations(): SymbolInformation[] {

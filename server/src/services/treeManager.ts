@@ -51,9 +51,11 @@ import { IoEntity, IoKind, IoService } from './ioService';
 import { SymbolTable } from '../parser/newtry/analyzer/models/symbolTable';
 import { AHKParser } from '../parser/newtry/parser/parser';
 import { PreProcesser } from '../parser/newtry/analyzer/semantic';
-import { IAST, IParseError } from '../parser/newtry/types';
+import { IParseError, Token } from '../parser/newtry/types';
 import { IScoop, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
-import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, ScopedSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
+import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotkeySymbol, HotStringSymbol, ScopedSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
+import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
+import { DocInfo, IASTProvider } from './types';
 
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];
@@ -70,7 +72,7 @@ function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     return [d12, d21];
 }
 
-export class TreeManager
+export class TreeManager implements IASTProvider
 {
     private conn: IConnection;
 	/**
@@ -142,6 +144,10 @@ export class TreeManager
         this.ULibDir = homedir() + '\\Documents\\AutoHotkey\\Lib'
         this.logger = logger;
     }
+
+    public getDocInfo(uri: string): Maybe<DocInfo> {
+        return this.docsAST.get(uri);
+    }
     
     /**
      * Initialize information of a just open document
@@ -194,20 +200,45 @@ export class TreeManager
             table: docTable
         });
         
-        let useneed, useless: string[];
-        if (oldInclude && ast.script.include) {
+        let [useneed, useless] = this.compareInclude(oldInclude, ast.script.include)
+        this.deleteUnusedInclude(doc.uri, useless);
+
+
+        if (useneed.length === 0) {
+            // just link its include and go.
+            this.linkInclude(docTable, uri);
+            return
+        }
+        // EnumIncludes
+        await this.EnumIncludes(useneed, uri);
+        // 一顿操作数组和解析器了之后，
+        // 这个table和docinfo里的table之间的引用怎么没了得
+        // 神秘
+        this.linkInclude(docTable, uri);
+        this.docsAST.set(uri, {
+            AST: ast,
+            table: docTable
+        });
+    }
+
+    private compareInclude(oldInc: Maybe<Set<string>>, newInc: Maybe<Set<string>>): [string[], string[]] {
+        if (oldInc && newInc) {
             // useless need delete, useneed need to add
             // FIXME: delete useless include
-            [useless, useneed] = setDiffSet(oldInclude, ast.script.include);
-            this.logger.info(`Got ${ast.script.include.size} include file. ${useneed.length} file to load.` )
+            const [useless, useneed] = setDiffSet(oldInc, newInc);
+            this.logger.info(`Got ${newInc} include file. ${useneed.length} file to load.` )
+            return [useless, useneed]
         }
         else {
-            useneed = ast.script.include ? [... ast.script.include] : [];
-            useless = [];
+            const useneed = newInc ? [... newInc] : [];
             this.logger.info(`Got ${useneed.length} include file to load.` )
+            return [[], useneed]
         }
+    }
+
+    private deleteUnusedInclude(uri: string, useless: string[]) {
         // delete unused incinfo
-        let incInfo = this.incInfos.get(doc.uri);
+        let incInfo = this.incInfos.get(uri);
         if (incInfo) {
             let tempInfo: string[] = [];
             // acquire absulte uri to detele 
@@ -220,14 +251,10 @@ export class TreeManager
             for (const abs of tempInfo)
                 incInfo.delete(abs);
         } 
+    }
 
-        if (useneed.length === 0) {
-            // just link its include and go.
-            this.linkInclude(docTable, uri);
-            return
-        }
-        // EnumIncludes
-        let incQueue: string[] = [...useneed];
+    private async EnumIncludes(inc2update: string[], uri: string) {
+        let incQueue: string[] = [...inc2update];
         // this code works why?
         // no return async always fails?
         let path = incQueue.shift();
@@ -235,7 +262,7 @@ export class TreeManager
             const docDir = dirname(URI.parse(this.currentDocUri).fsPath);
             const p = this.include2Path(path, docDir);
             if (!p) {
-                this.logger.info(`${p} is an invalid file name.`);
+                this.logger.info(`${docDir} is an invalid file name.`);
                 path = incQueue.shift();
                 continue;
             }
@@ -248,9 +275,7 @@ export class TreeManager
                 path = incQueue.shift();
                 continue;
             }
-            // if is lib include, use lib dir
-            // 我有必要一遍遍读IO来确认库文件存不存在吗？
-            
+
             const doc = await this.loadDocumnet(p);
             if (doc) {
                 const parser = new AHKParser(doc.getText(), doc.uri, this.logger);
@@ -271,14 +296,6 @@ export class TreeManager
             }
             path = incQueue.shift();
         }
-        // 一顿操作数组和解析器了之后，
-        // 这个table和docinfo里的table之间的引用怎么没了得
-        // 神秘
-        this.linkInclude(docTable, uri);
-        this.docsAST.set(uri, {
-            AST: ast,
-            table: docTable
-        });
     }
     
     /**
@@ -404,6 +421,7 @@ export class TreeManager
                     return normalize(scriptDir + '\\' + normalized);
                 else    // absolute path
                     return normalized;
+            // lib include <lib name>
             case '':
                 if (rawPath[0] === '<' && rawPath[rawPath.length-1] === '>') {
                     let searchDir: string[] = []
@@ -515,11 +533,49 @@ export class TreeManager
         if (scoop.name === 'global') return this.getGlobalCompletion()
                                     .concat(keywordCompletions)
                                     .concat(builtinVarCompletions);
+        // Now scoop is a method.
         const symbols = scoop.allSymbols();
         return symbols.map(sym => this.convertSymCompletion(sym))
                 .concat(this.getGlobalCompletion())
                 .concat(keywordCompletions)
                 .concat(builtinVarCompletions);
+    }
+
+    private getNamedTokensAtPosition(pos: Position, tokens: Token[]): Token[] {
+        let list: Token[] = [];
+        const tokenIndex = this.getTokenIndexAtPos(pos, tokens);
+        if (!tokenIndex) return [];
+        let p = tokenIndex - 1;
+        // Use delimiter `.` Token as a placeholder for the unfinished property
+        // And to check next token
+        if (tokens[tokenIndex].type === TokenType.dot) p--;
+        list.push(tokens[tokenIndex]);
+        while (tokens[p].type === TokenType.dot) {
+            p--;
+            list.push(tokens[p]);
+            p--;
+        }
+        return list;
+    }
+
+    private getTokenIndexAtPos(pos: Position, tokens: Token[]): Maybe<number> {
+        let start = 0;
+        let end = tokens.length - 1;
+        while (start <= end) {
+            const mid = Math.floor((start + end) / 2);
+            const token = tokens[mid];
+            // start <= pos
+            const isAfterStart = this.isGreatEqPosition(pos, token.start);
+            // end >= pos
+            const isBeforeEnd = this.isLessEqPosition(pos, token.end);
+            if (isAfterStart && isBeforeEnd)
+                return mid;
+            else if (!isBeforeEnd)
+                start = mid + 1;
+            else
+                end = mid - 1;
+        }
+        return undefined;
     }
 
     /**
@@ -532,8 +588,8 @@ export class TreeManager
         const symbols = table.allSymbols();
         for (const sym of symbols) {
             if (sym instanceof AHKMethodSymbol || sym instanceof AHKObjectSymbol) {
-                if (this.isLessPosition(sym.range.start, pos)
-                    && this.isLessPosition(pos, sym.range.end) ) {
+                if (this.isLessEqPosition(sym.range.start, pos)
+                    && this.isLessEqPosition(pos, sym.range.end) ) {
                     return this.getCurrentScoop(pos, sym);
                 }
             }
@@ -547,12 +603,25 @@ export class TreeManager
      * @param pos1 position 1
      * @param pos2 position 2
      */
-    private isLessPosition(pos1: Position, pos2: Position): boolean {
+    private isLessEqPosition(pos1: Position, pos2: Position): boolean {
         if (pos1.line < pos2.line) return true;
-        if (pos1.line === pos2.line && pos1.character < pos1.character) 
+        if (pos1.line === pos2.line && pos1.character <= pos2.character) 
             return true;
         return false;
     }
+
+    /**
+     * Return if pos1 is after pos2
+     * @param pos1 position 1
+     * @param pos2 position 2
+     */
+    private isGreatEqPosition(pos1: Position, pos2: Position): boolean {
+        if (pos1.line > pos2.line) return true;
+        if (pos1.line === pos2.line && pos1.character >= pos1.character) 
+            return true;
+        return false;
+    }
+
 
     public includeDirCompletion(position: Position): Maybe<CompletionItem[]> {
         const context = this.LineTextToPosition(position);
@@ -700,7 +769,7 @@ export class TreeManager
 			ci['kind'] = CompletionItemKind.Method;
             sym.requiredParameters
 			ci.data = sym.toString();
-		} else if (sym instanceof VaribaleSymbol) {
+		} else if (sym instanceof VaribaleSymbol || sym instanceof BuiltinVaribelSymbol) {
 			ci.kind = sym.tag === VarKind.property ? 
                       CompletionItemKind.Property :
                       CompletionItemKind.Variable;
@@ -960,14 +1029,4 @@ function arrayFilter<T>(list: Array<T>, callback: (item: T) => boolean): T[] {
             break;
     }
     return items;
-}
-
-interface DocInfo {
-    AST: IAST;
-    table: SymbolTable;
-}
-
-interface NodeInfomation {
-    symbol: ISymbol;
-    uri: string;
 }

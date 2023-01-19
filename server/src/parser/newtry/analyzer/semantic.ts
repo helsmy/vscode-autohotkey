@@ -348,14 +348,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				}
 				// if only one property behind this
 				// 就一个属性的时候, 是给这个属性赋值
-				const trailer = left.trailer.suffixTerm.childern;
+				const trailer = left.trailer.suffixTerm.getElements();
 				if (trailer.length === 1) {
 					const prop = trailer[0];
-					if (prop instanceof SuffixTerm.Identifier) {
-						if (!this.currentScoop.parentScoop.resolve(prop.token.content)) {
+					if (prop.atom instanceof SuffixTerm.Identifier) {
+						if (!this.currentScoop.parentScoop.resolve(prop.atom.token.content)) {
 							const sym = new VaribaleSymbol(
 								this.script.uri,
-								prop.token.content,
+								prop.atom.token.content,
 								copyRange(fullRange),
 								VarKind.property,
 								undefined
@@ -536,13 +536,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const errors: Diagnostics = [];
 		const varSym: VaribaleSymbol[] = [];
 		for (const assign of assigns.getElements()) {
-			// if there are any assign in variable declaration, 如果scoop声明里有赋值
+			const kind = this.currentScoop instanceof AHKObjectSymbol ?
+							 VarKind.property : VarKind.variable;
+
+			// if there are any assign in varible declaration, 如果scoop声明里有赋值
 			if (assign instanceof Expr.Binary && 
 				assign.operator.type === TokenType.aassign &&
 				assign.left instanceof Expr.Factor &&
 				assign.left.suffixTerm.atom instanceof SuffixTerm.Identifier) {
-				const kind = this.currentScoop instanceof AHKObjectSymbol ?
-							 VarKind.property : VarKind.variable;
 				const id = assign.left.suffixTerm.atom.token;
 				const sym = new VaribaleSymbol(
 					this.script.uri,
@@ -552,6 +553,24 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 					undefined
 				);
 				varSym.push(sym);
+				continue;
+			}
+			// If a variable is decleared
+			// `static` varible
+			if (assign instanceof Expr.Factor && 
+				assign.suffixTerm.atom instanceof SuffixTerm.Identifier) {
+				const id = assign.suffixTerm.atom.token;
+				if (!this.currentScoop.resolve(id.content)) {
+					const sym = new VaribaleSymbol(
+						this.script.uri,
+						id.content,
+						copyRange(id),
+						kind,
+						undefined
+					);
+					varSym.push(sym);
+					continue;
+				}
 			}
 		}
 		return [errors, varSym];

@@ -22,6 +22,8 @@ function GetNoErrorToken(tokenizer: Tokenizer, pretype: TokenType): Token {
 	while (token.kind === TokenKind.Diagnostic) {
 		token = tokenizer.GetNextToken(pretype);
 	}
+	if (token.kind === TokenKind.Multi) 
+		return token.result[0];
 	return token.result;
 }
 
@@ -61,9 +63,8 @@ suite('Basic Token Test', () => {
 
 	test('label', () => {
 		const actualTokens = getalltoken('Abdc:\nccd:\ndefault:');
-		const expect = ['Abdc', 'ccd', 'default'];
+		const expect = ['Abdc', '\n', 'ccd', '\n', 'default', 'EOF'];
 		actualTokens.map((actual, i) => {
-			if (actual.type === TokenType.EOL) return;
 			assert.strictEqual(actual.content, expect[i]);
 		})
 	})

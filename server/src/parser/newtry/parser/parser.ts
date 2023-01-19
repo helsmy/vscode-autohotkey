@@ -1,8 +1,8 @@
-import { Tokenizer } from "../tokenizor/tokenizer";
+import { DocumentStartToken, Tokenizer } from "../tokenizor/tokenizer";
 import { Atom, IAST, IExpr, MissingToken, SkipedToken, SuffixTermTrailer, Token } from "../types";
 import { isValidIdentifier, TokenType } from "../tokenizor/tokenTypes";
 import { IParseError } from "../types";
-import { constructorToFailed, ParseError } from './models/parseError';
+import { ParseError } from './models/parseError';
 import * as Stmt from './models/stmt';
 import * as Expr from './models/expr';
 import * as SuffixTerm from './models/suffixterm';
@@ -15,19 +15,21 @@ import { Position } from 'vscode-languageserver-types';
 import { DelimitedList } from './models/delimtiedList';
 import { NodeBase } from './models/nodeBase';
 import { ParseContext } from './models/parseContext';
+import { URI } from 'vscode-uri';
+import { join } from 'path';
 
 type IsStartFn = (t: Token) => boolean;
 type ParseFn<T> = () => T; 
 export class AHKParser {
     private tokenizer: Tokenizer;
     private currentToken: Token;
-    private pos: number = 0;
+    private pos: number = -1;
+    private readonly uri: string;
 
+    private currentParseContext: number; 
     /**
      * list for storaging all tokens
      */
-    private readonly uri: string;
-    private currentParseContext: number; 
     private tokens: Token[] = [];
     private tokenErrors: IDiagnosticInfo[] = [];
     private comments: Token[] = [];
@@ -38,8 +40,8 @@ export class AHKParser {
     constructor(document: string, uri: string, logger: ILoggerBase = mockLogger) {
         this.tokenizer = new Tokenizer(document);
         this.tokenizer.isParseHotkey = true;
-        this.currentToken = this.nextToken(TokenType.EOL);
-        this.tokens.push(this.currentToken);
+        this.currentToken = DocumentStartToken;
+        this.advance();
         this.logger = logger;
         this.uri = uri;
         this.currentParseContext = 0;
@@ -48,13 +50,19 @@ export class AHKParser {
     private nextToken(preType: TokenType): Token {
         let token = this.tokenizer.GetNextToken(preType);
         while (token.kind !== TokenKind.Token) {
-            if (token.kind === TokenKind.Diagnostic) {
-                this.tokenErrors.push(token.result);
-                token = this.tokenizer.GetNextToken(TokenType.unknown);
-            }
-            else if (token.kind === TokenKind.Commnet) {
-                this.comments.push(token.result);
-                token = this.tokenizer.GetNextToken(token.result.type);
+            switch (token.kind) {
+                case TokenKind.Diagnostic:
+                    this.tokenErrors.push(token.result);
+                    token = this.tokenizer.GetNextToken(TokenType.unknown);
+                    continue;
+                case TokenKind.Commnet:
+                    this.comments.push(token.result);
+                    token = this.tokenizer.GetNextToken(token.result.type);
+                    continue;
+                case TokenKind.Multi:
+                    const last = token.result[token.result.length - 1];
+                    this.tokens.push(...token.result.slice(0, -1));
+                    return last;
             }
         }
         return token.result;
@@ -63,30 +71,29 @@ export class AHKParser {
     private advance() {
         this.pos++;
         if (this.pos >= this.tokens.length) {
-            this.currentToken = this.nextToken(this.currentToken.type);
+            let token = this.nextToken(this.currentToken.type);
             // AHK connect next line to current line
             // when next line start with operators and ','
-            if (this.currentToken.type === TokenType.EOL) {
-                const saveToken = this.currentToken;
-                this.currentToken = this.nextToken(saveToken.type);
+            if (token.type === TokenType.EOL) {
+                const saveToken = token;
+                token = this.nextToken(saveToken.type);
                 // 跳过多余的换行
-                while (this.currentToken.type === TokenType.EOL) {
-                    this.currentToken = this.nextToken(this.currentToken.type);
+                while (token.type === TokenType.EOL) {
+                    token = this.nextToken(this.currentToken.type);
                 }
                 // 下一行是运算符或者','时丢弃EOL
                 // discard EOL
-                if (this.currentToken.type >= TokenType.pplus &&
-                    this.currentToken.type <= TokenType.comma) {
-                    this.tokens.push(this.currentToken);
+                if (token.type >= TokenType.pplus &&
+                    token.type <= TokenType.comma) {
+                    this.tokens.push(token);
                 }
                 else {
                     this.tokens.push(saveToken);
-                    this.tokens.push(this.currentToken);
-                    this.currentToken = saveToken;
+                    this.tokens.push(token);
                 }
             }
             else
-                this.tokens.push(this.currentToken);
+                this.tokens.push(token);
         }
         this.currentToken = this.tokens[this.pos];
         return this
@@ -276,13 +283,18 @@ export class AHKParser {
 
     private isStatementStart(): boolean {
         const t = this.currentToken.type;
-            // All keyword
-        if (t >= TokenType.if && t <= TokenType.static ||
-            // `{` and identifier 
-            t === TokenType.openBrace ||t === TokenType.id ||
-            t === TokenType.key || t === TokenType.hotkeyModifer) 
-            return true;
-        return false;
+            
+        switch (t) {
+            case TokenType.openBrace:
+            case TokenType.id:
+            case TokenType.key:
+            case TokenType.drective:
+            case TokenType.command:
+                return true;
+            default:
+                // All keyword
+                return t >= TokenType.if && t <= TokenType.static;
+        }
     }
 
     private isClassMemberDeclarationStart(): boolean {
@@ -810,20 +822,35 @@ export class AHKParser {
     // TODO: Need Finish
     private drective(): Stmt.Drective {
         const drective = this.currentToken;
-        if (drective.content.toLowerCase() === 'include') {
+        const drectiveName = drective.content.toLowerCase();
+        if (drectiveName === 'include' ||
+            drectiveName === 'includeagain') {
             this.tokenizer.isLiteralToken = true;
             this.advance();
-            const includePath = this.eat();
-            this.includes.add(includePath.content);
+            if (this.currentToken.type === TokenType.id) {
+                const v = this.currentToken.content.toLowerCase();
+                this.eat();
+                if (v === 'a_linefile') {
+                    const prefix = URI.parse(this.uri).fsPath
+                    const includePath = this.eatOptional(TokenType.string);
+                    if (includePath) this.includes.add(join(prefix, includePath.content));
+                }
+            }
+            else {
+                const includePath = this.eat();
+                this.includes.add(includePath.content);
+            }
             this.terminal();
             return new Stmt.Drective(drective, [])
         }
         const args: IExpr[] = [];
         this.advance();
+        // skip args for temp solution
         while (!this.atLineEnd()) {
             if (this.matchTokens([TokenType.comma]))
                 this.eat();
             const a = this.expression();
+            if (a instanceof Expr.Invalid) this.advance();
             args.push(a);
         }
 
@@ -1381,7 +1408,11 @@ export class AHKParser {
         const args = this.delimitedList(
             TokenType.comma,
             this.isExpressionStart,
-            () => this.expression(),
+            () => {
+                // Reset deref % expresion mark for every parameter
+                this.tokenizer.setLiteralDeref(false);
+                return this.expression();
+            },
             true
         )
 

@@ -3,7 +3,7 @@ import { TokenType } from '../../tokenizor/tokenTypes';
 import { IExpr, IStmt, IStmtVisitor, Token } from '../../types';
 import { joinLines } from '../utils/stringUtils';
 import { DelimitedList } from './delimtiedList';
-import { ExpersionList } from './expr';
+import { ExpersionList, Expr, Factor } from './expr';
 import { NodeBase } from './nodeBase';
 import { Block, Stmt } from "./stmt";
 
@@ -107,7 +107,7 @@ export class ClassDef extends Decl {
 export class ClassBaseClause extends NodeBase {
     constructor(
         public readonly extendsToken: Token,
-        public readonly baseClass: DelimitedList<Token>
+        public readonly baseClass: Factor
     ) {
         super();
     }
@@ -465,7 +465,7 @@ export class DefaultParam extends Parameter {
     constructor(
         identifier: Token,
         public readonly assign: Token,
-        public readonly value: IExpr,
+        public readonly value: Expr,
     ) {
         super(identifier);
     }

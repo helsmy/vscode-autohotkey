@@ -194,7 +194,8 @@ export class AHKParser {
     }
 
     // Make Typescipt happy OTZ
-    private parseList(listParseContext: ParseContext.CaseStatementElements): Stmt.CaseStmt[]
+    private parseList(listParseContext: ParseContext.SwitchStatementElements): Stmt.CaseStmt[]
+    private parseList(listParseContext: ParseContext.CaseStatementElements): Stmt.Stmt[]
     private parseList(listParseContext: ParseContext.SourceElements): Stmt.Stmt[]
     private parseList(listParseContext: ParseContext.DynamicPropertyElemnets): Stmt.Stmt[]
     private parseList(listParseContext: ParseContext.BlockStatements): Stmt.Stmt[]
@@ -233,7 +234,7 @@ export class AHKParser {
             case ParseContext.SwitchStatementElements:
                 return this.declaration.bind(this);
             case ParseContext.CaseStatementElements:
-                return this.CaseStmtList.bind(this);
+                return this.caseStmtList.bind(this);
             case ParseContext.ClassMembers:
                 return this.classMemberElement.bind(this);
             case ParseContext.DynamicPropertyElemnets:
@@ -258,7 +259,8 @@ export class AHKParser {
                 return t === TokenType.else;
             case ParseContext.CaseStatementElements:
                 return t === TokenType.case || 
-                (t === TokenType.label && this.currentToken.content.toLowerCase() === 'default');
+                (t === TokenType.label && this.currentToken.content.toLowerCase() === 'default') ||
+                t === TokenType.closeBrace;
         }
     }
 
@@ -374,11 +376,7 @@ export class AHKParser {
         const name = this.eatType(TokenType.id);
         const extendsToken = this.eatOptional(TokenType.extends)
         if (extendsToken !== undefined) {
-            const list = this.delimitedList(
-                TokenType.dot,
-                token => isValidIdentifier(token.type),
-                () => this.eat()
-            );
+            const list = this.factor();
             const baseClass = new Decl.ClassBaseClause(
                 extendsToken, list
             );
@@ -450,7 +448,7 @@ export class AHKParser {
     }
 
     private dynamicPropertyMember(): Decl.GetterSetter {
-        const name = this.eat();
+        const name = this.eatType(TokenType.id);
         this.jumpWhiteSpace();
         const open = this.eatType(TokenType.openBrace);
         const block = this.parseList(ParseContext.BlockStatements);
@@ -512,6 +510,8 @@ export class AHKParser {
                 return this.returnStmt();
             case TokenType.switch:
                 return this.switchStmt();
+            case TokenType.case:
+                return this.caseStmtList();
             case TokenType.loop:
                 return this.loopStmt();
             case TokenType.while:
@@ -603,6 +603,8 @@ export class AHKParser {
     private breakStmt(): Stmt.Break {
         const breakToken = this.currentToken;
         this.advance();
+        // FIXME: record comma
+        this.eatOptional(TokenType.comma);
 
         // If there are break label, parse it
         if (!this.atLineEnd()) {
@@ -620,6 +622,8 @@ export class AHKParser {
 
     private returnStmt(): Stmt.Return {
         const returnToken = this.eat();
+        // FIXME: record comma
+        this.eatOptional(TokenType.comma);
         
         // If expersions parse all
         if (!this.atLineEnd()) {
@@ -647,11 +651,13 @@ export class AHKParser {
 
     private switchStmt(): Stmt.SwitchStmt {
         const switchToken = this.eat();
+        // FIXME: record comma
+        this.eatOptional(TokenType.comma);
         const cond = this.expression();
 
         this.jumpWhiteSpace();
         const open = this.eatType(TokenType.openBrace);
-        const cases = this.parseList(ParseContext.CaseStatementElements);
+        const cases = this.parseList(ParseContext.SwitchStatementElements);
         const close = this.eatType(TokenType.closeBrace);
         return new Stmt.SwitchStmt(
             switchToken, cond,
@@ -659,9 +665,11 @@ export class AHKParser {
         );
     }
 
-    private CaseStmtList(): Stmt.CaseStmt {
+    private caseStmtList(): Stmt.CaseStmt {
         const caseToken = this.eat();
         if (caseToken.type === TokenType.case) {
+            // FIXME: record comma
+            this.eatOptional(TokenType.comma);
             const conditions = this.delimitedList(
                 TokenType.comma,
                 this.isExpressionStart,
@@ -681,31 +689,6 @@ export class AHKParser {
             CaseNode,
             stmts
         );
-    }
-
-    /**
-     * Parse all statement below a case,
-     * for switch-case statement
-     * 用来解析switch下面的没有大括号的语句
-     */
-    private stmtList(): Stmt.Stmt[] {
-        const stmts: Stmt.Stmt[] = [];
-        const errors: ParseError[] = [];
-        do {
-            const stmt = this.declaration();
-            stmts.push(stmt);
-
-            // stop at default case
-            if (this.currentToken.type === TokenType.label && 
-                this.currentToken.content === 'default')
-                break;
-            this.jumpWhiteSpace();
-        } while (!this.matchTokens([
-            TokenType.case,
-            TokenType.closeBrace
-        ]));
-
-        return stmts;
     }
 
     private loopStmt(): Stmt.LoopStmt {
@@ -730,23 +713,17 @@ export class AHKParser {
         
         // TODO: syntax check for loop command
         // just skip all command for now
-        if (this.currentToken.type === TokenType.comma) {
-            while (!this.matchTokens([
-                TokenType.EOL,
-                TokenType.EOF,
-                TokenType.openBrace
-            ])) {
-                this.advance();
-            }
-            if (this.atLineEnd()) this.advance();
-            const body = this.declaration();
-            return new Stmt.Loop(loop, body, new Expr.Invalid(loop.start, []));
-        }
-
-        const cond = this.expression();
-        this.jumpWhiteSpace();
+        this.setCommandScanMode(true);
+        // FIXME: record comma
+        this.eatOptional(TokenType.comma);
+        const param = this.delimitedList(
+            TokenType.comma,
+            this.isExpressionStart,
+            () => this.expression()
+        )
+        if (this.atLineEnd()) this.advance();
         const body = this.declaration();
-        return new Stmt.Loop(loop, body, cond);
+        return new Stmt.Loop(loop, body, param);
     }
 
     private whileStmt(): Stmt.WhileStmt {
@@ -941,7 +918,6 @@ export class AHKParser {
     }
 
     private expression(p: number = 0): Expr.Expr {
-        let start = this.pos;
         // let tokenizer parse operators as normal
         // 让分词器不进行热键分词正常返回符号
         this.tokenizer.isParseHotkey = false;

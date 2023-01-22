@@ -1,15 +1,16 @@
 import { Diagnostic } from 'vscode-languageserver-types';
-import { Range } from 'vscode-languageserver';
+import { DiagnosticSeverity, Range } from 'vscode-languageserver';
 import { TreeVisitor } from './treeVisitor';
 import * as Stmt from '../parser/models/stmt';
 import * as Decl from '../parser/models/declaration';
 import * as Expr from '../parser/models/expr';
 import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
-import { IExpr, IScript } from '../types';
+import { IExpr, IScript, MissingToken, SkipedToken, Token } from '../types';
 import { AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, VaribaleSymbol } from './models/symbol';
-import { IScoop, VarKind } from './types';
+import { IScope, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
+import { NodeBase } from '../parser/models/nodeBase';
 
 type Diagnostics = Diagnostic[];
 interface ProcessResult {
@@ -19,8 +20,8 @@ interface ProcessResult {
 
 export class PreProcesser extends TreeVisitor<Diagnostics> {
 	private table: SymbolTable;
-	private stack: IScoop[];
-	private currentScoop: IScoop;
+	private stack: IScope[];
+	private currentScoop: IScope;
 
 	constructor(
 		public readonly script: IScript,
@@ -46,7 +47,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitDeclVariable(decl: Decl.VarDecl): Diagnostics {
-		const errors: Diagnostics = [];
+		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
 		const [e, vs] = this.createVarSym(decl.assigns);
 		errors.push(...e);
 		if (decl.scope.type === TokenType.static) {
@@ -102,7 +103,13 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitDeclFunction(decl: Decl.FuncDef): Diagnostics {
+		const errors = this.checkDiagnosticForNode(decl);
 		const params = decl.params;
+		for (const param of params.ParamaterList.getElements()) {
+			errors.push(...this.checkDiagnosticForNode(param));
+			if (param instanceof Decl.DefaultParam)
+				errors.push(...this.processExpr(param.value))
+		}
 		const reqParams = this.paramAction(params.requiredParameters);
 		const dfltParams = this.paramAction(params.optionalParameters);
 		const sym = new AHKMethodSymbol(
@@ -120,10 +127,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		// this.table.define(sym);
 		// this.table.addScoop(sym);
 		this.currentScoop.define(sym);
-		this.currentScoop.addScoop(sym);
+		this.currentScoop.addScope(sym);
 
 		this.enterScoop(sym);
-		const errors = decl.body.accept(this, []);
+		errors.push(...decl.body.accept(this, []));
 		this.leaveScoop();
 		return errors;
 	}
@@ -143,6 +150,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 	
 	public visitDeclClass(decl: Decl.ClassDef): Diagnostics {
+		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
 		// TODO: parent scoop of class
 		const parentScoop = undefined;
 		const objTable = new AHKObjectSymbol(
@@ -152,7 +160,6 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			parentScoop,
 			this.currentScoop
 		);
-		const errors: Diagnostics = [];
 		
 		this.currentScoop.define(objTable);
 		this.enterScoop(objTable);
@@ -162,7 +169,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitDynamicProperty(decl: Decl.DynamicProperty): Diagnostics {
-		const errors: Diagnostics = [];
+		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
 		if (!(this.currentScoop instanceof AHKObjectSymbol)) return errors;
 		this.currentScoop.define(
 			new VaribaleSymbol(
@@ -178,7 +185,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitDeclGetterSetter(decl: Decl.GetterSetter): Diagnostics {
-		return decl.body.accept(this, []);
+		return this.checkDiagnosticForNode(decl).concat(decl.body.accept(this, []));
 	}
 
 	public visitDeclHotkey(decl: Decl.Hotkey): Diagnostics {
@@ -192,7 +199,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				copyRange(decl)
 			)
 		);
-		return [];
+		return this.checkDiagnosticForNode(decl);
 	}
 
 	public visitDeclHotString(decl: Decl.HotString): Diagnostics {
@@ -203,7 +210,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				copyRange(decl)
 			)
 		);
-		return [];
+		return this.checkDiagnosticForNode(decl);
 	}
 
 	public visitDeclLabel(decl: Decl.Label): Diagnostics {
@@ -214,20 +221,20 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				copyRange(decl)
 			)
 		);
-		return [];
+		return this.checkDiagnosticForNode(decl);
 	}
 
 	public visitStmtInvalid(stmt: Stmt.Invalid): Diagnostics {
-		return [];
+		return stmt.tokens.flatMap(token => this.checkDiagnosticForUnexpectedToken(token) ?? []);
 	}
 
 	public visitDrective(stmt: Stmt.Drective): Diagnostics {
 		// Nothing to do in first scanning
-		return [];
+		return this.checkDiagnosticForNode(stmt);
 	}
 
 	public visitBlock(stmt: Stmt.Block): Diagnostics {
-		const errors: Diagnostics = [];
+		const errors = this.checkDiagnosticForNode(stmt);
 		for (const singleStmt of stmt.stmts) {
 			const e = singleStmt.accept(this, []);
 			errors.push(...e);
@@ -236,7 +243,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitAssign(stmt: Stmt.AssignStmt): Diagnostics {
-		const errors: Diagnostics = [];
+		const errors = this.checkDiagnosticForNode(stmt);
 		errors.push(...this.processAssignVar(stmt.left, stmt));
 		errors.push(...this.processExpr(stmt.expr));
 		errors.push(...this.processTrailerExpr(stmt.trailerExpr));
@@ -244,14 +251,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitExpr(stmt: Stmt.ExprStmt): Diagnostics {
-		const errors: Diagnostics = [];
+		const errors = this.checkDiagnosticForNode(stmt);
 		errors.push(...this.processExpr(stmt.suffix));
 		errors.push(...this.processTrailerExpr(stmt.trailerExpr));
 		return errors;
 	}
 
 	public visitCommandCall(stmt: Stmt.CommandCall): Diagnostics {
-		const errors: Diagnostics = [];
+		const errors = this.checkDiagnosticForNode(stmt);
 		for (const arg of stmt.args.getElements()) {
 			errors.push(...this.processExpr(arg));
 		}
@@ -263,14 +270,15 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	private processTrailerExpr(trailer: Maybe<Stmt.TrailerExprList>): Diagnostics {
 		const errors: Diagnostics = [];
 		if (!trailer) return errors;
+		errors.push(...this.checkDiagnosticForNode(trailer));
 		for (const expr of trailer.exprList.getElements()) {
 			errors.push(...this.processExpr(expr));
 		}
 		return errors;
 	}
 
-	private processExpr(expr: IExpr): Diagnostics {
-		const errors: Diagnostics = [];
+	private processExpr(expr: Expr.Expr): Diagnostics {
+		const errors = this.checkDiagnosticForNode(expr);
 		if (expr instanceof Expr.Factor) {
 			if (!expr.trailer) {
 				const atom = expr.suffixTerm.atom;
@@ -278,11 +286,23 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 					expr.suffixTerm.trailers.length === 0) {
 					// Only check varible defination in first scanning
 					const idName = atom.token.content;
-					if (!this.currentScoop.resolve(idName))
+					if (!this.currentScoop.resolve(idName)) { 
 						errors.push(this.error(
 							copyRange(atom),
-							'Variable is used before defination'
+							`Variable "${idName}" is used before defination`,
+							DiagnosticSeverity.Warning
 						));
+					}
+				}
+				for (const trailer of expr.suffixTerm.trailers) {
+					if (trailer instanceof SuffixTerm.Call) 
+						trailer.args.getElements().forEach(
+							arg => errors.push(...this.processExpr(arg))
+						);
+					else 
+						trailer.indexs.getElements().forEach(
+							index => errors.push(...this.processExpr(index))
+						);
 				}
 			}
 			// TODO: Call and backet identifer check
@@ -314,8 +334,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	private processAssignVar(left: Expr.Factor, fullRange: Range): Diagnostics {
+		const errors = this.checkDiagnosticForNode(left);
 		const id1 = left.suffixTerm.atom;
-		const errors: Diagnostics = [];
 		if (id1 instanceof SuffixTerm.Identifier) {
 			// if only varible 标识符只有一个
 			// 就是变量赋值定义这个变量
@@ -335,7 +355,9 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				}
 				return errors;
 			}
-
+			
+			const trailer = left.trailer.suffixTerm.getElements();
+			trailer.forEach(t => errors.push(...this.processSuffixTerm(t)))
 			// check if assign to a property
 			if (id1.token.content === 'this') {
 				if (!(this.currentScoop instanceof AHKMethodSymbol &&
@@ -348,7 +370,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				}
 				// if only one property behind this
 				// 就一个属性的时候, 是给这个属性赋值
-				const trailer = left.trailer.suffixTerm.getElements();
+				
 				if (trailer.length === 1) {
 					const prop = trailer[0];
 					if (prop.atom instanceof SuffixTerm.Identifier) {
@@ -366,17 +388,59 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 					return errors;
 				}
 			}
+			return errors;
 		}
+
+		if (left instanceof SuffixTerm.PercentDereference) 
+			return errors;
 		errors.push(Diagnostic.create(
 			copyRange(left),
-			'Assign to unassignable object'
+			'The left-hand side of an assignment expression must be a variable or a property access.'
 		))
 		return errors;
 	}
 
+	private processSuffixTerm(term: SuffixTerm.SuffixTerm): Diagnostics {
+		const errors = this.checkDiagnosticForNode(term);
+		const atom = term.atom;
+		errors.push(...this.checkDiagnosticForNode(atom));
+		if (atom instanceof SuffixTerm.Invalid) {
+			// Non trailer exists when atom is invalid
+			return errors.concat(this.error(
+				copyRange(atom),
+				`${TokenType[atom.token.type]} expect in suffix.`
+			));
+		}
+		if (atom instanceof SuffixTerm.ArrayTerm) {
+			for (const iterm of atom.items.getElements()) 
+				errors.push(...this.processExpr(iterm));
+		}
+		else if (atom instanceof SuffixTerm.AssociativeArray) {
+			for (const pair of atom.pairs.getElements()) {
+				errors.push(...this.processExpr(pair.key));
+				errors.push(...this.processExpr(pair.value));
+			}
+		}
+
+		// trailers
+		for (const trailer of term.trailers) {
+			errors.push(...this.checkDiagnosticForNode(trailer));
+			if (trailer instanceof SuffixTerm.Call) 
+				trailer.args.getElements().forEach(
+					arg => errors.push(...this.processExpr(arg))
+				);
+			else 
+				trailer.indexs.getElements().forEach(
+					index => errors.push(...this.processExpr(index))
+				);
+		}
+		return errors;
+	}
+
 	public visitIf(stmt: Stmt.If): Diagnostics {
+		const errors = this.checkDiagnosticForNode(stmt);
 		const condExpr = stmt.condition;
-		const errors: Diagnostics = [...this.processExpr(condExpr)];
+		errors.push(...this.processExpr(condExpr));
 		errors.push(...stmt.body.accept(this, []));
 		if (stmt.elseStmt) {
 			const elseStmt = stmt.elseStmt;
@@ -386,10 +450,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitElse(stmt: Stmt.Else): Diagnostics {
-		const erorrs: Diagnostics = [];
+		const errors = this.checkDiagnosticForNode(stmt);
 		// TODO: else if
-		erorrs.push(...stmt.body.accept(this, []));
-		return erorrs;
+		errors.push(...stmt.body.accept(this, []));
+		return errors;
 	}
 
 	public visitReturn(stmt: Stmt.Return): Diagnostics {
@@ -397,23 +461,24 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		if (stmt.value) {
 			return this.processExpr(stmt.value)
 		}
-		return [];
+		return this.checkDiagnosticForNode(stmt);
 	}
 
 	public visitBreak(stmt: Stmt.Break): Diagnostics {
 		// Nothing need to do with break in propcesss
 		// Since label can be defined after break
-		return [];
+		return this.checkDiagnosticForNode(stmt);
 	}
 
 	public visitContinue(stmt: Stmt.Continue): Diagnostics {
 		// Nothing need to do with break in propcesss
 		// Since label can be defined after break
-		return [];
+		return this.checkDiagnosticForNode(stmt);
 	}
 
 	public visitSwitch(stmt: Stmt.SwitchStmt): Diagnostics {
-		const errors: Diagnostics = [...this.processExpr(stmt.condition)];
+		const errors = this.checkDiagnosticForNode(stmt);
+		errors.push(...this.processExpr(stmt.condition));
 		// process every case
 		for (const caseStmt of stmt.cases) {
 			errors.push(...caseStmt.accept(this, []));
@@ -423,7 +488,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitCase(stmt: Stmt.CaseStmt): Diagnostics {
-		const errors: Diagnostics = [];
+		const errors = this.checkDiagnosticForNode(stmt);
 		// if is case <experssion>, process every expressions
 		if (stmt.CaseNode instanceof Stmt.CaseExpr) {
 			for (const cond of stmt.CaseNode.conditions.getElements()) {
@@ -439,12 +504,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitLoop(stmt: Stmt.LoopStmt): Diagnostics {
-		const errors: Diagnostics = [];
+		const errors = this.checkDiagnosticForNode(stmt);
 		// loop <expression> body
 		if (stmt instanceof Stmt.Loop) {
 			// if any expression
-			if (stmt.condition)
-				errors.push(...this.processExpr(stmt.condition));
+			if (stmt.condition) {
+				for (const expr of stmt.condition.getElements())
+					errors.push(...this.processExpr(expr));
+			}
 			errors.push(...stmt.body.accept(this, []));
 			return errors;
 		}
@@ -456,12 +523,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitWhile(stmt: Stmt.WhileStmt): Diagnostics {
-		const errors: Diagnostics = [...this.processExpr(stmt.condition)];
+		const errors = this.checkDiagnosticForNode(stmt);
+		errors.push(...this.processExpr(stmt.condition));
 		errors.push(...stmt.body.accept(this, []));
 		return errors;
 	}
 
 	public visitFor(stmt: Stmt.ForStmt): Diagnostics {
+		const errors = this.checkDiagnosticForNode(stmt);
 		// check if iter varible is defined, if not define them
 		if (!this.currentScoop.resolve(stmt.iter1id.content)) {
 			const sym = new VaribaleSymbol(
@@ -484,11 +553,11 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			)
 			this.currentScoop.define(sym);
 		}
-		return stmt.body.accept(this, []);
+		return errors.concat(stmt.body.accept(this, []));
 	}
 
 	public visitTry(stmt: Stmt.TryStmt): Diagnostics {
-		const errors: Diagnostics = [];
+		const errors = this.checkDiagnosticForNode(stmt);
 		errors.push(...stmt.body.accept(this, []));
 		if (stmt.catchStmt) {
 			errors.push(...stmt.catchStmt.accept(this, []));
@@ -500,6 +569,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitCatch(stmt: Stmt.CatchStmt): Diagnostics {
+		const errors = this.checkDiagnosticForNode(stmt);
 		// check if output varible is defined, if not define it
 		if (!this.currentScoop.resolve(stmt.errors.content)) {
 			const sym = new VaribaleSymbol(
@@ -511,18 +581,20 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			);
 			this.currentScoop.define(sym);
 		}
-		return stmt.body.accept(this, []);
+		return errors.concat(stmt.body.accept(this, []));
 	}
 
 	public visitFinally(stmt: Stmt.FinallyStmt): Diagnostics {
-		return stmt.body.accept(this, []);
+		const errors = this.checkDiagnosticForNode(stmt);
+		return errors.concat(stmt.body.accept(this, []));
 	}
 
 	public visitThrow(stmt: Stmt.Throw): Diagnostics {
-		return this.processExpr(stmt.expr);
+		const errors = this.checkDiagnosticForNode(stmt);
+		return errors.concat(this.processExpr(stmt.expr));
 	}
 
-	private enterScoop(scoop: IScoop) {
+	private enterScoop(scoop: IScope) {
 		this.stack.push(scoop);
 		this.currentScoop = scoop;
 	}
@@ -536,6 +608,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const errors: Diagnostics = [];
 		const varSym: VaribaleSymbol[] = [];
 		for (const assign of assigns.getElements()) {
+			errors.push(...this.checkDiagnosticForNode(assign));
 			const kind = this.currentScoop instanceof AHKObjectSymbol ?
 							 VarKind.property : VarKind.variable;
 
@@ -575,11 +648,35 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		}
 		return [errors, varSym];
 	}
+	private checkDiagnosticForNode(node: NodeBase): Diagnostics {
+		const errors: Diagnostics = [];
+		for (const child of Object.values(node)) {
+			if (child instanceof Token) {
+				const tokenErr = this.checkDiagnosticForUnexpectedToken(child);
+				if (tokenErr) errors.push(tokenErr);
+			}
+		}
+		return errors
+	}
+	private checkDiagnosticForUnexpectedToken(token: Token): Maybe<Diagnostic> {
+		if (token instanceof MissingToken) 
+			return this.error(
+				copyRange(token),
+				`"${TokenType[token.type]}" expect.`
+			)
+		if (token instanceof SkipedToken)
+			return this.error(
+				copyRange(token),
+				`Unexpect token "${TokenType[token.type]}".`
+			)
+		return undefined;
+	}
 
-	private error(range: Range, message: string): Diagnostic {
+	private error(range: Range, message: string, severity?: DiagnosticSeverity): Diagnostic {
 		return Diagnostic.create(
 			range,
-			message
+			message,
+			severity ?? DiagnosticSeverity.Error
 		);
 	}
 } 

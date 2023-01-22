@@ -95,7 +95,7 @@ export class SuffixTerm extends SuffixTermBase {
     /**
      * Constructor for suffix terms
      * @param atom base item of the suffix term
-     * @param trailers trailers present in the suffixterm
+     * @param trailers trailers present in the suffixterm. Call|[index]
      */
     constructor(
         public readonly atom: Atom,
@@ -435,9 +435,9 @@ export class Grouping extends SuffixTermBase {
      * @param value value of pair
      */
     constructor(
-        public readonly key: IExpr,
+        public readonly key: Expr,
         public readonly colon: Token,
-        public readonly value: IExpr,
+        public readonly value: Expr,
     ) {
         super();
     }

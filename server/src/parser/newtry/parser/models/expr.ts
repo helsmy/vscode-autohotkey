@@ -76,7 +76,7 @@ export class Unary extends Expr {
      * @param operator unary operator
      * @param factor factor
      */
-    constructor(public readonly operator: Token, public readonly factor: IExpr) {
+    constructor(public readonly operator: Token, public readonly factor: Expr) {
         super();
     }
 
@@ -118,9 +118,9 @@ export class Binary extends Expr {
      * @param right right expression of the operator
      */
     constructor(
-        public readonly left: IExpr,
+        public readonly left: Expr,
         public readonly operator: Token,
-        public readonly right: IExpr) {
+        public readonly right: Expr) {
         super();
     }
 
@@ -159,11 +159,11 @@ export class Binary extends Expr {
      * @param falseExpr false expression
      */
     constructor(
-        public readonly condition: IExpr,
+        public readonly condition: Expr,
         public readonly question: Token,
-        public readonly trueExpr: IExpr,
+        public readonly trueExpr: Expr,
         public readonly colon: Token,
-        public readonly falseExpr: IExpr) {
+        public readonly falseExpr: Expr) {
         super();
     }
 
@@ -233,8 +233,7 @@ export class Factor extends Expr {
     /**
      * Factor constructor
      * @param suffixTerm base suffix term
-     * @param dot optional suffix color
-     * @param trailer optional suffix trailer
+     * @param trailer optional suffix trailer. (`.` atom)+
      */
     constructor(
         public readonly suffixTerm: SuffixTerm.SuffixTerm,

@@ -52,7 +52,7 @@ import { SymbolTable } from '../parser/newtry/analyzer/models/symbolTable';
 import { AHKParser } from '../parser/newtry/parser/parser';
 import { PreProcesser } from '../parser/newtry/analyzer/semantic';
 import { IParseError, Token } from '../parser/newtry/types';
-import { IScoop, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
+import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
 import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotkeySymbol, HotStringSymbol, ScopedSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
 import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
 import { DocInfo, IASTProvider } from './types';
@@ -180,8 +180,8 @@ export class TreeManager implements IASTProvider
         const parser = new AHKParser(doc.getText(), doc.uri, this.logger);
         const ast = parser.parse();
         const preprocesser = new PreProcesser(ast.script);
-        const mainTable = preprocesser.process();
-        const docTable = mainTable.table;
+        const processResult = preprocesser.process();
+        const docTable = processResult.table;
 
         // updata AST first, then its includes
         const oldInclude = this.docsAST.get(uri)?.AST.script.include;
@@ -191,6 +191,10 @@ export class TreeManager implements IASTProvider
         // });
         if (this.sendError) {
             this.sendErrors(ast.sytanxErrors, uri);
+            this.conn.sendDiagnostics({
+                uri: uri,
+                diagnostics: processResult.diagnostics
+            });
         }
 
         // Store AST first, before await document load
@@ -200,7 +204,7 @@ export class TreeManager implements IASTProvider
             table: docTable
         });
         
-        let [useneed, useless] = this.compareInclude(oldInclude, ast.script.include)
+        let [useless, useneed] = this.compareInclude(oldInclude, ast.script.include)
         this.deleteUnusedInclude(doc.uri, useless);
 
 
@@ -584,7 +588,7 @@ export class TreeManager implements IASTProvider
      * @param table symbol table of current document
      * @returns Scoop of current position
      */
-    private getCurrentScoop(pos: Position, table: IScoop): IScoop {
+    private getCurrentScoop(pos: Position, table: IScope): IScope {
         const symbols = table.allSymbols();
         for (const sym of symbols) {
             if (sym instanceof AHKMethodSymbol || sym instanceof AHKObjectSymbol) {
@@ -695,7 +699,7 @@ export class TreeManager implements IASTProvider
      * Get suffixs list of a given perfixs list
      * @param perfixs perfix list for search(top scope at first)
      */
-    private searchPerfixSymbol(perfixs: string[], scoop: IScoop): Maybe<AHKObjectSymbol> {
+    private searchPerfixSymbol(perfixs: string[], scoop: IScope): Maybe<AHKObjectSymbol> {
         let nextScoop = scoop.resolve(perfixs[0]);
         if (nextScoop && nextScoop instanceof AHKObjectSymbol) {
             for (const lexem of perfixs.slice(1)) {

@@ -273,7 +273,7 @@ export class If extends Stmt {
 
 	constructor(
 		public readonly ifToken: Token,
-		public readonly condition: IExpr,
+		public readonly condition: Expr.Expr,
 		public readonly body: IStmt,
 		public readonly elseStmt?: Else
 	) {
@@ -360,7 +360,7 @@ export class SwitchStmt extends Stmt {
 
 	constructor(
 		public readonly switchToken: Token,
-		public readonly condition: IExpr,
+		public readonly condition: Expr.Expr,
 		public readonly open: Token,
 		public readonly cases: CaseStmt[],
 		public readonly close: Token
@@ -532,7 +532,7 @@ export class Loop extends Stmt {
 	constructor(
 		public readonly loop: Token,
 		public readonly body: IStmt,
-		public readonly condition?: IExpr
+		public readonly condition?: DelimitedList<Expr.Expr>
 	) {
 		super();
 	}
@@ -577,7 +577,7 @@ export class UntilLoop extends Stmt {
 		public readonly loop: Token,
 		public readonly body: IStmt,
 		public readonly until: Token,
-		public readonly condition: IExpr,
+		public readonly condition: Expr.Expr,
 	) {
 		super();
 	}
@@ -616,7 +616,7 @@ export class WhileStmt extends Stmt {
 
 	constructor(
 		public readonly whileToken: Token,
-		public readonly condition: IExpr,
+		public readonly condition: Expr.Expr,
 		public readonly body: IStmt
 	) {
 		super();
@@ -778,7 +778,7 @@ export class Return extends Stmt {
 
 	constructor(
 		public readonly returnToken: Token,
-		public readonly value?: IExpr
+		public readonly value?: Expr.Expr
 	) {
 		super();
 	}

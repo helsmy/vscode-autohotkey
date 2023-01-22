@@ -8,7 +8,7 @@ import {
     HotStringSymbol, 
     VaribaleSymbol
  } from '../parser/newtry/analyzer/models/symbol';
-import { IScoop, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
+import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
 import { IFuncNode } from '../parser/regParser/types';
 import { 
     buildBuiltinCommandNode, 
@@ -80,7 +80,7 @@ export class CompletionService {
                 .concat(this.keywords)
                 .concat(this.builtinVaribles);
     }
-    searchPerfixSymbol(arg0: any, scoop: IScoop): Maybe<AHKObjectSymbol> {
+    searchPerfixSymbol(arg0: any, scoop: IScope): Maybe<AHKObjectSymbol> {
         throw new Error('Method not implemented.');
     }
     getLexemsAtPosition(pos: Position): Maybe<string[]> {
@@ -93,7 +93,7 @@ export class CompletionService {
      * @param table symbol table of current document
      * @returns Scoop of current position
      */
-    private getCurrentScoop(pos: Position, table: IScoop): IScoop {
+    private getCurrentScoop(pos: Position, table: IScope): IScope {
         const symbols = table.allSymbols();
         for (const sym of symbols) {
             if (sym instanceof AHKMethodSymbol || sym instanceof AHKObjectSymbol) {

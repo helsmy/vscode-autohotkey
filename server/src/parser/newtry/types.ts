@@ -126,7 +126,7 @@ export type SuffixTermTrailer =
 export type Atom =
 	| SuffixTerm.Invalid
 	| SuffixTerm.Literal
-	| SuffixTerm.Grouping
+	// | SuffixTerm.Grouping
 	| SuffixTerm.PercentDereference
 	| SuffixTerm.ArrayTerm
 	| SuffixTerm.AssociativeArray

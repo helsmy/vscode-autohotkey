@@ -1,4 +1,4 @@
-import { IScoop, ISymbol, ISymType, VarKind } from '../types';
+import { IScope, ISymbol, ISymType, VarKind } from '../types';
 import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver';
 
 type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
@@ -119,15 +119,15 @@ export class BuiltinTypeSymbol extends AHKSymbol implements ISymType {
 	}
 }
 
-export abstract class ScopedSymbol extends AHKSymbol implements IScoop {
+export abstract class ScopedSymbol extends AHKSymbol implements IScope {
 	protected symbols: Map<string, AHKSymbol> = new Map();
-	public readonly enclosingScoop: Maybe<IScoop>;
-	public readonly dependcyScoop: Set<IScoop>;
+	public readonly enclosingScope: Maybe<IScope>;
+	public readonly dependcyScope: Set<IScope>;
 
-	constructor(name: string, enclosingScoop?: IScoop) {
+	constructor(name: string, enclosingScoop?: IScope) {
 		super(name);
-		this.enclosingScoop = enclosingScoop;
-		this.dependcyScoop = new Set();
+		this.enclosingScope = enclosingScoop;
+		this.dependcyScope = new Set();
 	}
 
 	public define(sym: ISymbol): void {
@@ -138,11 +138,11 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScoop {
 		const searchName = name.toLocaleLowerCase();
 		if (this.symbols.has(searchName))
 			return this.symbols.get(searchName);
-		return this.enclosingScoop?.resolve(searchName);
+		return this.enclosingScope?.resolve(searchName);
 	}
 
-	public addScoop(scoop: IScoop) {
-		this.dependcyScoop.add(scoop);
+	public addScope(scoop: IScope) {
+		this.dependcyScope.add(scoop);
 	}
 
 	public allSymbols(): ISymbol[] {
@@ -158,14 +158,14 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScoop {
 			if (sym instanceof VaribaleSymbol && sym.tag !== VarKind.parameter) {
 				const kind = sym.tag === VarKind.variable ? SymbolKind.Variable : SymbolKind.Property 
 				info.push(SymbolInformation.create(
-					name,
+					sym.name,
 					kind,
 					sym.range
 				));
 			}
 			else if (sym instanceof AHKMethodSymbol) {
 				info.push(SymbolInformation.create(
-					name,
+					sym.name,
 					SymbolKind.Method,
 					sym.range
 				));
@@ -173,7 +173,7 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScoop {
 			}
 			else if (sym instanceof AHKObjectSymbol) {
 				info.push(SymbolInformation.create(
-					name,
+					sym.name,
 					SymbolKind.Class,
 					sym.range
 				));
@@ -181,7 +181,7 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScoop {
 			}
 			else if (sym instanceof HotkeySymbol || sym instanceof HotStringSymbol) {
 				info.push(SymbolInformation.create(
-					name,
+					sym.name,
 					SymbolKind.Event,
 					sym.range
 				));
@@ -199,7 +199,7 @@ export class AHKBuiltinMethodSymbol extends ScopedSymbol {
 		name: string,
 		public readonly requiredParameters: VaribaleSymbol[],
 		public readonly optionalParameters: VaribaleSymbol[],
-		enclosingScoop?: IScoop
+		enclosingScoop?: IScope
 	) {
 		super(name, enclosingScoop);
 		this.initParameters();
@@ -220,7 +220,7 @@ export class AHKBuiltinObjectSymbol extends ScopedSymbol implements ISymType {
 	constructor(
 		name: string,
 		public readonly parentScoop: Maybe<AHKObjectSymbol>,
-		enclosingScoop?: IScoop
+		enclosingScoop?: IScope
 	) {
 		super(name, enclosingScoop);
 	}
@@ -244,7 +244,7 @@ export class AHKMethodSymbol extends ScopedSymbol {
 		public readonly range: Range,
 		public readonly requiredParameters: VaribaleSymbol[],
 		public readonly optionalParameters: VaribaleSymbol[],
-		enclosingScoop?: IScoop,
+		enclosingScoop?: IScope,
 		public readonly parentScoop?: AHKObjectSymbol
 	) {
 		super(name, enclosingScoop);
@@ -286,7 +286,7 @@ export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 		name: string,
 		public readonly range: Range,
 		parentScoop?: AHKObjectSymbol,
-		enclosingScoop?: IScoop
+		enclosingScoop?: IScope
 	) {
 		super(name, enclosingScoop);
 		// All object is extended from Base object

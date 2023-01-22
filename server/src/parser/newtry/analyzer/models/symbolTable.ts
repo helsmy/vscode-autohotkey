@@ -1,17 +1,30 @@
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver-types';
-import { IScoop, ISymbol } from '../types';
-import { BuiltinTypeSymbol, AHKSymbol, VaribaleSymbol, AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol } from './symbol';
+import { buildbuiltin_variable } from '../../../../utilities/constants';
+import { IScope, ISymbol, VarKind } from '../types';
+import {
+	BuiltinTypeSymbol, 
+	AHKSymbol, 
+	VaribaleSymbol, 
+	AHKMethodSymbol, 
+	AHKObjectSymbol, 
+	HotkeySymbol, 
+	HotStringSymbol,
+	BuiltinVaribelSymbol
+} from './symbol';
+
+type SymbolMap = Map<string, AHKSymbol>;
 
 /**
  * Symbol Table for the entire AHK file
- * Used for global scoop and super global scoop
+ * Used for global scope and super global scope
  */
-export class SymbolTable implements IScoop {
-	private symbols: Map<string, AHKSymbol> = new Map();
+export class SymbolTable implements IScope {
+	private symbols: SymbolMap = new Map();
 	public readonly name: string;
-	public readonly enclosingScoop: Maybe<SymbolTable>;
+	private readonly builtinScope: SymbolMap = BuildinScope; 
+	public readonly enclosingScope: Maybe<SymbolTable>;
+	public readonly dependcyScope: Set<IScope>;
 	private includeTable: Set<SymbolTable>;
-	public readonly dependcyScoop: Set<IScoop>;
 	public readonly scoopLevel: number;
 	public readonly uri: string;
 
@@ -19,8 +32,8 @@ export class SymbolTable implements IScoop {
 		this.uri = uri;
 		this.name = name;
 		this.scoopLevel = scoopLevel;
-		this.enclosingScoop = enclosingScoop;
-		this.dependcyScoop = new Set();
+		this.enclosingScope = enclosingScoop;
+		this.dependcyScope = new Set();
 		this.includeTable = new Set();
 		this.initTypeSystem();
 	}
@@ -38,19 +51,20 @@ export class SymbolTable implements IScoop {
 		const searchName = name.toLocaleLowerCase();
 		let result = this.symbols.get(searchName);
 		if (result) return result;
-		// then check parent scoop
-		result = this.enclosingScoop?.resolve(searchName);
+		// Then check parent scoop
+		result = this.enclosingScope?.resolve(searchName);
 		if (result) return result;
-		// finally check include symbol table
+		// Third check include symbol table
 		for (const table of this.includeTable) {
 			result = table.resolve(searchName);
 			if (result) return result;
 		}
-		return undefined;
+		// Finally check builtin symbols
+		return this.builtinScope.get(searchName);
 	}
 
-	public addScoop(scoop: IScoop) {
-		this.dependcyScoop.add(scoop);
+	public addScope(scoop: IScope) {
+		this.dependcyScope.add(scoop);
 	}
 
 	public addInclude(table: SymbolTable) {
@@ -125,3 +139,16 @@ export class SymbolTable implements IScoop {
 		return lines.join('\n');
 	}
 }
+
+const BuildinScope: Map<string, AHKSymbol> = new Map(buildbuiltin_variable().map(
+	v => [
+		v.label.toLowerCase(),
+		new BuiltinVaribelSymbol(
+			v.label,
+			VarKind.variable,
+			undefined
+		)
+	]
+));
+
+

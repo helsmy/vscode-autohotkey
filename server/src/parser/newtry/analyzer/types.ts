@@ -1,17 +1,16 @@
-import { CompletionItem } from 'vscode-languageserver';
 import { SymbolInformation } from 'vscode-languageserver-types';
 
-export interface IScoop {
+export interface IScope {
 	readonly name: string;
 	/**
-	 * Find its parent scoop
+	 * Find its parent scope
 	 */
-	readonly enclosingScoop: Maybe<IScoop>;
+	readonly enclosingScope: Maybe<IScope>;
 
 	/**
-	 * Scoops belongs to this scoop
+	 * Scopes belongs to this scope
 	 */
-	readonly dependcyScoop: Set<IScoop>;
+	readonly dependcyScope: Set<IScope>;
 	/**
 	 * Define a symbol
 	 */
@@ -21,10 +20,10 @@ export interface IScoop {
 	 */
 	resolve(name: string): Maybe<ISymbol>;
 	/**
-	 * Add a scoop belongs to this scoop
-	 * @param scoop Scoop tabel to be added
+	 * Add a scope belongs to this scope
+	 * @param scope Scoop tabel to be added
 	 */
-	addScoop(scoop: IScoop): void;
+	addScope(scope: IScope): void;
 	/**
 	 * convert symbol to lsp SymbolInfomation
 	 */

@@ -1,4 +1,5 @@
 import { CompletionItemKind, CompletionItem } from 'vscode-languageserver';
+import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
 import { Parameter } from "../parser/regParser/types";
 import { 
     builtin_variable,
@@ -8,17 +9,12 @@ import {
 
 export const ServerName = 'ahk-simple-language-server';
 
-export const keywords = [
-	'class',    'extends', 'if',
-	'else',     'while',   'try',
-	'loop',     'until',   'switch',
-	'case',     'break',   'goto',
-	'gosub',    'return',  'global',
-	'local',    'throw',   'continue',
-	'catch',	'finally',	'in',
-	'for', 		'this',		'new',
-	'critical',	'exit',		'exitapp'
-]
+export const keywords = (() => {
+	let keyword: string[] = [];
+	for (let k = TokenType.if; k <= TokenType.byref; k++)
+		keyword.push(TokenType[k]);
+	return keyword;
+})();
 
 export interface BuiltinFuncNode {
     name: string

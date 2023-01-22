@@ -78,8 +78,6 @@ let globalSettings: AHKLSSettings = defaultSettings;
 let documentSettings: Map<string, Thenable<AHKLSSettings>> = new Map();
 
 const logger = new Logger(connection.console);
-const keyWordCompletions: CompletionItem[] = buildKeyWordCompletions();
-const builtinVariableCompletions: CompletionItem[] = buildbuiltin_variable();
 const DOCManager: TreeManager = new TreeManager(connection, logger);
 const configurationService = new ConfigurationService(
 	defaultSettings,
@@ -265,7 +263,7 @@ connection.onCompletion(
 				return undefined;
 		}
 
-		return DOCManager.getScopedCompletion(_compeltionParams.position, keyWordCompletions, builtinVariableCompletions);
+		return DOCManager.getScopedCompletion(_compeltionParams.position);
 	}
 );
 

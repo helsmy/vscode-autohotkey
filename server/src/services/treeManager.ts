@@ -17,10 +17,8 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { 
     IFuncNode,
-	ReferenceInfomation, 
 	ISymbolNode, 
-	Word,
-    ReferenceMap
+	Word
 } from '../parser/regParser/types';
 import {
 	INodeResult, 
@@ -38,7 +36,9 @@ import { SemanticStack, isExpr } from '../parser/regParser/semantic_stack';
 import { 
     BuiltinFuncNode,
     buildBuiltinFunctionNode,
-    buildBuiltinCommandNode
+    buildBuiltinCommandNode,
+    buildKeyWordCompletions,
+    buildbuiltin_variable
 } from '../utilities/constants';
 import {
     dirname,
@@ -107,12 +107,16 @@ export class TreeManager implements IASTProvider
     /**
      * built-in standard function AST
      */
-	private readonly builtinFunction: BuiltinFuncNode[];
+	private readonly builtinFunction = buildBuiltinFunctionNode();
     
     /**
      * builtin standard command AST
      */
-    private readonly builtinCommand: BuiltinFuncNode[];
+    private readonly builtinCommand = buildBuiltinCommandNode();
+
+    private readonly keywordCompletions = buildKeyWordCompletions();
+
+    private readonly builtinVarCompletions = buildbuiltin_variable();
 
     private currentDocUri: string;
     
@@ -135,8 +139,6 @@ export class TreeManager implements IASTProvider
         this.localAST = new Map();
         this.incInfos = new Map();
         this.ioService = new IoService();
-		this.builtinFunction = buildBuiltinFunctionNode();
-        this.builtinCommand = buildBuiltinCommandNode();
 		this.serverConfigDoc = undefined;
         this.currentDocUri = '';
         // TODO: non hardcoded Standard Library
@@ -522,27 +524,27 @@ export class TreeManager implements IASTProvider
         .concat(incCompletion);
     }
 
-    public getScopedCompletion(pos: Position, keywordCompletions: CompletionItem[], builtinVarCompletions: CompletionItem[]): CompletionItem[] {
+    public getScopedCompletion(pos: Position): CompletionItem[] {
         let docinfo: DocInfo|undefined;
         docinfo = this.docsAST.get(this.currentDocUri);
         if (!docinfo) return [];
-        const scoop = this.getCurrentScoop(pos, docinfo.table);
+        const scope = this.getCurrentScope(pos, docinfo.table);
         const lexems = this.getLexemsAtPosition(pos);
         if (lexems && lexems.length > 1) {
             const perfixs = lexems.reverse();
-            const symbol = this.searchPerfixSymbol(perfixs.slice(0, -1), scoop);
+            const symbol = this.searchPerfixSymbol(perfixs.slice(0, -1), scope);
             if (!symbol) return [];
             return symbol.allSymbols().map(sym => this.convertSymCompletion(sym));
         }
-        if (scoop.name === 'global') return this.getGlobalCompletion()
-                                    .concat(keywordCompletions)
-                                    .concat(builtinVarCompletions);
+        if (scope.name === 'global') return this.getGlobalCompletion()
+                                    .concat(this.keywordCompletions)
+                                    .concat(this.builtinVarCompletions);
         // Now scoop is a method.
-        const symbols = scoop.allSymbols();
+        const symbols = scope.allSymbols();
         return symbols.map(sym => this.convertSymCompletion(sym))
                 .concat(this.getGlobalCompletion())
-                .concat(keywordCompletions)
-                .concat(builtinVarCompletions);
+                .concat(this.keywordCompletions)
+                .concat(this.builtinVarCompletions);
     }
 
     private getNamedTokensAtPosition(pos: Position, tokens: Token[]): Token[] {
@@ -588,13 +590,13 @@ export class TreeManager implements IASTProvider
      * @param table symbol table of current document
      * @returns Scoop of current position
      */
-    private getCurrentScoop(pos: Position, table: IScope): IScope {
+    private getCurrentScope(pos: Position, table: IScope): IScope {
         const symbols = table.allSymbols();
         for (const sym of symbols) {
             if (sym instanceof AHKMethodSymbol || sym instanceof AHKObjectSymbol) {
                 if (this.isLessEqPosition(sym.range.start, pos)
                     && this.isLessEqPosition(pos, sym.range.end) ) {
-                    return this.getCurrentScoop(pos, sym);
+                    return this.getCurrentScope(pos, sym);
                 }
             }
         }
@@ -699,17 +701,17 @@ export class TreeManager implements IASTProvider
      * Get suffixs list of a given perfixs list
      * @param perfixs perfix list for search(top scope at first)
      */
-    private searchPerfixSymbol(perfixs: string[], scoop: IScope): Maybe<AHKObjectSymbol> {
-        let nextScoop = scoop.resolve(perfixs[0]);
-        if (nextScoop && nextScoop instanceof AHKObjectSymbol) {
+    private searchPerfixSymbol(perfixs: string[], scope: IScope): Maybe<AHKObjectSymbol> {
+        let nextScope = scope.resolve(perfixs[0]);
+        if (nextScope && nextScope instanceof AHKObjectSymbol) {
             for (const lexem of perfixs.slice(1)) {
-                nextScoop = nextScoop.resolveProp(lexem);
-                if (nextScoop && nextScoop instanceof AHKObjectSymbol) 
-                    scoop = nextScoop;
+                nextScope = nextScope.resolveProp(lexem);
+                if (nextScope && nextScope instanceof AHKObjectSymbol) 
+                    scope = nextScope;
                 else 
                     return undefined;
             }
-            return nextScoop;
+            return nextScope;
         }
         return undefined;
     }
@@ -722,15 +724,15 @@ export class TreeManager implements IASTProvider
     private searchNode(lexems: string[], position: Position): Maybe<ISymbol> {
         const docinfo = this.docsAST.get(this.currentDocUri);
         if (!docinfo) return undefined;
-        const scoop = this.getCurrentScoop(position, docinfo.table);
+        const scope = this.getCurrentScope(position, docinfo.table);
         if (lexems.length > 1) {
             // check if it is a property access
             const perfixs = lexems.reverse().slice(0, -1);
-            const symbol = this.searchPerfixSymbol(perfixs, scoop);
+            const symbol = this.searchPerfixSymbol(perfixs, scope);
             return symbol ? symbol.resolveProp(lexems[lexems.length-1]) : undefined;
         }
         
-        return scoop.resolve(lexems[0]);
+        return scope.resolve(lexems[0]);
     }
 
 

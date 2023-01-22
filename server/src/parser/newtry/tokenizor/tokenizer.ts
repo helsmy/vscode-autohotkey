@@ -640,8 +640,8 @@ export class Tokenizer {
      * Check if current line is possible to be a hotkey define line
      */ 
     private CheckHotkey() {
-        const testStr = this.document.slice(this.pos, this.pos + MaxHotkeyLength);
-        return  HotkeyTest.exec(testStr);
+        const testStr = this.document.slice(this.pos, this.pos + MAX_HOTKEY_LENGTH);
+        return  HOTKEY_TEST.exec(testStr);
     }
 
     private matchWord(s: string): boolean {
@@ -760,7 +760,7 @@ export class Tokenizer {
 }
 
 // Max length to find '::' token
-const MaxHotkeyLength = 40;
+const MAX_HOTKEY_LENGTH = 40;
 
 // defines unicode range of all language letters
 const identifierTest = new RegExp(
@@ -849,39 +849,15 @@ const identifierTest = new RegExp(
     '\uFFD2-\uFFD7\uFFDA-\uFFDC]*$',
 );
 
-const HotkeyTest = /^([#!^+&<>*~$]+|(?:<\^>!))?([!-/]|[:-@]|[\[-`]|[\{-~]|[a-zA-Z0-9]+)(\s&\s([!-/]|[:-@]|[\[-`]|[\{-~]|[a-zA-Z0-9]+))?(::)/;
+const HOTKEY_TEST = /^([#!^+&<>*~$]+|(?:<\^>!))?([!-/]|[:-@]|[\[-`]|[\{-~]|[a-zA-Z0-9]+)(\s&\s([!-/]|[:-@]|[\[-`]|[\{-~]|[a-zA-Z0-9]+))?(::)/;
 
-const RESERVED_KEYWORDS: ITokenMap = new Map([
-    ["class", TokenType.class],
-    ["extends", TokenType.extends],
-    ["new", TokenType.new],
-    ["if", TokenType.if],
-    ["else", TokenType.else],
-    ["while", TokenType.while],
-    ["loop", TokenType.loop],
-    ["until", TokenType.until],
-    ["for", TokenType.for],
-    ["in", TokenType.in],
-    ["switch", TokenType.switch],
-    ["case", TokenType.case],
-    ["default", TokenType.default],
-    ["break", TokenType.break],
-    ["goto", TokenType.goto],
-    ["gosub", TokenType.gosub],
-    ["return", TokenType.return],
-    ["global", TokenType.global],
-    ["local", TokenType.local],
-    ["static", TokenType.static],
-    ["throw", TokenType.throw],
-    ["continue", TokenType.continue],
-    ["and", TokenType.keyand],
-    ["or", TokenType.keyor],
-    ["not", TokenType.keynot],
-    ["try", TokenType.try],
-    ["catch", TokenType.catch],
-    ["finally", TokenType.finally],
-    ["byref", TokenType.byref]
-]);
+const RESERVED_KEYWORDS = (() => {
+	let keyword: ITokenMap = new Map();
+	for (let k = TokenType.if; k <= TokenType.byref; k++)
+		keyword.set(TokenType[k], k);
+	return keyword;
+})();
+
 const OTHER_MARK: ITokenMap = new Map([
     ["{", TokenType.openBrace], ["}", TokenType.closeBrace],
     ["[", TokenType.openBracket], ["]", TokenType.closeBracket],
@@ -917,4 +893,4 @@ const DRECTIVE_TEST: Set<string> = new Set([
     "winactivateforce", "requires"
 ])
 
-export const DocumentStartToken = new Token(TokenType.EOL, '', Position.create(-1, -1), Position.create(-1, -1))
+export const DOCUMENT_START_TOKEN = new Token(TokenType.EOL, '', Position.create(-1, -1), Position.create(-1, -1))

@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.9.0
+1. Refactor Autohotkey parser
+
 ## 0.8.27
 1. add command `AutohotkeySS.runCurrentFile`, `AutohotkeySS.formatDocument`
 2. add `run current file` button to menu

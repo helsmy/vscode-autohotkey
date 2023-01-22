@@ -1,4 +1,4 @@
-import { DocumentStartToken, Tokenizer } from "../tokenizor/tokenizer";
+import { DOCUMENT_START_TOKEN, Tokenizer } from "../tokenizor/tokenizer";
 import { Atom, IAST, IExpr, MissingToken, SkipedToken, SuffixTermTrailer, Token } from "../types";
 import { isValidIdentifier, TokenType } from "../tokenizor/tokenTypes";
 import { IParseError } from "../types";
@@ -40,7 +40,7 @@ export class AHKParser {
     constructor(document: string, uri: string, logger: ILoggerBase = mockLogger) {
         this.tokenizer = new Tokenizer(document);
         this.tokenizer.isParseHotkey = true;
-        this.currentToken = DocumentStartToken;
+        this.currentToken = DOCUMENT_START_TOKEN;
         this.advance();
         this.logger = logger;
         this.uri = uri;
@@ -301,7 +301,7 @@ export class AHKParser {
     private isClassMemberDeclarationStart(): boolean {
         const t = this.currentToken.type;
         if (t >= TokenType.if && t <= TokenType.byref ||
-            t === TokenType.id) 
+            t === TokenType.id || t === TokenType.drective) 
             return true;
         return false;
     }
@@ -404,6 +404,8 @@ export class AHKParser {
             return this.varDecl();
         if (isValidIdentifier(this.currentToken.type))
             return this.idLeadClassMember();
+        if (token.type === TokenType.drective)
+            return this.drective();
         return this.assign();
     }
 

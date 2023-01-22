@@ -307,10 +307,21 @@ suite('Syntax Parser Expresion Test', () => {
                         assert.strictEqual(atom instanceof expect.args[i], true, `${expect.callee} Wrong paramter ${i}`);
                     })
             }
-        }
-        
-        
+        } 
     })
+
+    test('Basic validlabel test', () => {
+        const p = new AHKParser('Abdc:\nccd:\ndefault:', '');
+        const expect = ['Abdc', 'ccd', 'default'];
+		const actuals = p.parse();
+        assert.strictEqual(actuals.script.stmts.length, 3, 'Label number');
+        actuals.script.stmts.forEach((stmt, i) => {
+            assert.strictEqual(stmt instanceof Decl.Label, true, 'Wrong class');
+            if (stmt instanceof Decl.Label)
+                assert.strictEqual(stmt.name.content, expect[i], 'Wrong content');
+        })
+
+	})
 });
 
 function getStmt(s: string) {

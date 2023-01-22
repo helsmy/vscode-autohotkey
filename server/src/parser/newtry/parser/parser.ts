@@ -457,8 +457,8 @@ export class AHKParser {
     }
 
     private label(): Decl.Label {
-        const name = this.currentToken;
-        this.advance();
+        const name = this.eat();
+        this.eatType(TokenType.colon);
         return new Decl.Label(name);
     }
 
@@ -537,7 +537,8 @@ export class AHKParser {
             // 其他是语法错误，统一当作有错误的赋值语句
             case TokenType.colon:
                 // 如果不是贴在一起的`:`就直接穿透到default case
-                if (p.start === this.currentToken.end)
+                if (p.start.line === this.currentToken.end.line &&
+                    p.start.character === this.currentToken.end.character)
                     return this.label();
             default:
                 return this.assign();

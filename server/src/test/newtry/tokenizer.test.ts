@@ -80,14 +80,6 @@ suite('Basic Token Test', () => {
 		assert.strictEqual(actualTokens[1].type, TokenType.rshifteq);
 		assert.strictEqual(actualTokens[2].type, TokenType.logicor);
 	});
-
-	test('label', () => {
-		const actualTokens = getalltoken('Abdc:\nccd:\ndefault:');
-		const expect = ['Abdc', '\n', 'ccd', '\n', 'default', 'EOF'];
-		actualTokens.map((actual, i) => {
-			assert.strictEqual(actual.content, expect[i]);
-		})
-	})
 });
 
 suite('Command token basic test', () => {

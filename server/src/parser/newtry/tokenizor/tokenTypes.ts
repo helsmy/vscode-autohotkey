@@ -106,7 +106,7 @@ export enum TokenType {
 
 
     // keyword
-    if, else, switch, case, loop,
+    if, else, switch, case, default, loop,
     for, in,
     while, until, break, continue,
     try, catch, finally,
@@ -118,7 +118,7 @@ export enum TokenType {
 
     command,
     drective,
-    label,
+    // label,
     implconn,
 
     // file

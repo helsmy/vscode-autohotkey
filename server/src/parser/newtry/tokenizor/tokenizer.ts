@@ -151,14 +151,29 @@ export class Tokenizer {
         }
     }
 
+    private HexNumberAdvance() {
+        while (this.isHexNumber(this.currChar)) {
+            this.Advance()
+        }
+    }
+
     private GetNumber(): TokenResult {
         const offset = this.pos;
         let p = this.genPosition();
+        // Hex
+        if (this.currChar === '0' && this.Peek().toLowerCase() === 'x') {
+            this.Advance().Advance();
+            this.HexNumberAdvance();
+            const sNum = this.document.slice(offset, this.pos);
+            return this.CreateToken(TokenType.number, sNum, p, this.genPosition());
+        }
+        // Point number
         this.NumberAdvance();
         if (this.currChar === '.') {
             this.Advance();
             this.NumberAdvance();
         }
+        // Scientific notation
         if (this.currChar === 'e' || this.currChar === 'E') {
             this.Advance();
             this.NumberAdvance();
@@ -293,14 +308,14 @@ export class Tokenizer {
         if (keyword) {
             return this.CreateToken(keyword, value, p, this.genPosition());
         }
-        if (preType === TokenType.EOL && this.currChar === ':') {
-            const pchar = this.Peek(1, true); 
-            if (this.isWhiteSpace(pchar) || pchar === '\n' || pchar === 'EOF') {
-                this.Advance();
-                return this.CreateToken(TokenType.label, value, p, this.genPosition());
-            }
-            // only store the name of label
-        }
+        // if (preType === TokenType.EOL && this.currChar === ':') {
+        //     const pchar = this.Peek(1, true); 
+        //     if (this.isWhiteSpace(pchar) || pchar === '\n' || pchar === 'EOF') {
+        //         this.Advance();
+        //         return this.CreateToken(TokenType.label, value, p, this.genPosition());
+        //     }
+        //     // only store the name of label
+        // }
         const isNextComma = this.currChar === ',' || (this.isWhiteSpace(this.currChar) && this.Peek(1, true) == ',');
         // A id token confirmed, check if it is a command start
         if (preType === TokenType.EOL && isNextComma) {
@@ -669,6 +684,10 @@ export class Tokenizer {
         return s >= '0' && s <= '9';
     }
 
+    private isHexNumber(s: string): boolean {
+        return s !== 'EOF' && (this.isDigit(s) || (s >= 'a' && s <= 'f') || (s >= 'A' && s <= 'F'))
+    }
+
     private isAlpha(s: string): boolean {
         return this.isAscii(s) || s === '_' || identifierTest.test(s);
     }
@@ -845,6 +864,7 @@ const RESERVED_KEYWORDS: ITokenMap = new Map([
     ["in", TokenType.in],
     ["switch", TokenType.switch],
     ["case", TokenType.case],
+    ["default", TokenType.default],
     ["break", TokenType.break],
     ["goto", TokenType.goto],
     ["gosub", TokenType.gosub],

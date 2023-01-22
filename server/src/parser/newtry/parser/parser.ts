@@ -231,9 +231,9 @@ export class AHKParser {
             case ParseContext.SourceElements:
             case ParseContext.BlockStatements:
             case ParseContext.IfClause2Elements:
-            case ParseContext.SwitchStatementElements:
-                return this.declaration.bind(this);
             case ParseContext.CaseStatementElements:
+                return this.declaration.bind(this);
+            case ParseContext.SwitchStatementElements:
                 return this.caseStmtList.bind(this);
             case ParseContext.ClassMembers:
                 return this.classMemberElement.bind(this);
@@ -259,8 +259,8 @@ export class AHKParser {
                 return t === TokenType.else;
             case ParseContext.CaseStatementElements:
                 return t === TokenType.case || 
-                (t === TokenType.label && this.currentToken.content.toLowerCase() === 'default') ||
-                t === TokenType.closeBrace;
+                       t === TokenType.default ||
+                       t === TokenType.closeBrace;
         }
     }
 
@@ -276,8 +276,7 @@ export class AHKParser {
             // TODO: Handle default:
             case ParseContext.SwitchStatementElements:
                 const token = this.currentToken;
-                return token.type === TokenType.case || 
-                (token.type === TokenType.label && token.content.toLowerCase() === 'default');
+                return token.type === TokenType.case || token.type === TokenType.default;
             case ParseContext.DynamicPropertyElemnets:
                 return this.isDynamicPropertyStart();
         }
@@ -330,8 +329,6 @@ export class AHKParser {
                 case TokenType.local:
                 case TokenType.static:
                     return this.varDecl();
-                case TokenType.label:
-                    return this.label();
                 case TokenType.key:
                 case TokenType.hotkeyModifer:
                     return this.hotkey();
@@ -510,8 +507,6 @@ export class AHKParser {
                 return this.returnStmt();
             case TokenType.switch:
                 return this.switchStmt();
-            case TokenType.case:
-                return this.caseStmtList();
             case TokenType.loop:
                 return this.loopStmt();
             case TokenType.while:
@@ -540,6 +535,10 @@ export class AHKParser {
             case TokenType.hotkey:
                 return this.hotkey();
             // 其他是语法错误，统一当作有错误的赋值语句
+            case TokenType.colon:
+                // 如果不是贴在一起的`:`就直接穿透到default case
+                if (p.start === this.currentToken.end)
+                    return this.label();
             default:
                 return this.assign();
         }
@@ -667,6 +666,7 @@ export class AHKParser {
 
     private caseStmtList(): Stmt.CaseStmt {
         const caseToken = this.eat();
+        // if is case statment
         if (caseToken.type === TokenType.case) {
             // FIXME: record comma
             this.eatOptional(TokenType.comma);
@@ -682,7 +682,8 @@ export class AHKParser {
                 stmts
             );
         }
-
+        // if is default statment
+        this.eatType(TokenType.colon);
         const CaseNode = new Stmt.DefaultCase(caseToken);
         const stmts = this.parseList(ParseContext.CaseStatementElements);
         return new Stmt.CaseStmt(

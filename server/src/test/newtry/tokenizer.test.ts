@@ -35,11 +35,31 @@ suite('Basic Token Test', () => {
 		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.number, '.234', Position.create(0, 6),Position.create(0, 10)));
 	});
 
+	test('hex number', () => {
+		const actualTokens = getalltoken('0x7B 0x007B -0x1')
+		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.number, '0x7B', Position.create(0, 0),Position.create(0, 4)));
+		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.number, '0x007B', Position.create(0, 5),Position.create(0, 11)));
+		assert.deepStrictEqual(actualTokens[2], new Token(TokenType.minus, '-', Position.create(0, 12),Position.create(0, 13)));
+		assert.deepStrictEqual(actualTokens[3], new Token(TokenType.number, '0x1', Position.create(0, 13),Position.create(0, 16)));
+	})
+
 	test('string', () => {
 		let actualTokens = getalltoken('"123" "AHK是世界第一的热键语言"');
 		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, '123', Position.create(0, 0),Position.create(0, 5)));
 		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.string, 'AHK是世界第一的热键语言', Position.create(0, 6),Position.create(0, 21)));
 	});
+
+	test('multistring', () => {
+		const actualTokens = getalltoken(`"
+		(
+		123
+		)" "AHK是世界第一的热键语言"`);
+		const expect = `
+		(
+		123
+		`;
+		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, expect, Position.create(0, 0),Position.create(3, 3)));
+	})
 
 	test('identifer', () => {
 		let actualTokens = getalltoken('AHKisHotkey DllCall');

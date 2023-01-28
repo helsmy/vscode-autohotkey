@@ -9,7 +9,8 @@ import {
 	AHKObjectSymbol, 
 	HotkeySymbol, 
 	HotStringSymbol,
-	BuiltinVaribelSymbol
+	BuiltinVaribelSymbol,
+	LabelSymbol
 } from './symbol';
 
 type SymbolMap = Map<string, AHKSymbol>;
@@ -20,6 +21,7 @@ type SymbolMap = Map<string, AHKSymbol>;
  */
 export class SymbolTable implements IScope {
 	private symbols: SymbolMap = new Map();
+	private labelSymbols: SymbolMap = new Map();
 	public readonly name: string;
 	private readonly builtinScope: SymbolMap = BuildinScope; 
 	public readonly enclosingScope: Maybe<SymbolTable>;
@@ -44,7 +46,10 @@ export class SymbolTable implements IScope {
 	}
 
 	public define(sym: AHKSymbol) {
-		this.symbols.set(sym.name.toLocaleLowerCase(), sym);
+		if (!(sym instanceof LabelSymbol))
+			this.symbols.set(sym.name.toLocaleLowerCase(), sym);
+		else
+			this.labelSymbols.set(sym.name.toLocaleLowerCase(), sym)
 	}
 
 	public resolve(name: string): Maybe<AHKSymbol> {
@@ -92,17 +97,17 @@ export class SymbolTable implements IScope {
 
 	public symbolInformations(): SymbolInformation[] {
 		let info: SymbolInformation[] = [];
-		for (const [name, sym] of this.symbols) {
+		for (const [, sym] of this.symbols) {
 			if (sym instanceof VaribaleSymbol) {
 				info.push(SymbolInformation.create(
-					name,
+					sym.name,
 					SymbolKind.Variable,
 					sym.range
 				));
 			}
 			else if (sym instanceof AHKMethodSymbol) {
 				info.push(SymbolInformation.create(
-					name,
+					sym.name,
 					SymbolKind.Method,
 					sym.range
 				));
@@ -110,7 +115,7 @@ export class SymbolTable implements IScope {
 			}
 			else if (sym instanceof AHKObjectSymbol) {
 				info.push(SymbolInformation.create(
-					name,
+					sym.name,
 					SymbolKind.Class,
 					sym.range
 				));
@@ -118,7 +123,7 @@ export class SymbolTable implements IScope {
 			}
 			else if (sym instanceof HotkeySymbol || sym instanceof HotStringSymbol) {
 				info.push(SymbolInformation.create(
-					name,
+					sym.name,
 					SymbolKind.Event,
 					sym.range
 				));

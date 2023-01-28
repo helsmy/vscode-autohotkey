@@ -524,15 +524,16 @@ export class Tokenizer {
                 ];
                 const tokens = checkHotkeyResult.slice(1).map(
                     (e, i) => {
+                        if (e === undefined) return;
                         const t = hotkeytypemap[i];
                         const p = this.genPosition();
                         // if is ` & ` ,  3 step advance is all we need
-                        let step = t === TokenType.hotkeyand ? e.length : 3;
+                        let step = ((t !== TokenType.hotkeyand) ? e.length : 3);
                         while (step--) this.Advance();
                         const c = t !== TokenType.hotkeyand ? e : ' & '; 
                         return new Token(hotkeytypemap[i], c, p, this.genPosition());
                     }
-                );
+                ).filter(t => t !== undefined) as Token[];
                 return {
                     result: tokens,
                     kind: TokenKind.Multi

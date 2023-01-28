@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 0.9.1
+1. Debugger runtime executable path overlap.
+
 ## 0.9.0
 1. Refactor Autohotkey parser
 

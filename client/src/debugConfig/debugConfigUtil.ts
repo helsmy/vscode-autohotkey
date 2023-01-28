@@ -1,6 +1,4 @@
-import { 
-    debug, 
-    ExtensionContext, 
+import {  
     extensions,
     commands,
     window,

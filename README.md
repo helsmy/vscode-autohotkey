@@ -13,9 +13,8 @@ AutoHotKey language support for VS Code
 
 ## What's New
 
-1. [Language Status Bar](#language-status-bar)
-2. Run button (run current file in terminal) and two command. For details, see changelog.
-3. Build-in Variable and Function(partly) hint.
+1. Debugger runtime executable path overlap. For detail, see [Feature](#feature)
+2. Build-in Variable and Function(partly) hint.
    - Need documentions which is easy to be parsed by js/ts. If you find any, help please([Example](others/Contribute.md)).
 
 ## Notice
@@ -62,6 +61,16 @@ For vim user, how to use this extension in vim.
 * Folding region commnet
   * mark region start by `;[region]`
   * mark region end by   `;[endregion]`
+* Debugger runtime executable path overlap. 
+  * When install with [AutoHotKey Debug](https://marketplace.visualstudio.com/items?itemName=helsmy.autohotkey-debug), `AhkExecutable` (runtime executable path) option in launch.json will be overlap with interpreter path setting of this extension, if `AhkExecutable` is left empty.
+  * A typical situtation is that debug a file without any launch.json settings. Debug extension will start with runtime in interpreter path setting.
+```json
+{
+  // ......
+  "AhkExecutable": "" //this will be overlap by interpreter path setting
+  // .....
+}
+```
 
 
 ## Settings

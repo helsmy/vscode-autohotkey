@@ -7,7 +7,8 @@
 import * as path from 'path';
 import { 
 	workspace, 
-	ExtensionContext
+	ExtensionContext,
+	debug
 } from 'vscode';
 import {
 	LanguageClient,
@@ -17,6 +18,7 @@ import {
 } from 'vscode-languageclient';
 import { CommandManger } from './commands/commandManger';
 import { AHKSS_CLIENT_NAME, AHKSS_EXTENSION_ID, AUTOHOTKEY_LANGUAGE } from './constants';
+import { DebugConfigSubstituter } from './debugConfig/debugConfigUtil';
 import { InterpreterService } from "./display/interpreterService";
 
 let client: LanguageClient;
@@ -26,6 +28,13 @@ export async function activate(context: ExtensionContext) {
 	// Register command
 	const commandManger = new CommandManger(interpreterService);
 	commandManger.subscript(context);
+
+	// Register debug config util class
+	context.subscriptions.push(
+		debug.registerDebugConfigurationProvider(
+			'ahkdbg', new DebugConfigSubstituter(interpreterService.getVaildInterpreterPath.bind(interpreterService))
+		)
+	);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(

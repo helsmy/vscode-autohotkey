@@ -1,5 +1,5 @@
 import { commands, ExtensionContext, Terminal, TerminalOptions, window, workspace } from 'vscode';
-import { InterpreterStatus } from '../display/types';
+import { InterpreterPathProvider } from '../display/types';
 import { TerminalManager } from './terminalManger';
 import { ICommand } from './types';
 
@@ -19,24 +19,17 @@ export class RunFileCommand implements ICommand {
      */
     private readonly termianlOption: TerminalOptions;
 
-    private interpreterStatus: InterpreterStatus;
-
-    constructor() {
+    constructor(private interpreterPathProvider: InterpreterPathProvider) {
         this.terminalManager = new TerminalManager();
         this.termianlOption = {
             name: 'Autohotkey',
             shellPath: 'powershell'
         };
-        this.interpreterStatus = InterpreterStatus.unknown;
     }
 
     private onDidCloseTerminal(eterminal: Terminal) {
         this.ownTerminal = undefined;
         eterminal.dispose();
-    }
-
-    public onDidChangeInterpreterStatus(status: InterpreterStatus) {
-        this.interpreterStatus = status;
     }
 
     public subscript(commandName: string, context: ExtensionContext) {
@@ -49,11 +42,9 @@ export class RunFileCommand implements ICommand {
     }
 
     public execute() {
-        const runtime = workspace
-                        .getConfiguration('ahk-simple-language-server')
-                        .get('interpreterPath') as string;
+        const runtime = this.interpreterPathProvider();
         const activeEditor = window.activeTextEditor;
-        if (this.interpreterStatus === InterpreterStatus.unknown) {
+        if (!runtime) {
             window.showErrorMessage(
                 'Interpreter Is Unavailable. Please check Settings>Ahk-simple-language-server:interpreterPath',
                 'Go to settings'

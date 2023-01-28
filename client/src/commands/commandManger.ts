@@ -18,10 +18,8 @@ export class CommandManger {
     constructor(interpreterSerivce: InterpreterService) {
         // 还是好丑啊，来个dalao教我写的好看点
         // 要把这个服务传参进来真的丑，还要塞个全局变量OTZ
-        const runfilecmd = new RunFileCommand();
-        interpreterSerivce.on('StatusChange', runfilecmd.onDidChangeInterpreterStatus.bind(runfilecmd));
         this.commandList = {
-            "AutohotkeySS.runCurrentFile": runfilecmd,
+            "AutohotkeySS.runCurrentFile": new RunFileCommand(interpreterSerivce.getVaildInterpreterPath.bind(interpreterSerivce)),
             "AutohotkeySS.formatDocument": new FormatCommand()
         }
     }

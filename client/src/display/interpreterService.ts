@@ -3,19 +3,13 @@ import { AUTOHOTKEY_LANGUAGE } from '../constants';
 import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { InterpreterInformation, InterpreterStatus, StatusChangeHandler } from './types';
-import { EventEmitter } from 'events';
+import { InterpreterInformation } from './types';
 
-export declare interface InterpreterService  {
-	on(event: 'StatusChange', listener: StatusChangeHandler): this;
-	emit(event: 'StatusChange', ...args: Parameters<StatusChangeHandler>): boolean;
-}
-
-export class InterpreterService extends EventEmitter {
+export class InterpreterService {
     private languageStatus: LanguageStatusItem | undefined;
+    private interpreterInfomation: InterpreterInformation | undefined;
 
     constructor() {
-        super();
     }
 
     private async onDidChangeConfiguration(event: ConfigurationChangeEvent) { 
@@ -46,18 +40,26 @@ export class InterpreterService extends EventEmitter {
         if (this.languageStatus) {
             const interpreter = await this.getInerpreterStatus();
             if (interpreter) {
+                this.interpreterInfomation = interpreter;
                 this.languageStatus.text = interpreter.version;
                 this.languageStatus.detail = 'Autohotkey Version';
                 this.languageStatus.command.tooltip = interpreter.path;
-                this.emit('StatusChange', InterpreterStatus.available);
             }
             else {
+                this.interpreterInfomation = undefined;
                 this.languageStatus.text = '$(alert) No Interpreter Selected';
                 this.languageStatus.detail = '';
                 this.languageStatus.command.tooltip = 'Set A Vaild Interpreter';
-                this.emit('StatusChange', InterpreterStatus.unknown);
             }
         }
+    }
+
+    /**
+     * Return interpreter path if interpreter is vaild autohotkey runtime
+     * @returns Path of interpreter
+     */
+    public getVaildInterpreterPath(): string | undefined {
+        return this.interpreterInfomation ? this.interpreterInfomation.path : undefined;
     }
 
     /**

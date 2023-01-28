@@ -13,17 +13,7 @@ export type AUTOHOTKEY_VERSION = {
 }
 
 /**
- * 当前解释器是否是可用的解释器
+ * Method provides path of vaild interpreter.
+ * If interpreter is invaild then undefined is returned
  */
-export enum InterpreterStatus {
-	/**
-	 * Interpreter is a correct ahk interpreter
-	 */
-	available,
-	/**
-	 * Any other program
-	 */
-	unknown
-}
-
-export type StatusChangeHandler = (InterpreterStatus: InterpreterStatus) => void;
+export type InterpreterPathProvider = () => string | undefined;

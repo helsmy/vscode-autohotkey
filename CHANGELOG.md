@@ -2,6 +2,7 @@
 
 ## 0.9.1
 1. Debugger runtime executable path overlap.
+2. Bug fix on scaning hotkey and name confliction of Label(temporary solution).
 
 ## 0.9.0
 1. Refactor Autohotkey parser

@@ -198,13 +198,15 @@ export class Hotkey extends Decl {
     /**
      * 
      * @param key1 First hotkey
+     * @param hotkey '::' hotkey mark of hotkey
      * @param and '&' token
      * @param key2 Second hotkey
      */
     constructor(
         public readonly key1: Key,
+        public readonly hotkey: Token,
         public readonly and?: Token,
-        public readonly key2?: Key
+        public readonly key2?: Key,
     ) {
         super();
     }
@@ -224,10 +226,7 @@ export class Hotkey extends Decl {
     }
 
     public get end(): Position {
-        return (this.and !== undefined &&
-               this.key2 !== undefined) ? 
-               this.key2.end :
-               this.key1.end;
+        return this.hotkey.end;
     }
 
     public get ranges(): Range[] {

@@ -22,6 +22,7 @@ type IsStartFn = (t: Token) => boolean;
 type ParseFn<T> = () => T; 
 export class AHKParser {
     private tokenizer: Tokenizer;
+    private tokenGetter;
     private currentToken: Token;
     private pos: number = -1;
     private readonly uri: string;
@@ -40,6 +41,7 @@ export class AHKParser {
     constructor(document: string, uri: string, logger: ILoggerBase = mockLogger) {
         this.tokenizer = new Tokenizer(document);
         this.tokenizer.isParseHotkey = true;
+        this.tokenGetter = this.tokenizer.GenToken();
         this.currentToken = DOCUMENT_START_TOKEN;
         this.advance();
         this.logger = logger;
@@ -47,40 +49,32 @@ export class AHKParser {
         this.currentParseContext = 0;
     }
 
-    private nextToken(preType: TokenType): Token {
-        let token = this.tokenizer.GetNextToken(preType);
-        while (token.kind !== TokenKind.Token) {
-            switch (token.kind) {
+    private nextToken(): Token {
+        let tokenResult = this.tokenGetter.next().value;
+        while (tokenResult.kind !== TokenKind.Token) {
+            switch (tokenResult.kind) {
                 case TokenKind.Diagnostic:
-                    this.tokenErrors.push(token.result);
-                    token = this.tokenizer.GetNextToken(TokenType.unknown);
+                    this.tokenErrors.push(tokenResult.result);
+                    tokenResult = this.tokenGetter.next().value;
                     continue;
                 case TokenKind.Commnet:
-                    this.comments.push(token.result);
-                    token = this.tokenizer.GetNextToken(token.result.type);
+                    this.comments.push(tokenResult.result);
+                    tokenResult = this.tokenGetter.next().value;
                     continue;
-                case TokenKind.Multi:
-                    const last = token.result[token.result.length - 1];
-                    this.tokens.push(...token.result.slice(0, -1));
-                    return last;
             }
         }
-        return token.result;
+        return tokenResult.result;
     }
 
     private advance() {
         this.pos++;
         if (this.pos >= this.tokens.length) {
-            let token = this.nextToken(this.currentToken.type);
+            let token = this.nextToken();
             // AHK connect next line to current line
             // when next line start with operators and ','
             if (token.type === TokenType.EOL) {
                 const saveToken = token;
-                token = this.nextToken(saveToken.type);
-                // 跳过多余的换行
-                while (token.type === TokenType.EOL) {
-                    token = this.nextToken(this.currentToken.type);
-                }
+                token = this.nextToken();
                 // 下一行是运算符或者','时丢弃EOL
                 // discard EOL
                 if (token.type >= TokenType.pplus &&
@@ -110,11 +104,11 @@ export class AHKParser {
         if (this.pos + 1 <= this.tokens.length - 1)
             return this.tokens[this.pos + 1];
 
-        let token = this.nextToken(this.currentToken.type);
+        let token = this.nextToken();
 
         if (token.type === TokenType.EOL) {
             const saveToken = token;
-            token = this.nextToken(saveToken.type);
+            token = this.nextToken();
 
             if (token.type >= TokenType.pplus &&
                 token.type <= TokenType.comma) {
@@ -183,7 +177,7 @@ export class AHKParser {
             };
         }
         catch (error) {
-            this.logger.error(error as any);
+            this.logger.error(JSON.stringify(error));
         }
 
         return {
@@ -289,6 +283,7 @@ export class AHKParser {
             case TokenType.openBrace:
             case TokenType.id:
             case TokenType.key:
+            case TokenType.hotkeyModifer:
             case TokenType.drective:
             case TokenType.command:
                 return true;
@@ -472,11 +467,11 @@ export class AHKParser {
         if (and) {
             const k2 = new Decl.Key(this.currentToken);
             this.advance();
-            this.eatType(TokenType.hotkey);
-            return new Decl.Hotkey(k1, and, k2);
+            const hotkey = this.eatType(TokenType.hotkey);
+            return new Decl.Hotkey(k1, hotkey, and, k2);
         }
-        this.eatType(TokenType.hotkey);
-        return new Decl.Hotkey(k1);
+        const hotkey = this.eatType(TokenType.hotkey);
+        return new Decl.Hotkey(k1, hotkey);
     }
 
     private hotstring(): Decl.HotString {
@@ -887,7 +882,7 @@ export class AHKParser {
         this.tokens.pop();
         this.tokenizer.Reset();
         this.tokenizer.isParseHotkey = false;
-        this.currentToken = this.nextToken(TokenType.EOL);
+        this.currentToken = this.nextToken();
         this.tokens.push(this.currentToken);
         return this.expression();
     }

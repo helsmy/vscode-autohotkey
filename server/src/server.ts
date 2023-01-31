@@ -236,7 +236,7 @@ documents.onDidChangeContent(change => {
 async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 	// In this simple example we get the settings for every validate run.
 	let result = await getDocumentSettings(textDocument.uri);
-	connection.console.log(JSON.stringify(result));
+	// connection.console.log(JSON.stringify(result));
 }
 
 connection.onDidChangeWatchedFiles(_change => {

@@ -5,7 +5,7 @@ import {
 
 import { TokenType } from "./tokenTypes"
 import { Position, Range } from 'vscode-languageserver';
-import { TakeComment, TakeDiagnostic, TakeToken, TokenKind, TokenResult } from './types';
+import { TakeComment, TakeDiagnostic, TakeHotkey, TakeToken, TokenKind, TokenResult } from './types';
 
 export class Tokenizer {
     /**
@@ -607,6 +607,30 @@ export class Tokenizer {
             }
         }
         return this.CreateToken(TokenType.EOF, "EOF", this.genPosition(), this.genPosition());
+    }
+
+    public *GenToken(): Generator<Exclude<TokenResult, TakeHotkey>, never, unknown> {
+        let preType = TokenType.EOL;
+        while (true) {
+            const tokenResult = this.GetNextToken(preType);
+            switch (tokenResult.kind) {
+                case TokenKind.Commnet:
+                case TokenKind.Diagnostic:
+                case TokenKind.Token:
+                    yield tokenResult;
+                    if (tokenResult.kind === TokenKind.Token)
+                        preType = tokenResult.result.type
+                    break;
+                case TokenKind.Multi:
+                    for (const token of tokenResult.result) 
+                        yield {
+                            result: token,
+                            kind: TokenKind.Token
+                        };
+                    preType = tokenResult.result[tokenResult.result.length - 1].type;
+                    break;
+            }
+        }
     }
 
     private CheckHotString(): TokenResult {

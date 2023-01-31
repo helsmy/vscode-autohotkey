@@ -189,9 +189,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitDeclHotkey(decl: Decl.Hotkey): Diagnostics {
-		const name: string = decl.key2 ? 
-			decl.key1.key.content + ' & ' + decl.key2.key.content :
-			decl.key1.key.content;
+		const key1 = `${decl.key1.modifiers?.content ?? ''}${decl.key1.key.content}`;
+		const name: string = decl.key2 ? `${key1} & ${decl.key2.key.content}`: key1;
 		this.table.define(
 			new HotkeySymbol(
 				this.script.uri,

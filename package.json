@@ -55,6 +55,11 @@
                 "category": "AutoHotkey",
                 "command": "AutohotkeySS.formatDocument",
                 "title": "Format Current File"
+            },
+            {
+                "category": "AutoHotkey",
+                "command": "AutohotkeySS.selectInterpreterCommand",
+                "title": "Select Default Interpreter"
             }
         ],
         "grammars": [

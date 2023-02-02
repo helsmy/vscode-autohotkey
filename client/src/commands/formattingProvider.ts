@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-interface FormatOptions {
+export interface FormatOptions {
     indent_size: number,
     indent_char: string,
     max_preserve_newlines: number,
@@ -57,11 +57,10 @@ export class FormatProvider implements vscode.DocumentFormattingEditProvider {
 
     private ConvertOptions(options:vscode.FormattingOptions): FormatOptions {
         if (options.insertSpaces) {
-            return {
-                indent_char: " ",
-                indent_size: options.tabSize.toString(),
-                ...this.defaultOptions
-            }
+            const nextOption = {...this.defaultOptions};
+            nextOption.indent_char = ' ';
+            nextOption.indent_size = options.tabSize;
+            return nextOption;
         }
         return this.defaultOptions;
     }
@@ -141,7 +140,7 @@ class Beautifier {
         bracketnum = 0, last_LF = -1;
         
 
-        function create_flags(flags_base: IFlag, mode: MODE) {
+        function create_flags(flags_base: IFlag | undefined, mode: MODE) {
             let next_indent_level = 0;
             if (flags_base) {
                 next_indent_level = flags_base.indentation_level;
@@ -254,13 +253,13 @@ class Beautifier {
 
                 if (token_type === 'TK_EOF') {
                     // Unwind any open statements
-                    while (flags.mode === MODE.Statement) {
+                    while (flags?.mode === MODE.Statement) {
                         restore_mode();
                     }
                     break;
                 }
 
-                keep_whitespace = opt.keep_array_indentation && is_array(flags.mode);
+                keep_whitespace = opt.keep_array_indentation && flags !== undefined && is_array(flags.mode);
                 input_wanted_newline = n_newlines > 0;
 
                 if (keep_whitespace) {
@@ -523,7 +522,7 @@ class Beautifier {
                 flag_store.push(flags);
                 previous_flags = flags;
             } else {
-                previous_flags = create_flags(null, mode);
+                previous_flags = create_flags(undefined, mode);
             }
 
             flags = create_flags(previous_flags, mode);
@@ -540,7 +539,8 @@ class Beautifier {
         function restore_mode() {
             if (flag_store.length > 0) {
                 previous_flags = flags;
-                flags = flag_store.pop();
+                const f = flag_store.pop();
+                if (f) flags = f;
                 if (previous_flags.mode === MODE.Statement) {
                     remove_redundant_indentation(previous_flags);
                 }
@@ -548,7 +548,7 @@ class Beautifier {
         }
 
         function start_of_object_property() {
-            return flags.parent.mode === MODE.ObjectLiteral && flags.mode === MODE.Statement && flags.last_text === ':' &&
+            return flags.parent?.mode === MODE.ObjectLiteral && flags.mode === MODE.Statement && flags.last_text === ':' &&
                 flags.ternary_depth === 0;
         }
 
@@ -889,7 +889,7 @@ class Beautifier {
                                 }
                                 last_LF = parser_pos, LF = input.substring(pos, parser_pos + 1);
                             }
-                            let Mwhitespace: RegExpMatchArray = LF.match(/^(\s*)\(/);
+                            let Mwhitespace: RegExpMatchArray|null = LF.match(/^(\s*)\(/);
                             if (!Mwhitespace) {
                                 parser_pos = pos, n_newlines++;
                                 return [resulting_string.trimRight(), 'TK_UNKNOWN']
@@ -1412,7 +1412,7 @@ class Beautifier {
                 }
             } else {
                 if (flags.mode === MODE.ObjectLiteral ||
-                    (flags.mode === MODE.Statement && flags.parent.mode === MODE.ObjectLiteral)) {
+                    (flags.mode === MODE.Statement && flags.parent?.mode === MODE.ObjectLiteral)) {
                     if (flags.mode === MODE.Statement) {
                         restore_mode();
                     }
@@ -1464,7 +1464,8 @@ class Beautifier {
                     }
                     if (keep_Object_line && output_lines.length > 1) {
                         let t = output_lines.pop();
-                        output_lines[output_lines.length - 1].text.push(t.text.join('').trim());
+                        if (t)
+                            output_lines[output_lines.length - 1].text.push(t.text.join('').trim());
                     }
                 }
             }
@@ -1652,7 +1653,7 @@ class Beautifier {
 
 interface IFlag {
     mode: MODE,
-    parent: IFlag,
+    parent: IFlag|undefined,
     last_text: string,
     last_word: string,
     declaration_statement: boolean,

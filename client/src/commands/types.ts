@@ -11,5 +11,5 @@ export interface ICommand {
 	/**
 	 * Method for command executing
 	 */
-	execute(...args: any[]): void;
+	execute(...args: any[]): void | Thenable<void>;
 }

@@ -7,26 +7,37 @@ import { InterpreterInformation } from './types';
 
 export class InterpreterService {
     private languageStatus: LanguageStatusItem | undefined;
-    private interpreterInfomation: InterpreterInformation | undefined;
+    private interpreterInfomation: InterpreterInformation;
+    private availableInterpreterList: InterpreterInformation[] = [];
+    private interpreterDir: Promise<string>;
 
     constructor() {
+        this.interpreterInfomation = {
+            version: undefined,
+            path: ''
+        }
+        this.interpreterDir = this.getInterpreterDir();
     }
 
     private async onDidChangeConfiguration(event: ConfigurationChangeEvent) { 
         if (event.affectsConfiguration('ahk-simple-language-server.interpreterPath'))
             this.updateDisplay();
     }
+
+    public onDidChangeInterpreter(interpreterInfomation: InterpreterInformation) {
+        workspace.getConfiguration('ahk-simple-language-server')
+                 .update('interpreterPath', interpreterInfomation.path);
+    }
     
-    public activate(context: ExtensionContext) {
+    public async activate(context: ExtensionContext) {
         this.languageStatus = languages.createLanguageStatusItem(
-            'autohotkeyss.displayInterpreter',
+            'AutohotkeySS.displayInterpreter',
             {language: AUTOHOTKEY_LANGUAGE}
         );
         this.languageStatus.severity = LanguageStatusSeverity.Information;
         this.languageStatus.command = {
-            title: 'Change Interpreter config',
-            command: 'workbench.action.openSettings',
-            arguments: ['Ahk-simple-language-server:interpreterPath']
+            title: 'Change Interpreter',
+            command: 'AutohotkeySS.selectInterpreterCommand'
         };
 
         context.subscriptions.push(
@@ -39,53 +50,115 @@ export class InterpreterService {
     public async updateDisplay() {
         if (this.languageStatus) {
             const interpreter = await this.getInerpreterStatus();
-            if (interpreter) {
-                this.interpreterInfomation = interpreter;
-                this.languageStatus.text = interpreter.version;
-                this.languageStatus.detail = 'Autohotkey Version';
-                this.languageStatus.command.tooltip = interpreter.path;
-            }
-            else {
-                this.interpreterInfomation = undefined;
-                this.languageStatus.text = '$(alert) No Interpreter Selected';
-                this.languageStatus.detail = '';
-                this.languageStatus.command.tooltip = 'Set A Vaild Interpreter';
-            }
+            this.interpreterInfomation = interpreter;
+            this.syncLanguageStatus(interpreter);
         }
     }
+
+    private syncLanguageStatus(interpreterInfomation: InterpreterInformation) {
+        if (!this.languageStatus) return;
+        if (interpreterInfomation.version !== undefined) {
+            this.languageStatus.text = interpreterInfomation.version;
+            this.languageStatus.detail = 'Autohotkey Version';
+            if (this.languageStatus.command)
+                this.languageStatus.command.tooltip = interpreterInfomation.path;
+        }
+        else {
+            this.languageStatus.text = '$(alert) No Interpreter Selected';
+            this.languageStatus.detail = '';
+            if (this.languageStatus.command)
+                this.languageStatus.command.tooltip = 'Set A Vaild Interpreter';
+        }
+    }
+    
 
     /**
      * Return interpreter path if interpreter is vaild autohotkey runtime
      * @returns Path of interpreter
      */
     public getVaildInterpreterPath(): string | undefined {
-        return this.interpreterInfomation ? this.interpreterInfomation.path : undefined;
+        return this.interpreterInfomation.version ? this.interpreterInfomation.path : undefined;
+    }
+
+    public getInterpreterList(): InterpreterInformation[] {
+        return [this.interpreterInfomation, ...this.availableInterpreterList];
     }
 
     /**
      * Get information of Interpreter set on settings
      */
-    private async getInerpreterStatus(): Promise<InterpreterInformation | undefined> {
+    private async getInerpreterStatus(): Promise<InterpreterInformation> {
         const runtime = workspace
                         .getConfiguration('ahk-simple-language-server')
                         .get('interpreterPath') as string;
         const nruntime = path.normalize(runtime);
         if (!path.isAbsolute(nruntime))
-            return undefined;
+            return {
+                path: nruntime,
+                version: undefined
+            };
         if (!this.fileExistsSync(nruntime))
-            return undefined;
+            return {
+                path: nruntime,
+                version: undefined
+            };
         const rawStdout = await this.getVersion(nruntime).catch((error) => {
-            console.log(error);
+            console.warn(error);
             return undefined;
         });
-        if (!rawStdout) 
-            return undefined;
         return {
             path: nruntime,
             version: rawStdout
         };
     }
 
+    private async getInterpreterDir(): Promise<string> {
+        return new Promise((resolve, reject) => {
+            child_process.exec(
+                'cmd.exe /c REG QUERY HKEY_LOCAL_MACHINE\\SOFTWARE\\AutoHotkey /v InstallDir',
+                (error, stdout) => {
+                    if (error) reject(error);
+                    const temp = stdout.split('    ');
+                    resolve(temp[temp.length-1].trim());
+                }
+            )
+        })
+    }
+
+    public async scanInterpreter() {
+        const dir = await this.interpreterDir;
+        this.deepScanInterpreterAtDir(dir);
+    }
+
+    private async deepScanInterpreterAtDir(dir: string) {
+        const isDirectory = fs.existsSync(dir) && fs.lstatSync(dir).isDirectory();
+        if (!isDirectory) this.availableInterpreterList = [];
+        const files = await (async (): Promise<string[]> => new Promise((resolve, reject) => {
+            fs.readdir(dir, (e, f) => {
+                if (e) reject(e);
+                resolve(f)
+            })
+        }))();
+        for (const file of files) {
+            const fullpath = path.join(dir, file);
+            // in case of permition denied
+            try {
+                if (fs.lstatSync(fullpath).isDirectory()) 
+                    this.deepScanInterpreterAtDir(fullpath);
+            }
+            catch (e) {
+                // pass, just skip it
+                continue;
+            }
+            if (path.basename(file).startsWith('AutoHotkey') && path.extname(file) === '.exe') {
+                const version = await this.getVersion(fullpath).catch(e => undefined);
+                this.availableInterpreterList.push({
+                    path: fullpath,
+                    version: version
+                });
+            }
+        }
+    }
     /**
      * Run a dectection script to get version of runtime
      * @param runtime Executable path of autohotkey runtime
@@ -95,20 +168,24 @@ export class InterpreterService {
         return new Promise((resolve, reject) => {
             // Use stdin as input file of runtime, 
             // so that no actually file on disk is needed.
-            const child = child_process.exec(`"${runtime}" *`, (error, stdout, stderr) => {
+            const child = child_process.exec(
+            `powershell -NoProfile -Command "& {(Get-Command \\"${runtime}\\").FileVersionInfo.FileVersion} "`, (error, stdout, stderr) => {
                 if (error) {
                     reject(error);
                 }
-                resolve(stdout);
+                resolve(stdout.trim());
             });
-            child.stdin.write('stdout := FileOpen("*", "w"),stdout.Write(A_AhkVersion)');
-            child.stdin.end();
+            // child.stdin.write('FileOpen("*", "w").Write(A_AhkVersion)');
+            // child.stdin.end();
             // kill it if no respond after 1000ms
             setTimeout(() => child.kill(), 1000);
         });
     }
 
     private fileExistsSync(path: string): boolean {
+        if (!fs.existsSync(path)) return false;
+        // In case of symbolic link
+        path = fs.realpathSync(path);
         return fs.existsSync(path) && fs.lstatSync(path).isFile();
     }
 }

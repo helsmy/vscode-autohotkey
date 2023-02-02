@@ -6,7 +6,8 @@
 		"outDir": "out",
 		"rootDir": "src",
 		"sourceMap": true,
-		"removeComments": true
+		"removeComments": true,
+		"strict": true
 	},
 	"include": ["src"],
 	"exclude": ["node_modules", ".vscode-test"]

@@ -1,5 +1,4 @@
-import { commands, DocumentSelector, ExtensionContext, languages, TextEditor, TextEditorEdit } from 'vscode';
-import { FormattingOptions } from 'vscode-languageclient';
+import { commands, DocumentSelector, ExtensionContext, languages, TextEditor, TextEditorEdit, FormattingOptions } from 'vscode';
 import { AUTOHOTKEY_LANGUAGE } from '../constants';
 import { FormatProvider } from './formattingProvider';
 import { ICommand } from './types';
@@ -25,7 +24,10 @@ export class FormatCommand implements ICommand {
     execute(textEditor: TextEditor, edit: TextEditorEdit): void {
         const result = this.provider.syncProvideFormattingEdits(
             textEditor.document, 
-            FormattingOptions.create(4, true)
+            {
+                tabSize: 4,
+                insertSpaces: false
+            }
         );
 
         // 反正这个格式化也就是全都替换的实现

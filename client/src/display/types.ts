@@ -1,6 +1,6 @@
 export type InterpreterInformation = {
 	path: string;
-	version: string;
+	version: string | undefined;
 	architecture?: string;
 }
 

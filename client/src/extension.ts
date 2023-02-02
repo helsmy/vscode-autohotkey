@@ -90,5 +90,6 @@ async function delayActive(context: ExtensionContext) {
 
 	setTimeout(async () => {
 		interpreterService.updateDisplay();
+		interpreterService.scanInterpreter();
 	}, 0);
 } 

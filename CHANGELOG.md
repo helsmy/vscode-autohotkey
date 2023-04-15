@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.9.2
+1. `AutohotkeySS.selectInterpreterCommand` command
+2. Bug fix on wrong token order when multi-token is produced at once.
+
 ## 0.9.1
 1. Debugger runtime executable path overlap.
 2. Bug fix on scaning hotkey and name confliction of Label(temporary solution).

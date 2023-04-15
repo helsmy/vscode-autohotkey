@@ -34,7 +34,7 @@ export class VaribaleSymbol extends AHKSymbol {
 	 * Temporary type marking for current usage
 	 * (one scan semantic parser)
 	 */
-	private tempType: Maybe<string>
+	private tempType: string[] = [];
 
 	/**
 	 * @param name Name of a variable
@@ -52,11 +52,11 @@ export class VaribaleSymbol extends AHKSymbol {
 		super(name, type);
 	}
 
-	public setType(t: string) {
+	public setType(t: string[]) {
 		this.tempType = t;
 	}
 
-	public getType(): Maybe<string> {
+	public getType(): string[] {
 		return this.tempType;
 	}
  

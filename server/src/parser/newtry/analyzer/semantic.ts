@@ -243,7 +243,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitAssign(stmt: Stmt.AssignStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		errors.push(...this.processAssignVar(stmt.left, stmt));
+		const resultType = this.checkExprResultType(stmt.expr);
+		errors.push(...this.processAssignVar(stmt.left, stmt, resultType));
 		errors.push(...this.processExpr(stmt.expr));
 		errors.push(...this.processTrailerExpr(stmt.trailerExpr));
 		return errors;
@@ -312,9 +313,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		else if (expr instanceof Expr.Binary) {
 			// if contains assign expression
 			// check if create a new variable检查是否有新的变量赋值
+			const resultType = this.checkExprResultType(expr.right);
 			if (expr.operator.type === TokenType.aassign &&
 				expr.left instanceof Expr.Factor) {
-				errors.push(...this.processAssignVar(expr.left, expr));
+				errors.push(...this.processAssignVar(expr.left, expr, resultType));
 			}
 			else
 				errors.push(...this.processExpr(expr.left));
@@ -332,7 +334,49 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		return errors;
 	}
 
-	private processAssignVar(left: Expr.Factor, fullRange: Range): Diagnostics {
+	/**
+	 * Find the result type of an expression.
+	 * For temporary usage. Retrieve the class name of a `new classname(.classname)?()` 
+	 * @param expr Expression to check
+	 */
+	private checkExprResultType(expr: Expr.Expr): Maybe<string[]> {
+		const isNewClass = expr instanceof Expr.Unary && 
+						   expr.operator.type === TokenType.new &&
+						   expr.factor instanceof Expr.Factor &&
+						   expr.factor.suffixTerm.atom instanceof SuffixTerm.Identifier;
+		if (isNewClass) {
+			let objectNames: string[] = [];
+			const trailers = expr.factor.suffixTerm.trailers;
+			const atom = expr.factor.suffixTerm.atom;
+			// no check calling more than one
+			if (trailers.length > 1) return undefined;
+			if (trailers.length = 1) {
+				const trailer = trailers[0]
+				if (trailer instanceof SuffixTerm.Call && !expr.factor.trailer)
+					return [atom.token.content];
+				return undefined;
+			}
+			if (expr.factor.trailer) {
+				objectNames.push(atom.token.content);
+				for (const trailer of expr.factor.trailer.suffixTerm.getElements()) {
+					const atom = trailer.atom;
+					if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
+					if (trailer.trailers.length > 1) return undefined;
+					if (trailer.trailers.length = 1) {
+						const atomTrailer = trailer.trailers[0];
+						if (atomTrailer instanceof SuffixTerm.Call && !expr.factor.trailer)
+							return objectNames.concat(atom.token.content);
+						return undefined;
+					}
+					objectNames.push(atom.token.content);
+				}
+				return objectNames;
+			}
+		}
+		return undefined;
+	}
+
+	private processAssignVar(left: Expr.Factor, fullRange: Range, varType: Maybe<string[]>): Diagnostics {
 		const errors = this.checkDiagnosticForNode(left);
 		const id1 = left.suffixTerm.atom;
 		if (id1 instanceof SuffixTerm.Identifier) {
@@ -350,6 +394,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 						kind,
 						undefined
 					);
+					if (varType) sym.setType(varType);
 					this.currentScoop.define(sym);
 				}
 				return errors;
@@ -381,6 +426,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 								VarKind.property,
 								undefined
 							);
+							if (varType) sym.setType(varType);
 							this.currentScoop.parentScoop.define(sym);
 						}
 					}

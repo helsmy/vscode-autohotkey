@@ -232,7 +232,7 @@ export class TreeManager implements IASTProvider
             // useless need delete, useneed need to add
             // FIXME: delete useless include
             const [useless, useneed] = setDiffSet(oldInc, newInc);
-            this.logger.info(`Got ${newInc} include file. ${useneed.length} file to load.` )
+            this.logger.info(`Got ${newInc.size} include file. ${useneed.length} file to load.` )
             return [useless, useneed]
         }
         else {
@@ -268,7 +268,7 @@ export class TreeManager implements IASTProvider
             const docDir = dirname(URI.parse(this.currentDocUri).fsPath);
             const p = this.include2Path(path, docDir);
             if (!p) {
-                this.logger.info(`${docDir} is an invalid file name.`);
+                this.logger.info(`${path} is an invalid file name.`);
                 path = incQueue.shift();
                 continue;
             }
@@ -699,21 +699,26 @@ export class TreeManager implements IASTProvider
     
     /**
      * Get suffixs list of a given perfixs list
-     * @param perfixs perfix list for search(top scope at first)
+     * @param prefixs perfix list for search(top scope at first)
      */
-    private searchPerfixSymbol(perfixs: string[], scope: IScope): Maybe<AHKObjectSymbol> {
-        let nextScope = scope.resolve(perfixs[0]);
-        if (nextScope && nextScope instanceof AHKObjectSymbol) {
-            for (const lexem of perfixs.slice(1)) {
-                nextScope = nextScope.resolveProp(lexem);
-                if (nextScope && nextScope instanceof AHKObjectSymbol) 
-                    scope = nextScope;
-                else 
-                    return undefined;
+    private searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKObjectSymbol> {
+        let nextScope = scope.resolve(prefixs[0]);
+        if (!(nextScope && nextScope instanceof AHKObjectSymbol)) return undefined;
+        for (const lexem of prefixs.slice(1)) {
+            const currentScope: Maybe<ISymbol> = (<AHKObjectSymbol>nextScope).resolveProp(lexem);
+            // if (currentScope === undefined) return undefined;
+            if (currentScope && currentScope instanceof AHKObjectSymbol) {
+                nextScope = currentScope
             }
-            return nextScope;
+            else if (currentScope instanceof VaribaleSymbol) {
+                const referenceScope = this.searchPerfixSymbol(currentScope.getType(), nextScope as AHKObjectSymbol);
+                if (referenceScope === undefined) return undefined;
+                nextScope = referenceScope
+            }
+            else 
+                return undefined;
         }
-        return undefined;
+        return nextScope as AHKObjectSymbol;
     }
 
     /**

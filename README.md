@@ -126,7 +126,8 @@ For vim user, how to use this extension in vim.
 2. stef-levesque
 3. denolfe
 4. Microsoft lsp-simple
-5. jonnyboyC el. (kos-langeuage-sever)
+5. jonnyboyC et al. (kos-langeuage-sever)
 6. bitwiseman(js-beautify)
 7. 天黑请闭眼(modify js-beautify for ahk)
+8. CoffeeChaton ([#18](https://github.com/helsmy/vscode-autohotkey/issues/18))
 

@@ -205,6 +205,7 @@ export class Hotkey extends Decl {
     constructor(
         public readonly key1: Key,
         public readonly hotkey: Token,
+        public readonly up?: Token,
         public readonly and?: Token,
         public readonly key2?: Key,
     ) {

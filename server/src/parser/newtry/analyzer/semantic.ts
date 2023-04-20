@@ -190,7 +190,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitDeclHotkey(decl: Decl.Hotkey): Diagnostics {
 		const key1 = `${decl.key1.modifiers?.content ?? ''}${decl.key1.key.content}`;
-		const name: string = decl.key2 ? `${key1} & ${decl.key2.key.content}`: key1;
+		const keyfull = decl.key2 ? `${key1} & ${decl.key2.key.content}`: key1;
+		const name = `${keyfull} ${decl.up ? 'UP' : ''}`
 		this.table.define(
 			new HotkeySymbol(
 				this.script.uri,
@@ -283,7 +284,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			if (!expr.trailer) {
 				const atom = expr.suffixTerm.atom;
 				if (atom instanceof SuffixTerm.Identifier && 
-					expr.suffixTerm.trailers.length === 0) {
+					expr.suffixTerm.brackets.length === 0) {
 					// Only check varible defination in first scanning
 					const idName = atom.token.content;
 					if (!this.currentScoop.resolve(idName)) { 
@@ -294,7 +295,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 						));
 					}
 				}
-				for (const trailer of expr.suffixTerm.trailers) {
+				for (const trailer of expr.suffixTerm.brackets) {
 					if (trailer instanceof SuffixTerm.Call) 
 						trailer.args.getElements().forEach(
 							arg => errors.push(...this.processExpr(arg))
@@ -346,24 +347,27 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 						   expr.factor.suffixTerm.atom instanceof SuffixTerm.Identifier;
 		if (isNewClass) {
 			let objectNames: string[] = [];
-			const trailers = expr.factor.suffixTerm.trailers;
+			const brackets = expr.factor.suffixTerm.brackets;
 			const atom = expr.factor.suffixTerm.atom;
 			// no check calling more than one
-			if (trailers.length > 1) return undefined;
-			if (trailers.length = 1) {
-				const trailer = trailers[0]
+			if (brackets.length > 1) return undefined;
+			// new Object()
+			if (brackets.length === 1) {
+				const trailer = brackets[0]
 				if (trailer instanceof SuffixTerm.Call && !expr.factor.trailer)
 					return [atom.token.content];
 				return undefined;
 			}
+			// new Object
+			if (brackets.length === 0) return [atom.token.content];
 			if (expr.factor.trailer) {
 				objectNames.push(atom.token.content);
 				for (const trailer of expr.factor.trailer.suffixTerm.getElements()) {
 					const atom = trailer.atom;
 					if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
-					if (trailer.trailers.length > 1) return undefined;
-					if (trailer.trailers.length = 1) {
-						const atomTrailer = trailer.trailers[0];
+					if (trailer.brackets.length > 1) return undefined;
+					if (trailer.brackets.length === 1) {
+						const atomTrailer = trailer.brackets[0];
 						if (atomTrailer instanceof SuffixTerm.Call && !expr.factor.trailer)
 							return objectNames.concat(atom.token.content);
 						return undefined;
@@ -468,7 +472,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		}
 
 		// trailers
-		for (const trailer of term.trailers) {
+		for (const trailer of term.brackets) {
 			errors.push(...this.checkDiagnosticForNode(trailer));
 			if (trailer instanceof SuffixTerm.Call) 
 				trailer.args.getElements().forEach(

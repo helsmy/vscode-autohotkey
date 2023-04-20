@@ -95,16 +95,16 @@ export class SuffixTerm extends SuffixTermBase {
     /**
      * Constructor for suffix terms
      * @param atom base item of the suffix term
-     * @param trailers trailers present in the suffixterm. Call|[index]
+     * @param brackets brackets present in the suffixterm. Call|[index]
      */
     constructor(
         public readonly atom: Atom,
-        public readonly trailers: SuffixTermTrailer[],
+        public readonly brackets: SuffixTermTrailer[],
     ) {
         super();
     }
     public get ranges(): Range[] {
-        return [this.atom as Range, ...(this.trailers as Range[])];
+        return [this.atom as Range, ...(this.brackets as Range[])];
     }
 
     public get start(): Position {
@@ -112,8 +112,8 @@ export class SuffixTerm extends SuffixTermBase {
     }
 
     public get end(): Position {
-        if (this.trailers.length > 0) {
-            return this.trailers[this.trailers.length - 1].end;
+        if (this.brackets.length > 0) {
+            return this.brackets[this.brackets.length - 1].end;
         }
 
         return this.atom.end;
@@ -121,7 +121,7 @@ export class SuffixTerm extends SuffixTermBase {
     
     public toLines(): string[] {
         const atomLines = this.atom.toLines();
-        const trailersLines = this.trailers.map(t => t.toLines());
+        const trailersLines = this.brackets.map(t => t.toLines());
         const flatLines = trailersLines.flat();
         if (flatLines.length === 0)
             return atomLines;

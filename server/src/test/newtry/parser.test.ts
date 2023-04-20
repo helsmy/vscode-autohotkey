@@ -33,7 +33,7 @@ function atomUnpackTest(value: IExpr, testFunc: (atom: Atom) => void) {
         assert.strictEqual(value.trailer, undefined);
         assert.strictEqual(value.suffixTerm instanceof SuffixTerm.SuffixTerm, true);
         if (value.suffixTerm instanceof SuffixTerm.SuffixTerm) {
-            assert.strictEqual(value.suffixTerm.trailers.length, 0);
+            assert.strictEqual(value.suffixTerm.brackets.length, 0);
             testFunc(value.suffixTerm.atom);
         }
     }
@@ -84,11 +84,11 @@ function factorUpackTest(
         assert.strictEqual(value.trailer, undefined);
         assert.strictEqual(value.suffixTerm instanceof SuffixTerm.SuffixTerm, true);
         if (value.suffixTerm instanceof SuffixTerm.SuffixTerm) {
-            assert.strictEqual(trailerTests.length, value.suffixTerm.trailers.length);
+            assert.strictEqual(trailerTests.length, value.suffixTerm.brackets.length);
             atomTest(value.suffixTerm.atom);
 
-            for (let i = 1; i < value.suffixTerm.trailers.length; i += 1) {
-                trailerTests[i](value.suffixTerm.trailers[i]);
+            for (let i = 1; i < value.suffixTerm.brackets.length; i += 1) {
+                trailerTests[i](value.suffixTerm.brackets[i]);
             }
         }
     }

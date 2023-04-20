@@ -512,16 +512,17 @@ export class Tokenizer {
                 return this.returnSkipEmptyLine(p);
             }
 
-            const isCheckHotkey = this.isParseHotkey && preType === TokenType.EOL;
-            const checkHotkeyResult = isCheckHotkey && this.CheckHotkey();
+            const checkHotkeyResult = preType === TokenType.EOL && this.CheckHotkey();
             if (checkHotkeyResult) {
                 const hotkeytypemap = [
                     TokenType.hotkeyModifer,
                     TokenType.key,
                     TokenType.hotkeyand,
                     TokenType.key,
-                    TokenType.hotkey
+                    TokenType.hotkeyModifer,
+                    TokenType.hotkey,
                 ];
+                // Remove first whole match result
                 const tokens = checkHotkeyResult.slice(1).map(
                     (e, i) => {
                         if (e === undefined) return;
@@ -874,7 +875,7 @@ const identifierTest = new RegExp(
     '\uFFD2-\uFFD7\uFFDA-\uFFDC]*$',
 );
 
-const HOTKEY_TEST = /^([#!^+&<>*~$]+|(?:<\^>!))?([!-/]|[:-@]|[\[-`]|[\{-~]|[a-zA-Z0-9]+)(\s&\s([!-/]|[:-@]|[\[-`]|[\{-~]|[a-zA-Z0-9]+))?(::)/;
+const HOTKEY_TEST = /^([#!^+&<>*~$]+|(?:<\^>!))?([!-\/]|[:-@]|[\[-`]|[\{-~]|[a-zA-Z0-9]+)(\s&\s([!-\/]|[:-@]|[\[-`]|[\{-~]|[a-zA-Z0-9]+))?([ \t]+UP)?(::)/i
 
 const RESERVED_KEYWORDS = (() => {
 	let keyword: ITokenMap = new Map();

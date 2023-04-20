@@ -467,11 +467,13 @@ export class AHKParser {
         if (and) {
             const k2 = new Decl.Key(this.currentToken);
             this.advance();
+            const up = this.eatOptional(TokenType.hotkeyModifer);
             const hotkey = this.eatType(TokenType.hotkey);
-            return new Decl.Hotkey(k1, hotkey, and, k2);
+            return new Decl.Hotkey(k1, hotkey, up, and, k2);
         }
+        const up = this.eatOptional(TokenType.hotkeyModifer);
         const hotkey = this.eatType(TokenType.hotkey);
-        return new Decl.Hotkey(k1, hotkey);
+        return new Decl.Hotkey(k1, hotkey, up);
     }
 
     private hotstring(): Decl.HotString {

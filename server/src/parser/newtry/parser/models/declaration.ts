@@ -1,6 +1,6 @@
 import { Position, Range } from 'vscode-languageserver';
 import { TokenType } from '../../tokenizor/tokenTypes';
-import { IExpr, IStmt, IStmtVisitor, Token } from '../../types';
+import { IExpr, IStmt, IStmtVisitor, MissingToken, Token } from '../../types';
 import { joinLines } from '../utils/stringUtils';
 import { DelimitedList } from './delimtiedList';
 import { ExpersionList, Expr, Factor } from './expr';
@@ -374,9 +374,9 @@ export class Param extends Decl {
 
     constructor(
         public readonly open: Token,
-        public readonly ParamaterList: DelimitedList<Parameter|DefaultParam>,
+        public readonly ParamaterList: DelimitedList<Parameter>,
         public readonly requiredParameters: Parameter[],
-        public readonly optionalParameters: DefaultParam[],
+        public readonly optionalParameters: Array<DefaultParam|SpreadParameter>,
         public readonly close: Token
     ) {
         super();
@@ -433,7 +433,10 @@ export class Param extends Decl {
  * Class contains all required parameters of a function define
  */
 export class Parameter extends NodeBase {
-    constructor(public readonly identifier: Token) {
+    constructor(
+        public readonly identifier: Token,
+        public readonly byref: Maybe<Token>
+    ) {
         super();
     }
 
@@ -442,7 +445,9 @@ export class Parameter extends NodeBase {
     }
 
     public get start(): Position {
-        return this.identifier.start;
+        return this.byref ? 
+            this.byref.start:
+            this.identifier.start;
     }
 
     public get end(): Position {
@@ -450,7 +455,9 @@ export class Parameter extends NodeBase {
     }
 
     public get ranges(): Range[] {
-        return [this.identifier];
+        return this.byref ? 
+            [this.byref, this.identifier] :
+            [this.identifier];
     }
 
     public get isKeyword(): boolean {
@@ -464,10 +471,11 @@ export class Parameter extends NodeBase {
 export class DefaultParam extends Parameter {
     constructor(
         identifier: Token,
+        byref: Maybe<Token>,
         public readonly assign: Token,
         public readonly value: Expr,
     ) {
-        super(identifier);
+        super(identifier, byref);
     }
 
     public toLines(): string[] {
@@ -476,16 +484,37 @@ export class DefaultParam extends Parameter {
         return lines;
     }
 
-    public get start(): Position {
-        return this.identifier.start;
-    }
-
     public get end(): Position {
         return this.value.end;
     }
 
     public get ranges(): Range[] {
-        return [this.identifier, this.assign, this.value];
+        return super.ranges.concat([this.assign, this.value]);
+    }
+
+    public get isKeyword(): boolean {
+        return this.identifier.type !== TokenType.id;
+    }
+}
+
+/**
+ * class for spread parameter eg. parameter*
+ */
+export class SpreadParameter extends Parameter {
+    constructor(
+        identifier: Token,
+        byref: Maybe<Token>,
+        public readonly spread: Token
+    ) {
+        super(identifier, byref);
+    }
+
+    public get end(): Position {
+        return this.spread.end;
+    }
+
+    public get ranges(): Range[] {
+        return super.ranges.concat(this.spread)
     }
 
     public get isKeyword(): boolean {

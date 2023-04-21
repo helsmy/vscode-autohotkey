@@ -67,6 +67,17 @@ export class VaribaleSymbol extends AHKSymbol {
 	}
 }
 
+export class ParameterSymbol extends VaribaleSymbol {
+	constructor(
+		uri: string, name: string, range: Range, tag: VarKind,
+		public readonly isByref: boolean,
+		public readonly isSpread: boolean, 
+		type?: ISymType
+	) {
+		super(uri, name, range, tag, type)
+	}
+}
+
 export class HotkeySymbol extends AHKSymbol {
 	constructor(
 		public readonly uri: string,
@@ -242,8 +253,8 @@ export class AHKMethodSymbol extends ScopedSymbol {
 		public readonly uri: string,
 		name: string,
 		public readonly range: Range,
-		public readonly requiredParameters: VaribaleSymbol[],
-		public readonly optionalParameters: VaribaleSymbol[],
+		public readonly requiredParameters: ParameterSymbol[],
+		public readonly optionalParameters: ParameterSymbol[],
 		enclosingScoop?: IScope,
 		public readonly parentScoop?: AHKObjectSymbol
 	) {
@@ -265,8 +276,8 @@ export class AHKMethodSymbol extends ScopedSymbol {
 	}
 
 	public toString(): string {
-		const reqParaStr = this.requiredParameters.map(v => v.name);
-		const optParaStr = this.optionalParameters.map(v => v.name+'?');
+		const reqParaStr = this.requiredParameters.map(param => `${param.isByref ? 'byref' : ''} ${param.name}`);
+		const optParaStr = this.optionalParameters.map(param => `${param.isByref ? 'byref' : ''} ${param.name}${param.isSpread? '*': '?'}`);
 		return `${this.name}(${reqParaStr.concat(optParaStr).join(', ')})`
 	}
 }

@@ -1263,8 +1263,6 @@ export class AHKParser {
     }
 
     private funcDefine(name: Token): Decl.FuncDef {
-        // getter/setter 的语法和函数的参数语法就差个括号形式不一样
-        // 整个解析函数就差最后失败原因的参数，结果就只能写得这么蠢OTZ
         let parameters = this.parameters(TokenType.closeParen);
         let block = this.block();
         return new Decl.FuncDef(
@@ -1305,7 +1303,7 @@ export class AHKParser {
     private parameters(closeTokenType: TokenType): Decl.Param {
         const open = this.eat();
         const requiredParameters: Decl.Parameter[] = [];
-        const DefaultParameters: Decl.DefaultParam[] = [];
+        const optionalParameters: Array<Decl.DefaultParam|Decl.SpreadParameter> = [];
         let isDefaultParam = false;
         const allParameters = this.delimitedList(
             TokenType.comma,
@@ -1313,28 +1311,27 @@ export class AHKParser {
             () => {
                 const byref = this.eatOptional(TokenType.byref);
                 if (isDefaultParam) {
-                    const param = this.defaultParameter();
-                    DefaultParameters.push(param);
+                    const param = this.optionalParameter(byref);
+                    optionalParameters.push(param);
                     return param;
                 }
                 const p = this.peek();
                 // check if it is a default parameter
                 if (p.type === TokenType.aassign || p.type === TokenType.equal) {
                     isDefaultParam = true;
-                    const param = this.defaultParameter();
-                    DefaultParameters.push(param);
+                    const param = this.optionalParameter(byref);
+                    optionalParameters.push(param);
                     return param;
                 }
                 if (p.type === TokenType.multi) {
                     isDefaultParam = true;
-                    const param = this.defaultParameter(true);
-                    DefaultParameters.push(param);
+                    const param = this.optionalParameter(byref, true);
+                    optionalParameters.push(param);
                     return param;
                 }
-                const param = this.requiredParameter();
+                const param = this.requiredParameter(byref);
                 requiredParameters.push(param);
                 return param;
-
             }
         )
 
@@ -1343,29 +1340,27 @@ export class AHKParser {
             open,
             allParameters,
             requiredParameters,
-            DefaultParameters,
+            optionalParameters,
             close
         );
     }
 
-    private requiredParameter():  Decl.Parameter {
+    private requiredParameter(byref?: Token):  Decl.Parameter {
         const name = this.eatType(TokenType.id);
-        return new Decl.Parameter(name);
+        return new Decl.Parameter(name, byref);
     }
 
     /**
      * Parse default parameter of function
      * @param isExtend if parameter is array extend parameter
      */
-    private defaultParameter(isExtend: Boolean = false):  Decl.DefaultParam {
+    private optionalParameter(byref?: Token, isExtend: Boolean = false):  Decl.DefaultParam|Decl.SpreadParameter {
         const name = this.eatType(TokenType.id);
 
         // if is parameter*
         if (isExtend || this.currentToken.type === TokenType.multi) {
             const star = this.eat();
-            return new Decl.DefaultParam(
-                    name, star, new Expr.Invalid(star.start, [star])
-            );
+            return new Decl.SpreadParameter(name, byref, star);
         }
 
         const assign = this.eatTypes(
@@ -1373,9 +1368,7 @@ export class AHKParser {
             TokenType.equal
         );
         const dflt = this.expression();
-        return new Decl.DefaultParam(
-                name, assign, dflt
-        );
+        return new Decl.DefaultParam(name, byref, assign, dflt);
     }
 
     private command(): Stmt.Stmt {

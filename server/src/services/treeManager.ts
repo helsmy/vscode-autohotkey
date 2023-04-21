@@ -884,11 +884,13 @@ export class TreeManager implements IASTProvider
             }
             if (find instanceof AHKMethodSymbol) {
                 const reqParam: ParameterInformation[] = find.requiredParameters.map(param => ({
-                    label: param.name
+                    label: `${param.isByref ? 'byref' : ''} ${param.name}`
                 }));
-                const optParam: ParameterInformation[] = find.optionalParameters.map(param => ({
-                    label: param.name+'?'
-                }));
+                const optParam: ParameterInformation[] = find.optionalParameters.map((param, i) => {
+                    // fix active parameter on spread parameter
+                    index = param.isSpread ? reqParam.length+i : index;
+                    return {label: `${param.isByref ? 'byref' : ''} ${param.name}${param.isSpread? '*': '?'}`};
+                });
                 return {
                     signatures: [SignatureInformation.create(
                         find.toString(),

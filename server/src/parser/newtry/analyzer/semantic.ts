@@ -7,7 +7,7 @@ import * as Expr from '../parser/models/expr';
 import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
 import { IExpr, IScript, MissingToken, SkipedToken, Token } from '../types';
-import { AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, VaribaleSymbol } from './models/symbol';
+import { AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VaribaleSymbol } from './models/symbol';
 import { IScope, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
@@ -135,15 +135,16 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		return errors;
 	}
 
-	private paramAction(params: Decl.Parameter[]): VaribaleSymbol[] {
-		const syms: VaribaleSymbol[] = [];
+	private paramAction(params: Decl.Parameter[]): ParameterSymbol[] {
+		const syms: ParameterSymbol[] = [];
 		for(const param of params) {
-			syms.push(new VaribaleSymbol(
+			syms.push(new ParameterSymbol(
 				this.script.uri,
 				param.identifier.content,
 				copyRange(param),
 				VarKind.parameter,
-				undefined
+				param.byref !== undefined,
+				param instanceof Decl.SpreadParameter
 			));
 		}
 		return syms;

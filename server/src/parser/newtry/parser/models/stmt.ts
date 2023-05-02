@@ -127,7 +127,7 @@ export class AssignStmt extends Stmt {
  */
 export class ExprStmt extends Stmt {
 	constructor(
-		public readonly suffix: Expr.Factor,
+		public readonly suffix: Expr.Expr,
 		public readonly trailerExpr?: TrailerExprList
 	) {
 		super();

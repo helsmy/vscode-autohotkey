@@ -5,7 +5,7 @@ import {
 
 import { TokenType } from "./tokenTypes"
 import { Position, Range } from 'vscode-languageserver';
-import { TakeComment, TakeDiagnostic, TakeHotkey, TakeToken, TokenKind, TokenResult } from './types';
+import { TakeComment, TakeDiagnostic, TakeMultiToken, TakeToken, TokenKind, TokenResult } from './types';
 
 export class Tokenizer {
     /**
@@ -62,7 +62,7 @@ export class Tokenizer {
      * @param skipWhite Skip WhiteSpace(\s\t) before character of not
      * @returns Peek Character
      */
-    private Peek(len: number = 1, skipWhite: boolean = false): string {
+    public Peek(len: number = 1, skipWhite: boolean = false): string {
         if (this.pos+len >= this.document.length) {
             return "EOF";
         }
@@ -296,15 +296,14 @@ export class Tokenizer {
         return this.CreateToken(TokenType.string, str, position, this.genPosition());
     }
 
-    private GetId(preType: TokenType): TakeToken {
-        let value: string;
+    private GetId(preType: TokenType): TakeToken|TakeMultiToken {
         let offset = this.pos;
         let p = this.genPosition();
         this.Advance();
         while (this.isAlphaNumeric(this.currChar) && this.currChar !== "EOF")
             this.Advance();
-        value = this.document.slice(offset, this.pos);
-        let keyword = RESERVED_KEYWORDS.get(value.toLowerCase());
+        const value = this.document.slice(offset, this.pos);
+        const keyword = RESERVED_KEYWORDS.get(value.toLowerCase());
         if (keyword) {
             return this.CreateToken(keyword, value, p, this.genPosition());
         }
@@ -316,14 +315,54 @@ export class Tokenizer {
         //     }
         //     // only store the name of label
         // }
-        const isNextComma = this.currChar === ',' || (this.isWhiteSpace(this.currChar) && this.Peek(1, true) == ',');
+
         // A id token confirmed, check if it is a command start
-        if (preType === TokenType.EOL && isNextComma) {
-            // set command scan start flag
-            this.isLiteralToken = true;
-            return this.CreateToken(TokenType.command, value, p, this.genPosition());
+        if (preType === TokenType.EOL &&
+            COMMAND_TEST.has(value.toLowerCase())) {
+            return this.GetCommand(p, value);
         }
         return this.CreateToken(TokenType.id, value, p, this.genPosition());
+    }
+
+    private GetCommand(start: Position, cmd: string): TakeToken|TakeMultiToken {
+        const offset = this.pos;
+        const end = this.genPosition();
+        // If this is a call
+        if (this.currChar === '(') 
+            return this.CreateToken(TokenType.id, cmd, start, end);
+        if (this.isWhiteSpace(this.currChar))
+            this.SkipWhiteSpace();
+        if (this.ischars(this.currChar, '~','<','>','!',':','+','-','*','/','.','|','&','^')) {
+            const mark = this.GetMark();
+            // If is an assign rather than Command
+            if (
+                mark.kind === TokenKind.Token && (
+                    (mark.result.type >= TokenType.pluseq &&
+                    mark.result.type <= TokenType.lshifteq) ||
+                    mark.result.type === TokenType.regeq ||
+                    mark.result.type === TokenType.aassign ||
+                    mark.result.type === TokenType.equal
+                )
+            ) {
+                const id = this.CreateToken(TokenType.id, cmd, start, end);
+                return {
+                    result: [
+                        id.result,
+                        mark.result
+                    ],
+                    kind: TokenKind.Multi
+                }
+            }
+
+            // Not assign then backwards
+            this.BackTo(offset);
+            // set command scan start flag
+            this.isLiteralToken = true;
+            return this.CreateToken(TokenType.command, cmd, start, end);
+        }
+        // set command scan start flag
+        this.isLiteralToken = true;
+        return this.CreateToken(TokenType.command, cmd, start, end);
     }
 
     /**
@@ -503,7 +542,7 @@ export class Tokenizer {
                 }
             }
 
-            if (this.ischars(' ', '\t', '\r')) {
+            if (this.ischars(this.currChar ,' ', '\t', '\r')) {
                 this.SkipWhiteSpace();
                 continue;
             }
@@ -610,7 +649,7 @@ export class Tokenizer {
         return this.CreateToken(TokenType.EOF, "EOF", this.genPosition(), this.genPosition());
     }
 
-    public *GenToken(): Generator<Exclude<TokenResult, TakeHotkey>, never, unknown> {
+    public *GenToken(): Generator<Exclude<TokenResult, TakeMultiToken>, never, unknown> {
         let preType = TokenType.EOL;
         while (true) {
             const tokenResult = this.GetNextToken(preType);
@@ -734,13 +773,13 @@ export class Tokenizer {
         return (s >= '!' && s <= '~') && !this.isAscii(s) && !this.isDigit(s);
     }
 
-    private ischars(...chars: string[]): boolean {
+    private ischars(c: string ,...chars: string[]): boolean {
         for (const char of chars) {
-            if (char === this.currChar)
+            if (char === c)
                 return true;
         }
         return false;
-    } 
+    }
 
     /**
      * skip empty line and return first '\n' token
@@ -881,6 +920,9 @@ const RESERVED_KEYWORDS = (() => {
 	let keyword: ITokenMap = new Map();
 	for (let k = TokenType.if; k <= TokenType.byref; k++)
 		keyword.set(TokenType[k], k);
+    keyword.set("or", TokenType.keyor)
+    keyword.set("and", TokenType.keyand)
+    keyword.set("not", TokenType.keynot)
 	return keyword;
 })();
 
@@ -917,6 +959,32 @@ const DRECTIVE_TEST: Set<string> = new Set([
     "maxhotkeysperinterval", "maxmem", "maxthreads", "maxthreadsbuffer", "maxthreadsperhotkey",
     "menumaskkey", "noenv", "notrayicon", "persistent", "singleinstance", "usehook", "warn", 
     "winactivateforce", "requires"
+])
+
+const COMMAND_TEST: Set<string> = new Set([
+    "autotrim","blockinput","click","clipwait","control","controlclick","controlfocus","controlget",
+    "controlgetfocus","controlgetpos","controlgettext","controlmove","controlsend","controlsendraw","controlsettext","coordmode",
+    "critical","detecthiddentext","detecthiddenwindows","drive","driveget","drivespacefree","edit","envadd",
+    "envdiv","envget","envmult","envset","envsub","envupdate","exit","exitapp",
+    "fileappend","filecopy","filecopydir","filecreatedir","filecreateshortcut","filedelete","fileencoding","filegetattrib",
+    "filegetshortcut","filegetsize","filegettime","filegetversion","fileinstall","filemove","filemovedir","fileread",
+    "filereadline","filerecycle","filerecycleempty","fileremovedir","fileselectfile","fileselectfolder","filesetattrib","filesettime",
+    "formattime","getkeystate","groupactivate","groupadd","groupclose","groupdeactivate","gui","guicontrol",
+    "guicontrolget","hotkey","imagesearch","inidelete","iniread","iniwrite","input","inputbox",
+    "keyhistory","keywait","listhotkeys","listlines","listvars","menu","mouseclick","mouseclickdrag",
+    "mousegetpos","mousemove","msgbox","onexit","outputdebug","pause","pixelgetcolor","pixelsearch",
+    "postmessage","process","progress","random","regdelete","regread","regwrite","reload",
+    "run","runas","runwait","send","sendevent","sendinput","sendlevel","sendmessage",
+    "sendmode","sendplay","sendraw","setbatchlines","setcapslockstate","setcontroldelay","setdefaultmousespeed","setenv",
+    "setformat","setkeydelay","setmousedelay","setnumlockstate","setregview","setscrolllockstate","setstorecapslockmode","settimer",
+    "settitlematchmode","setwindelay","setworkingdir","shutdown","sleep","sort","soundbeep","soundget",
+    "soundgetwavevolume","soundplay","soundset","soundsetwavevolume","splashimage","splashtextoff","splashtexton","splitpath",
+    "statusbargettext","statusbarwait","stringcasesense","stringgetpos","stringleft","stringlen","stringlower","stringmid",
+    "stringreplace","stringright","stringsplit","stringtrimleft","stringtrimright","stringupper","suspend","sysget",
+    "thread","tooltip","transform","traytip","urldownloadtofile","winactivate","winactivatebottom","winclose",
+    "winget","wingetactivestats","wingetactivetitle","wingetclass","wingetpos","wingettext","wingettitle","winhide",
+    "winkill","winmaximize","winmenuselectitem","winminimize","winminimizeall","winminimizeallundo","winmove","winrestore",
+    "winset","winsettitle","winshow","winwait","winwaitactive","winwaitclose","winwaitnotactive",    
 ])
 
 export const DOCUMENT_START_TOKEN = new Token(TokenType.EOL, '', Position.create(-1, -1), Position.create(-1, -1))

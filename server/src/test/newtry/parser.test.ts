@@ -292,9 +292,9 @@ suite('Syntax Parser Expresion Test', () => {
     test('Command Call', () => {
         const expects = [
             callTest('SetBatchLines, 1', 'SetBatchLines', [SuffixTerm.Literal]),
-            callTest('SetBatchLinesA, %abc%', 'SetBatchLinesA', [SuffixTerm.Identifier]),
-            callTest('\nSetBatchLinesB, 1', 'SetBatchLinesB', [SuffixTerm.Literal]),
-            callTest('\nSetBatchLinesC, 1, abc', 'SetBatchLinesC', [SuffixTerm.Literal, SuffixTerm.Literal]),
+            callTest('SetBatchLines, %abc%', 'SetBatchLines', [SuffixTerm.Identifier]),
+            callTest('\nSetBatchLines, 1', 'SetBatchLines', [SuffixTerm.Literal]),
+            callTest('\nSetBatchLines, 1, abc', 'SetBatchLines', [SuffixTerm.Literal, SuffixTerm.Literal]),
         ];
         for (const expect of expects) {
             const actual = getStmt(expect.source);

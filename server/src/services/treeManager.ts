@@ -564,6 +564,15 @@ export class TreeManager implements IASTProvider
         return list;
     }
 
+    public getTokenAtPos(pos: Position): Maybe<Token> {
+        const docinfo = this.docsAST.get(this.currentDocUri);
+        if (!docinfo) return undefined;
+        const tokens = docinfo.AST.script.tokens;
+        const i = this.getTokenIndexAtPos(pos, tokens);
+        if (!i) return undefined;
+        return tokens[i];
+    }
+
     private getTokenIndexAtPos(pos: Position, tokens: Token[]): Maybe<number> {
         let start = 0;
         let end = tokens.length - 1;
@@ -571,9 +580,17 @@ export class TreeManager implements IASTProvider
             const mid = Math.floor((start + end) / 2);
             const token = tokens[mid];
             // start <= pos
-            const isAfterStart = this.isGreatEqPosition(pos, token.start);
+            const isAfterStart = token.start.line < pos.line ? true : 
+                                    token.start.line === pos.line ? 
+                                        token.start.character <= pos.character ? true : 
+                                    false : 
+                                false;
             // end >= pos
-            const isBeforeEnd = this.isLessEqPosition(pos, token.end);
+            const isBeforeEnd = token.end.line > pos.line ? true : 
+                                    token.end.line === pos.line ? 
+                                        token.end.character >= pos.character ? true : 
+                                    false : 
+                                false;
             if (isAfterStart && isBeforeEnd)
                 return mid;
             else if (!isBeforeEnd)
@@ -884,12 +901,12 @@ export class TreeManager implements IASTProvider
             }
             if (find instanceof AHKMethodSymbol) {
                 const reqParam: ParameterInformation[] = find.requiredParameters.map(param => ({
-                    label: `${param.isByref ? 'byref' : ''} ${param.name}`
+                    label: `${param.isByref ? 'byref ' : ''}${param.name}`
                 }));
                 const optParam: ParameterInformation[] = find.optionalParameters.map((param, i) => {
                     // fix active parameter on spread parameter
                     index = param.isSpread ? reqParam.length+i : index;
-                    return {label: `${param.isByref ? 'byref' : ''} ${param.name}${param.isSpread? '*': '?'}`};
+                    return {label: `${param.isByref ? 'byref ' : ''}${param.name}${param.isSpread? '*': '?'}`};
                 });
                 return {
                     signatures: [SignatureInformation.create(

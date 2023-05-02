@@ -21,6 +21,8 @@ import {
 	DefinitionParams,
 	Definition,
 	CompletionParams,
+	HoverParams,
+	Hover,
 } from 'vscode-languageserver';
 
 import {
@@ -43,6 +45,7 @@ import {
 } from './parser/newtry/config/serverConfiguration';
 import { ChangeConfiguration, ConfigurationService } from './services/configurationService';
 import { IClientCapabilities } from './types';
+import { TokenType } from './parser/newtry/tokenizor/tokenTypes';
 
 
 // Create a connection for the server, using Node's IPC as a transport.
@@ -128,6 +131,7 @@ connection.onInitialize((params: InitializeParams) => {
 			signatureHelpProvider: {
 				triggerCharacters: ['(', ',']
 			},
+			hoverProvider: true,
 			documentSymbolProvider: true,
 			definitionProvider: true
 		}
@@ -196,7 +200,7 @@ connection.onSignatureHelp(
 	}
 
 	return DOCManager.selectDocument(uri).getFuncAtPosition(position);
-})
+});
 
 connection.onDefinition(
 	async (params: DefinitionParams, token: CancellationToken): Promise<Maybe<Definition>> =>{
@@ -212,7 +216,26 @@ connection.onDefinition(
 		return locations
 	}
 	return undefined;
-})
+});
+
+connection.onHover(
+	async (params: HoverParams, token, CancellationToken): Promise<Maybe<Hover>> => {
+		const hoveringToken = DOCManager.selectDocument(params.textDocument.uri)
+							.getTokenAtPos(params.position);
+		if (!hoveringToken)
+			return {
+				contents: {
+					kind: 'markdown',
+					value: '**Test Hover**'
+				}
+			};
+		return {
+			contents: {
+				kind: 'markdown',
+				value: `\`${TokenType[hoveringToken.type]}\` **${hoveringToken.content}**`
+			}
+		};
+});
 
 // load opened document
 documents.onDidOpen(async e => {

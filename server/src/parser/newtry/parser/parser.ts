@@ -49,6 +49,11 @@ export class AHKParser {
         this.currentParseContext = 0;
     }
 
+    /**
+     * Retrieve next meaningful token,
+     * any error or comment token will not be included
+     * @returns 
+     */
     private nextToken(): Token {
         let tokenResult = this.tokenGetter.next().value;
         while (tokenResult.kind !== TokenKind.Token) {
@@ -74,10 +79,13 @@ export class AHKParser {
             // when next line start with operators and ','
             if (token.type === TokenType.EOL) {
                 const saveToken = token;
-                token = this.nextToken();
-                // 下一行是运算符或者','时丢弃EOL
+                do {
+                    token = this.nextToken();
+                } while (token.type === TokenType.EOL)
+                    
+                // 下一行是运算符或者','时丢弃EOL, `++` 和 `--`除外
                 // discard EOL
-                if (token.type >= TokenType.pplus &&
+                if (token.type >= TokenType.power &&
                     token.type <= TokenType.comma) {
                     this.tokens.push(token);
                 }
@@ -121,6 +129,14 @@ export class AHKParser {
         }
         this.tokens.push(token);
         return token;
+    }
+
+    private matchPeekChar(skipWhite = false, ...chars: string[]): boolean {
+        const p = this.tokenizer.Peek(1, skipWhite);
+        for (const c of chars) {
+            if (p === c) return true;
+        }
+        return false;
     }
 
     private delimitedList<T extends NodeBase | Token>(
@@ -286,6 +302,10 @@ export class AHKParser {
             case TokenType.hotkeyModifer:
             case TokenType.drective:
             case TokenType.command:
+            case TokenType.pplus:
+            case TokenType.mminus:
+            case TokenType.openParen:
+            case TokenType.openBrace:
                 return true;
             default:
                 // All keyword
@@ -401,7 +421,7 @@ export class AHKParser {
             return this.idLeadClassMember();
         if (token.type === TokenType.drective)
             return this.drective();
-        return this.assign();
+        return this.assignStmt();
     }
 
     private idLeadClassMember(): Stmt.Stmt {
@@ -415,7 +435,7 @@ export class AHKParser {
             case TokenType.openBrace:
                 return this.dynamicProperty();
             default:
-                return this.assign();
+                return this.assignStmt();
         }
     }
 
@@ -520,7 +540,16 @@ export class AHKParser {
                 return this.drective();
             case TokenType.command:
                 return this.command();
+            // 有些符号有豁免检查 recognized action 的能力
+            case TokenType.pplus:
+            case TokenType.mminus:
+            case TokenType.openParen:
+            case TokenType.openBrace:
+                return this.exprStmt();
             default:
+                // 这里不可能发生，
+                // isStatementStart 里允许的可能
+                // 在这里已经枚举完
                 return this.idLeadStatement();
         }
     }
@@ -539,8 +568,12 @@ export class AHKParser {
                 if (p.start.line === this.currentToken.end.line &&
                     p.start.character === this.currentToken.end.character)
                     return this.label();
+            // 允许 var++ 的语法
+            case TokenType.pplus:
+            case TokenType.mminus:
+                return this.exprStmt();
             default:
-                return this.assign();
+                return this.assignStmt();
         }
     }
 
@@ -693,6 +726,32 @@ export class AHKParser {
     }
 
     private loopStmt(): Stmt.LoopStmt {
+        // if (this.matchPeekChar(true, '\n', 'EOF', '{')) {
+        //     this.setCommandScanMode(true);
+        //     const loop = this.eat();
+        //     // FIXME: record comma
+        //     this.eatOptional(TokenType.comma);
+        //     const param = this.delimitedList(
+        //         TokenType.comma,
+        //         this.isExpressionStart,
+        //         () => this.expression()
+        //     );
+        //     this.terminal();
+        //     const body = this.declaration();
+        //     return new Stmt.Loop(loop, body, param);
+        // }
+
+        // const loop = this.eat();
+        // this.jumpWhiteSpace();
+        // const body = this.declaration();
+        // const until = this.eatOptional(TokenType.until)
+        // if (until) {
+        //     const cond = this.expression();
+        //     this.terminal();
+        //     return new Stmt.UntilLoop(loop, body, until, cond);
+        // }
+        // return new Stmt.Loop(loop, body);
+        
         const loop = this.eat();
         // TODO: LOOP Funtoins
         // if no expression follows, check if is until loop
@@ -836,8 +895,20 @@ export class AHKParser {
         return new Stmt.Drective(drective, args)
     }
 
+    private exprStmt(): Stmt.ExprStmt {
+        const expr = this.expression();
+        const delimiter = this.eatOptional(TokenType.comma);
+        if (delimiter) {
+            const trailer = this.tailorExpr(delimiter);
+            return new Stmt.ExprStmt(expr, trailer)
+        }
+
+        return new Stmt.ExprStmt(expr)
+    }
+
     // assignment statemnet
-    private assign(): Stmt.AssignStmt|Stmt.ExprStmt {
+    private assignStmt(): Stmt.AssignStmt|Stmt.ExprStmt {
+        const isExprStart = this.isExpressionStart(this.currentToken);
         const left = this.factor();
 
         if (this.check(TokenType.equal)) {
@@ -867,7 +938,6 @@ export class AHKParser {
     }
 
     private tailorExpr(delimiter: Token): Stmt.TrailerExprList {
-        const errors: ParseError[] = [];
         const exprList = this.delimitedList(
             TokenType.comma,
             this.isExpressionStart,
@@ -1224,17 +1294,17 @@ export class AHKParser {
         return new SuffixTerm.Call(open, args, close);
     }
 
-    private emptyArg(): Expr.Expr {
-        return new Expr.Factor(
-            new SuffixTerm.SuffixTerm(
-                new SuffixTerm.Literal(new Token(
-                    TokenType.string, '',
-                    Position.create(-1, -1),
-                    Position.create(-1, -1)
-                )), []
-            )
-        );
-    }
+    // private emptyArg(): Expr.Expr {
+    //     return new Expr.Factor(
+    //         new SuffixTerm.SuffixTerm(
+    //             new SuffixTerm.Literal(new Token(
+    //                 TokenType.string, '',
+    //                 Position.create(-1, -1),
+    //                 Position.create(-1, -1)
+    //             )), []
+    //         )
+    //     );
+    // }
 
     /**
      * Parse all condition related to Function statements
@@ -1374,6 +1444,8 @@ export class AHKParser {
     private command(): Stmt.Stmt {
         const cmd = this.eat();
         this.setCommandScanMode(true);
+        // FIXME: 
+        const delimiter = this.eatOptional(TokenType.comma);
         
         const args = this.delimitedList(
             TokenType.comma,

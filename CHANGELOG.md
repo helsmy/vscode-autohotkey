@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.9.4
+1. fix about brackets
+2. correctly parse spread parameter
+
+## 0.9.3
+1. update hotkey highlight
+
 ## 0.9.2
 1. `AutohotkeySS.selectInterpreterCommand` command
 2. Bug fix on wrong token order when multi-token is produced at once.

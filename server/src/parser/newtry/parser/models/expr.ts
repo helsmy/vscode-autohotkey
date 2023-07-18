@@ -81,11 +81,14 @@ export class Unary extends Expr {
     }
 
     public get start(): Position {
-        return this.operator.start;
+        // maybe var++ or ++var
+        return isBiggerPosition(this.operator.start, this.factor.start) ? 
+                this.factor.start: this.operator.start;
     }
 
     public get end(): Position {
-        return this.factor.end;
+        return isBiggerPosition(this.operator.end, this.factor.end) ?
+                this.operator.end : this.factor.end;
     }
 
     public get ranges(): Range[] {
@@ -268,4 +271,10 @@ export class Factor extends Expr {
 
         return suffixTermLines;
     }
+}
+
+function isBiggerPosition(p1: Position, p2: Position): boolean {
+    if (p1.line > p2.line) return true;
+    if (p1.line === p2.line && p1.character > p2.character) return true;
+    return false
 }

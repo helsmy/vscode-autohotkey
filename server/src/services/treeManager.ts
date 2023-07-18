@@ -53,9 +53,10 @@ import { AHKParser } from '../parser/newtry/parser/parser';
 import { PreProcesser } from '../parser/newtry/analyzer/semantic';
 import { IParseError, Token } from '../parser/newtry/types';
 import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
-import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotkeySymbol, HotStringSymbol, ScopedSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
+import { AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotkeySymbol, HotStringSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
 import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
 import { DocInfo, IASTProvider } from './types';
+import { ScriptASTFinder } from './scriptFinder';
 
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];
@@ -103,6 +104,8 @@ export class TreeManager implements IASTProvider
     private logger: ILoggerBase;
 
     private ioService: IoService;
+
+    private finder: ScriptASTFinder;
     
     /**
      * built-in standard function AST
@@ -139,6 +142,7 @@ export class TreeManager implements IASTProvider
         this.localAST = new Map();
         this.incInfos = new Map();
         this.ioService = new IoService();
+        this.finder = new ScriptASTFinder();
 		this.serverConfigDoc = undefined;
         this.currentDocUri = '';
         // TODO: non hardcoded Standard Library
@@ -608,9 +612,12 @@ export class TreeManager implements IASTProvider
      * @returns Scoop of current position
      */
     private getCurrentScope(pos: Position, table: IScope): IScope {
-        const symbols = table.allSymbols();
+        const symbols = table instanceof AHKDynamicPropertySymbol? table.allSymbolsFull() : table.allSymbols();
         for (const sym of symbols) {
-            if (sym instanceof AHKMethodSymbol || sym instanceof AHKObjectSymbol) {
+            typeof sym
+            if (sym instanceof AHKMethodSymbol || 
+                sym instanceof AHKObjectSymbol ||
+                sym instanceof AHKDynamicPropertySymbol) {
                 if (this.isLessEqPosition(sym.range.start, pos)
                     && this.isLessEqPosition(pos, sym.range.end) ) {
                     return this.getCurrentScope(pos, sym);
@@ -728,7 +735,10 @@ export class TreeManager implements IASTProvider
                 nextScope = currentScope
             }
             else if (currentScope instanceof VaribaleSymbol) {
-                const referenceScope = this.searchPerfixSymbol(currentScope.getType(), nextScope as AHKObjectSymbol);
+                const varType = currentScope.getType();
+                // not a instance of class
+                if (varType.length === 0) return undefined;
+                const referenceScope = this.searchPerfixSymbol(varType, nextScope as AHKObjectSymbol);
                 if (referenceScope === undefined) return undefined;
                 nextScope = referenceScope
             }
@@ -801,6 +811,8 @@ export class TreeManager implements IASTProvider
 			ci.kind = sym.tag === VarKind.property ? 
                       CompletionItemKind.Property :
                       CompletionItemKind.Variable;
+            if (sym.tag === VarKind.parameter)
+                ci.detail = '(parameter)';
 		} else if (sym instanceof AHKObjectSymbol) {
 			ci['kind'] = CompletionItemKind.Class;
 			ci.data = ''
@@ -839,13 +851,13 @@ export class TreeManager implements IASTProvider
             stmt = stmtStack.statement();
         }
         catch (err) {
-            return undefined;
+        return undefined;
         }
         if (!stmt) {
             return undefined;
         }
         let perfixs: string[] = [];
-        
+
         let node: INodeResult<IASTNode> = stmt;
         if (isExpr(stmt.value)) {
             node = stmt.value.right;
@@ -853,7 +865,7 @@ export class TreeManager implements IASTProvider
                 node = node.value.right;
             }
         }
-        
+
         stmt = node as INodeResult<IFunctionCall | IMethodCall | IPropertCall | IAssign | ICommandCall>;
         
         if (stmt.value instanceof FunctionCall ) {

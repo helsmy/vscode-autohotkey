@@ -47,13 +47,13 @@ export class SymbolTable implements IScope {
 
 	public define(sym: AHKSymbol) {
 		if (!(sym instanceof LabelSymbol))
-			this.symbols.set(sym.name.toLocaleLowerCase(), sym);
+			this.symbols.set(sym.name.toLowerCase(), sym);
 		else
-			this.labelSymbols.set(sym.name.toLocaleLowerCase(), sym)
+			this.labelSymbols.set(sym.name.toLowerCase(), sym)
 	}
 
 	public resolve(name: string): Maybe<AHKSymbol> {
-		const searchName = name.toLocaleLowerCase();
+		const searchName = name.toLowerCase();
 		let result = this.symbols.get(searchName);
 		if (result) return result;
 		// Then check parent scoop
@@ -80,7 +80,7 @@ export class SymbolTable implements IScope {
 		const syms: ISymbol[] = [];
 		for (const [name, sym] of this.symbols) 
 			syms.push(sym);
-		return syms
+		return syms;
 	}
 	
 	/**

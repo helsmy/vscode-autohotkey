@@ -622,9 +622,6 @@ export class Tokenizer {
                     return this.CreateToken(TokenType.div, '/', p, this.genPosition());
                 case ';':
                     return this.LineComment();
-                case '&':
-                    this.Advance();
-                    return this.CreateToken(TokenType.and, "&", p, this.genPosition());
                 case ':':
                     // check if hotstring
                     // ahk的破烂语法真难解析

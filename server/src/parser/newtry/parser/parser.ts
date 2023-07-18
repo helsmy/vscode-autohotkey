@@ -300,6 +300,7 @@ export class AHKParser {
             case TokenType.id:
             case TokenType.key:
             case TokenType.hotkeyModifer:
+            case TokenType.hotstringOpen:
             case TokenType.drective:
             case TokenType.command:
             case TokenType.pplus:
@@ -862,7 +863,7 @@ export class AHKParser {
         const drectiveName = drective.content.toLowerCase();
         if (drectiveName === 'include' ||
             drectiveName === 'includeagain') {
-            this.tokenizer.isLiteralToken = true;
+            this.setCommandScanMode(true);
             this.advance();
             if (this.currentToken.type === TokenType.id) {
                 const v = this.currentToken.content.toLowerCase();
@@ -877,20 +878,17 @@ export class AHKParser {
                 const includePath = this.eat();
                 this.includes.add(includePath.content);
             }
+            this.setCommandScanMode(false);
             this.terminal();
-            return new Stmt.Drective(drective, [])
+            return new Stmt.Drective(drective, new DelimitedList)
         }
-        const args: IExpr[] = [];
-        this.advance();
-        // skip args for temp solution
-        while (!this.atLineEnd()) {
-            if (this.matchTokens([TokenType.comma]))
-                this.eat();
-            const a = this.expression();
-            if (a instanceof Expr.Invalid) this.advance();
-            args.push(a);
-        }
-
+        this.eat();
+        const args = this.delimitedList(
+            TokenType.comma,
+            this.isExpressionStart,
+            () => this.expression(),
+            true
+        );
         this.terminal();
         return new Stmt.Drective(drective, args)
     }
@@ -918,7 +916,7 @@ export class AHKParser {
         }
 
         if (this.checkFromTo(TokenType.aassign, TokenType.lshifteq) ||
-            this.check(TokenType.equal)) {
+            this.matchTokens([TokenType.equal, TokenType.regeq])) {
             const assign = this.eat();
             const expr = this.expression();
 
@@ -1442,8 +1440,8 @@ export class AHKParser {
     }
 
     private command(): Stmt.Stmt {
-        const cmd = this.eat();
         this.setCommandScanMode(true);
+        const cmd = this.eat();
         // FIXME: 
         const delimiter = this.eatOptional(TokenType.comma);
         

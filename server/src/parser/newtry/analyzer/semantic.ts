@@ -7,7 +7,7 @@ import * as Expr from '../parser/models/expr';
 import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
 import { IExpr, IScript, MissingToken, SkipedToken, Token } from '../types';
-import { AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VaribaleSymbol } from './models/symbol';
+import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol as AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VaribaleSymbol } from './models/symbol';
 import { IScope, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
@@ -172,20 +172,39 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	public visitDynamicProperty(decl: Decl.DynamicProperty): Diagnostics {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
 		if (!(this.currentScoop instanceof AHKObjectSymbol)) return errors;
-		this.currentScoop.define(
-			new VaribaleSymbol(
-				this.script.uri,
-				decl.name.content,
-				copyRange(decl),
-				VarKind.property,
-				undefined
-			)
+		const dynamicProperty = new AHKDynamicPropertySymbol(
+			this.script.uri,
+			decl.name.content,
+			copyRange(decl),
+			this.currentScoop
 		);
-		errors.push(...decl.body.accept(this, []));
+		this.currentScoop.define(dynamicProperty);
+		for (const getterSetter of decl.body.stmts) {
+			// 虽然基本不可能发生，动态属性里是固定的getter和setter
+			if (!(getterSetter instanceof Decl.GetterSetter)) {
+				errors.push(...getterSetter.accept(this, []));
+				continue;
+			}
+			const funcType = getterSetter.nameToken.content.toLowerCase();
+			const symName = funcType === 'get' ? 'get' : 'set';
+			const sym = new AHKGetterSetterSymbol(
+				this.script.uri,
+				symName,
+				decl.name.content,
+				copyRange(getterSetter),
+				this.currentScoop,
+				this.table
+			)
+			dynamicProperty.define(sym);
+			this.enterScoop(sym);
+			errors.push(...getterSetter.accept(this, []));
+			this.leaveScoop();
+		}
 		return errors;
 	}
 
 	public visitDeclGetterSetter(decl: Decl.GetterSetter): Diagnostics {
+		// FIXME: finish getter setter function
 		return this.checkDiagnosticForNode(decl).concat(decl.body.accept(this, []));
 	}
 
@@ -254,7 +273,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitExpr(stmt: Stmt.ExprStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		errors.push(...this.processExpr(stmt.suffix));
+		errors.push(...this.processExpr(stmt.expression));
 		errors.push(...this.processTrailerExpr(stmt.trailerExpr));
 		return errors;
 	}
@@ -296,13 +315,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 						));
 					}
 				}
-				for (const trailer of expr.suffixTerm.brackets) {
-					if (trailer instanceof SuffixTerm.Call) 
-						trailer.args.getElements().forEach(
+				for (const bracket of expr.suffixTerm.brackets) {
+					errors.push(...this.checkDiagnosticForNode(bracket))
+					if (bracket instanceof SuffixTerm.Call) 
+						bracket.args.getElements().forEach(
 							arg => errors.push(...this.processExpr(arg))
 						);
 					else 
-						trailer.indexs.getElements().forEach(
+						bracket.indexs.getElements().forEach(
 							index => errors.push(...this.processExpr(index))
 						);
 				}

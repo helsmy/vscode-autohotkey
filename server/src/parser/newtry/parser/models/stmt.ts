@@ -127,29 +127,30 @@ export class AssignStmt extends Stmt {
  */
 export class ExprStmt extends Stmt {
 	constructor(
-		public readonly suffix: Expr.Expr,
+		public readonly expression: Expr.Expr,
 		public readonly trailerExpr?: TrailerExprList
 	) {
 		super();
 	}
 
 	public toLines(): string[] {
-		const suffixLines = this.suffix.toLines();
+		const suffixLines = this.expression.toLines();
 		suffixLines[suffixLines.length - 1] = `${suffixLines[suffixLines.length - 1]}`;
 
 		return suffixLines;
 	}
 
 	public get start(): Position {
-		return this.suffix.start;
+		return this.expression.start;
 	}
 
 	public get end(): Position {
-		return this.suffix.end;
+		if (this.trailerExpr) return this.trailerExpr.end;
+		return this.expression.end;
 	}
 
 	public get ranges(): Range[] {
-		return [this.suffix];
+		return [this.expression];
 	}
 
 	public accept<T extends (...args: any) => any>(
@@ -990,7 +991,7 @@ export class Throw extends Stmt {
 export class Drective extends Stmt {
 	constructor(
 		public readonly drective: Token,
-		public readonly args: IExpr[]
+		public readonly args: DelimitedList<Expr.Expr>
 	) {
 		super();
 	}
@@ -1000,22 +1001,21 @@ export class Drective extends Stmt {
 	}
 
 	public get end(): Position {
-		return (this.args.length === 0) ?
+		return (this.args.childern.length === 0) ?
 			this.drective.end :
-			this.args[this.args.length - 1].end;
+			this.args.end;
 	}
 
 	public get ranges(): Range[] {
-		const argsRange = this.args.flatMap(arg => arg.ranges);
-		return [this.drective, ...argsRange];
+		return [this.drective, ...this.args.ranges];
 	}
 
 	public toLines(): string[] {
-		if (this.args.length === 0) {
+		if (this.args.childern.length === 0) {
 			return [`${this.drective.content}`];
 		}
 
-		const argsLines = this.args.flatMap(a => a.toLines());
+		const argsLines = this.args.toLines();
 		const argsResult = joinLines(', ', argsLines);
 
 		argsResult[0] = `${this.drective.content}${argsResult[0]}`;

@@ -476,7 +476,7 @@ FindText(x1:=0, y1:=0, x2:=0, y2:=0, err1:=0, err0:=0
         const parser = new AHKParser(file, '');
         const fileAST = parser.parse();
         assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
-        assert.strictEqual(fileAST.sytanxErrors.length, 0, 'Enconter Parser error');
+        assert.strictEqual(fileAST.script.stmts.length, 1, 'Enconter Parser error');
     });
 
     test('Method define file', () => {
@@ -506,7 +506,7 @@ FindText(x1:=0, y1:=0, x2:=0, y2:=0, err1:=0, err0:=0
         const parser = new AHKParser(file, '');
         const fileAST = parser.parse();
         assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
-        assert.strictEqual(fileAST.sytanxErrors.length, 0, 'Enconter Parser error');
+        assert.strictEqual(fileAST.script.stmts.length, 3, 'Enconter Parser error');
     });
 
     test('Full document 1', () => {
@@ -524,6 +524,6 @@ FindText(x1:=0, y1:=0, x2:=0, y2:=0, err1:=0, err0:=0
         const parser = new AHKParser(file, '');
         const fileAST = parser.parse();
         assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
-        // assert.strictEqual(fileAST.sytanxErrors.length, 2, 'Enconter Parser error');
+        assert.strictEqual(fileAST.script.stmts.length, 8, 'Enconter Parser error');
     });
 });

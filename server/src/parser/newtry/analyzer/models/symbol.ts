@@ -317,10 +317,102 @@ export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 
 	public allSymbols(): ISymbol[] {
 		let sym = new Set(super.allSymbols());
-		for (const s of this.parentScoop.allSymbols()) 
+		for (const s of this.parentScoop.allSymbols()) {
+			// Child class' property overwrite parent class'
+			if (this.symbols.has(s.name.toLowerCase()))
+				continue
 			sym.add(s);
+		}
 		return [...sym];
 
+	}
+
+	public symbolInformations(): SymbolInformation[] {
+		let info = super.symbolInformations();
+		for (const [name, sym] of this.symbols) {
+			if (sym instanceof AHKDynamicPropertySymbol) 
+				info.push(...sym.symbolInformations());
+		}
+		return info;
+	}
+}
+
+export class AHKDynamicPropertySymbol extends VaribaleSymbol implements IScope {
+	public readonly dependcyScope: Set<IScope> = new Set();
+	private symbols: Map<string, AHKGetterSetterSymbol> = new Map();
+	
+	constructor(
+		uri: string,
+		name: string,
+		range: Range,
+		public readonly enclosingScope: Maybe<IScope>,
+
+	) {
+		super(uri, name, range, VarKind.property, undefined);
+	}
+
+	define(sym: AHKGetterSetterSymbol): void {
+		this.symbols.set(
+			sym.name,
+			sym
+		);
+	}
+
+	resolve(name: string): Maybe<ISymbol> {
+		return undefined;
+	}
+	
+	addScope(scope: IScope): void {
+		this.dependcyScope.add(scope);
+	}
+	
+	symbolInformations(): SymbolInformation[] {
+		const info: SymbolInformation[] = [];
+		for (const [name, sym] of this.symbols) {
+			info.push(SymbolInformation.create(
+				sym.name,
+				SymbolKind.Method,
+				sym.range,
+				sym.uri
+			));
+			info.push(...sym.symbolInformations());
+		}
+		return info;
+	}
+	
+	allSymbols(): ISymbol[] {
+		return [];
+	}
+	
+	// 返回所有的符号不管是不是getter和setter
+	// 用来查找所属的scope
+	allSymbolsFull(): ISymbol[] {
+		const syms: ISymbol[] = [];
+		for (const [, sym] of this.symbols) 
+			syms.push(sym);
+		return syms
+	}
+}
+
+export class AHKGetterSetterSymbol extends AHKMethodSymbol {
+	constructor(
+		uri: string,
+		funcType: 'set' | 'get',
+		property: string,
+		range: Range,
+		parentScoop: AHKObjectSymbol,
+		enclosingScoop?: IScope
+	) {
+		const name = `(${funcType}) ${property}`
+		super(uri, name, range, [], [], enclosingScoop, parentScoop);
+		if (funcType === 'set')
+			this.define(
+				new BuiltinVaribelSymbol(
+					'value',
+					VarKind.parameter,
+					undefined
+				)
+			);
 	}
 }
 

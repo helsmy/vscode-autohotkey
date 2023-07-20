@@ -131,8 +131,16 @@ export class AHKParser {
         return token;
     }
 
+    /**
+     * If next character is matched 
+     * @param skipWhite skip whitespace or not
+     * @param chars char to be matched 
+     */
     private matchPeekChar(skipWhite = false, ...chars: string[]): boolean {
-        const p = this.tokenizer.Peek(1, skipWhite);
+        // 先检查有没有剩余的token，没有再向tokenizer请求
+        const p = (this.pos + 1 <= this.tokens.length - 1) ? 
+                    this.tokens[this.pos + 1].content[0]   :     
+                    this.tokenizer.Peek(1, skipWhite);
         for (const c of chars) {
             if (p === c) return true;
         }
@@ -726,35 +734,9 @@ export class AHKParser {
         );
     }
 
-    private loopStmt(): Stmt.LoopStmt {
-        // if (this.matchPeekChar(true, '\n', 'EOF', '{')) {
-        //     this.setCommandScanMode(true);
-        //     const loop = this.eat();
-        //     // FIXME: record comma
-        //     this.eatOptional(TokenType.comma);
-        //     const param = this.delimitedList(
-        //         TokenType.comma,
-        //         this.isExpressionStart,
-        //         () => this.expression()
-        //     );
-        //     this.terminal();
-        //     const body = this.declaration();
-        //     return new Stmt.Loop(loop, body, param);
-        // }
-
-        // const loop = this.eat();
-        // this.jumpWhiteSpace();
-        // const body = this.declaration();
-        // const until = this.eatOptional(TokenType.until)
-        // if (until) {
-        //     const cond = this.expression();
-        //     this.terminal();
-        //     return new Stmt.UntilLoop(loop, body, until, cond);
-        // }
-        // return new Stmt.Loop(loop, body);
-        
+    private loopStmt(): Stmt.LoopStmt {       
         const loop = this.eat();
-        // TODO: LOOP Funtoins
+
         // if no expression follows, check if is until loop
         if (this.matchTokens([
             TokenType.EOL,
@@ -774,9 +756,18 @@ export class AHKParser {
         
         // TODO: syntax check for loop command
         // just skip all command for now
-        this.setCommandScanMode(true);
         // FIXME: record comma
         this.eatOptional(TokenType.comma);
+        const loopmode = this.currentToken.content.toLowerCase();
+
+        // TODO: LOOP Funtoins
+        // Check if in any command loop mode
+        if (loopmode === 'files' ||
+            loopmode === 'parse' ||
+            loopmode === 'read'  ||
+            loopmode === 'reg') 
+            this.setCommandScanMode(true);
+
         const param = this.delimitedList(
             TokenType.comma,
             this.isExpressionStart,

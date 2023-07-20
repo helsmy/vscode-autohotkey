@@ -573,7 +573,7 @@ export class TreeManager implements IASTProvider
         if (!docinfo) return undefined;
         const tokens = docinfo.AST.script.tokens;
         const i = this.getTokenIndexAtPos(pos, tokens);
-        if (!i) return undefined;
+        if (i === undefined) return undefined;
         return tokens[i];
     }
 

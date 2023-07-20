@@ -235,6 +235,7 @@ connection.onHover(
 				value: `\`${TokenType[hoveringToken.type]}\` **${hoveringToken.content}**`
 			}
 		};
+		return undefined;
 });
 
 // load opened document

@@ -190,7 +190,7 @@ repository:
                 name: entity.name.tag.label.ahk
     directive:
         name: keyword.control.directives.ahk
-        match: (?:#)\b(?i:allowsamelinecomments|clipboardtimeout|commentflag|errorstdout|escapechar|hotkeyinterval|hotkeymodifiertimeout|hotstring|if|iftimeout|ifwinactive|ifwinexist|ifwinnotactive|ifwinnotexist|inputlevel|installkeybdhook|installmousehook|keyhistory|ltrim|maxhotkeysperinterval|maxmem|maxthreads|maxthreadsbuffer|maxthreadsperhotkey|menumaskkey|noenv|notrayicon|persistent|singleinstance|usehook|warn|winactivateforce)\b([^;]*)(\s+;.*)?$
+        match: (?:#)\b(?i:allowsamelinecomments|clipboardtimeout|commentflag|errorstdout|escapechar|hotkeyinterval|hotkeymodifiertimeout|hotstring|if|iftimeout|ifwinactive|ifwinexist|ifwinnotactive|ifwinnotexist|inputlevel|installkeybdhook|installmousehook|keyhistory|ltrim|maxhotkeysperinterval|maxmem|maxthreads|maxthreadsbuffer|maxthreadsperhotkey|menumaskkey|noenv|notrayicon|persistent|singleinstance|usehook|warn|winactivateforce|requires)\b([^;]*)(\s+;.*)?$
         captures:
             "1":
                 patterns:

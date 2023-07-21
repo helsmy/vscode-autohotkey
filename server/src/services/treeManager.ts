@@ -56,7 +56,10 @@ import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
 import { AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotkeySymbol, HotStringSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
 import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
 import { DocInfo, IASTProvider } from './types';
-import { ScriptASTFinder } from './scriptFinder';
+import { IFindResult, ScriptASTFinder, binarySearchIndex } from './scriptFinder';
+import { Call, Identifier } from '../parser/newtry/parser/models/suffixterm';
+import * as Stmt from "../parser/newtry/parser/models/stmt";
+import * as Expr from "../parser/newtry/parser/models/expr";
 
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];
@@ -824,50 +827,73 @@ export class TreeManager implements IASTProvider
 		return ci;
 	}
 
-    public getFuncAtPosition(position: Position): Maybe<SignatureHelp> {
-		let context = this.LineTextToPosition(position);
-		if (!context) return undefined;
+    public getSignatureHelp(position: Position): Maybe<SignatureHelp> {
+        let nameList: string[];
+        const found = this.findFuncAtPos(position);
 
-        // check if we need to attach to previous lines
-        const attachToPreviousTest = new RegExp('^[ \t]*,');
-        if (attachToPreviousTest.test(context)) {
-            let linenum = position.line-1;
-            let lines: Maybe<string> = this.getLine(linenum);
-            context = lines + context;
-            while (lines) {
-                if (attachToPreviousTest.test(lines)) {
-                    linenum -= 1;
-                    lines = this.getLine(linenum);
-                    context = lines + context;
-                } 
-                else
-                    lines = undefined;
-            }
+        // If finder did not find anything, failback to old way.
+        if (found === undefined) {
+            return this.getSignatureHelpOld(position);
         }
 
-        let stmtStack = new SemanticStack(context);
-        let stmt: INodeResult<IFunctionCall| IMethodCall | IPropertCall | IAssign | ICommandCall>|undefined;
-        try {
-            stmt = stmtStack.statement();
-        }
-        catch (err) {
-        return undefined;
-        }
-        if (!stmt) {
-            return undefined;
-        }
-        let perfixs: string[] = [];
-
-        let node: INodeResult<IASTNode> = stmt;
-        if (isExpr(stmt.value)) {
-            node = stmt.value.right;
-            while(isExpr(node.value)) {
-                node = node.value.right;
-            }
+        if (found.nodeResult instanceof Stmt.CommandCall) {
+            return this.findCommandSignature(
+                found.nodeResult.command.content, 
+                this.findActiveParam(found.nodeResult, position)
+            );
         }
 
-        stmt = node as INodeResult<IFunctionCall | IMethodCall | IPropertCall | IAssign | ICommandCall>;
+        // Stop at `)`
+        if (position.line >= found.nodeResult.end.line &&
+            position.character >= found.nodeResult.end.character) return undefined;
+        // Wrong result, should not happen
+        if (found.outterFactor === undefined || !(found.nodeResult instanceof Call)) return undefined;
         
+        nameList = this.getAllName(found.outterFactor);
+
+        let find = this.searchNode(nameList, position);
+        let index = this.findActiveParam(found.nodeResult, position);
+        const funcName = nameList[0];
+        // if no find, search build-in
+        if (!find) {
+            if (funcName === undefined) return undefined;
+            const bfind = arrayFilter(this.builtinFunction, item => item.name.toLowerCase() === funcName.toLowerCase());
+            const info = this.convertBuiltin2Signature(bfind);
+            if (info) {
+                return {
+                    signatures: info,
+                    activeParameter: index,
+                    activeSignature: this.findActiveSignature(bfind, index || 0)
+                }
+            }
+        }
+        if (find instanceof AHKMethodSymbol) {
+            const reqParam: ParameterInformation[] = find.requiredParameters.map(param => ({
+                label: `${param.isByref ? 'byref ' : ''}${param.name}`
+            }));
+            const optParam: ParameterInformation[] = find.optionalParameters.map((param, i) => {
+                // fix active parameter on spread parameter
+                index = param.isSpread ? reqParam.length+i : index;
+                return {label: `${param.isByref ? 'byref ' : ''}${param.name}${param.isSpread? '*': '?'}`};
+            });
+            return {
+                signatures: [SignatureInformation.create(
+                    find.toString(),
+                    undefined,
+                    ...reqParam,
+                    ...optParam
+                )],
+                activeSignature: 0,
+                activeParameter: index
+            };
+        }
+    }
+
+    private getSignatureHelpOld(position: Position) {
+        const node: Maybe<INodeResult<IASTNode>> = this.findFuncAtPosOld(position);
+        if (node === undefined) return undefined;
+        const stmt = node as INodeResult<IFunctionCall | IMethodCall | IPropertCall | IAssign | ICommandCall>;
+        let perfixs: string[] = [];
         if (stmt.value instanceof FunctionCall ) {
             // CommandCall always no errors
             if (!stmt.errors && !(stmt.value instanceof CommandCall)) {
@@ -894,7 +920,7 @@ export class TreeManager implements IASTProvider
                     return {
                         signatures: info,
                         activeParameter: index,
-                        activeSignature: this.findActiveSignature(bfind, lastnode.actualParams.length)
+                        activeSignature: this.findActiveSignature(bfind, index || 0)
                     }
                 }
             }
@@ -907,7 +933,7 @@ export class TreeManager implements IASTProvider
                     return {
                         signatures: info,
                         activeParameter: index,
-                        activeSignature: this.findActiveSignature(bfind, lastnode.actualParams.length)
+                        activeSignature: this.findActiveSignature(bfind, index || 0)
                     }
                 }
             }
@@ -932,6 +958,133 @@ export class TreeManager implements IASTProvider
                 };
             }
         }
+        return undefined;
+    }
+
+    private getAllName(factor: Expr.Factor): string[] {
+        let names: string[] = []
+        // TODO: Support fake base. eg "String".Method()
+        if (!(factor.suffixTerm.atom instanceof Identifier))
+            return names;
+        names.push(factor.suffixTerm.atom.token.content);
+        if (factor.trailer === undefined) return names;
+        for (const suffix of factor.trailer.suffixTerm.getElements()) {
+            // TODO: 复杂的索引查找，估计不会搞这个，
+            // 动态语言的类型推断不会，必不可能搞
+            if (suffix.brackets) return [];
+            if (!(suffix.atom instanceof Identifier)) return [];
+            names.push(suffix.atom.token.content);
+        } 
+        return names
+    }
+
+    private findCommandSignature(name: string, index: number|null): Maybe<SignatureHelp> {
+        const bfind = arrayFilter(this.builtinCommand, item => item.name.toLowerCase() === name.toLowerCase());
+        const info = this.convertBuiltin2Signature(bfind, true);
+        if (info) {
+            return {
+                signatures: info,
+                activeParameter: index,
+                activeSignature: this.findActiveSignature(bfind, index || 0)
+            }
+        }
+    }
+
+    private findActiveParam(node: Call|Stmt.CommandCall, pos: Position): number|null {
+        const args = node.args;
+        if (args.length === 0) return 0;
+        
+        // Find range of each parameter
+        let actualParams: Range[] = [];
+        for (let i = 0; i < args.length; i += 1) {
+            const arg = args.childern[i];
+            if (arg instanceof Token ) {
+                if (i === 0) {
+                    actualParams.push(Range.create(
+                        node instanceof Call ?
+                            node.open.end:
+                            node.command.end,
+                        arg.start
+                    ));
+                }
+                if (args.childern[i + 1] instanceof Token) {
+                    const r = Range.create(
+                        arg.end, 
+                        args.childern[i + 1].start
+                    ); 
+                    actualParams.push(r);
+                }
+                if (i === args.length - 1) {
+                    actualParams.push(Range.create(
+                        arg.end, 
+                        node instanceof Call ?
+                            node.close.start :
+                            node.end
+                    ));
+                } 
+                continue;
+            }
+            // 参数的范围是在两个`,`之间
+            const r = Range.create(
+                i === 0 ? arg.start : args.childern[i - 1].end, 
+                i < args.length - 1 ? args.childern[i + 1].start : arg.end
+            )
+            actualParams.push(r);
+        }
+        const active = binarySearchIndex(actualParams, pos);
+        return active ?? null;
+    }
+
+    private findFuncAtPos(pos: Position): Maybe<IFindResult> {
+        const docinfo = this.docsAST.get(this.currentDocUri);
+        if (!docinfo) return undefined;
+        const token = this.getTokenAtPos(pos);
+        if (!token) return undefined;
+        return this.finder.find(docinfo.AST.script.stmts, pos, [Call, Stmt.CommandCall])
+    }
+
+    private findFuncAtPosOld(position: Position): Maybe<INodeResult<IASTNode>> {
+        let context = this.LineTextToPosition(position);
+		if (!context) return undefined;
+
+        // check if we need to attach to previous lines
+        const attachToPreviousTest = new RegExp('^[ \t]*,');
+        if (attachToPreviousTest.test(context)) {
+            let linenum = position.line-1;
+            let lines: Maybe<string> = this.getLine(linenum);
+            context = lines + context;
+            while (lines) {
+                if (attachToPreviousTest.test(lines)) {
+                    linenum -= 1;
+                    lines = this.getLine(linenum);
+                    context = lines + context;
+                } 
+                else
+                    lines = undefined;
+            }
+        }
+
+        let stmtStack = new SemanticStack(context);
+        let stmt: INodeResult<IFunctionCall| IMethodCall | IPropertCall | IAssign | ICommandCall>|undefined;
+        try {
+            stmt = stmtStack.statement();
+        }
+        catch (err) {
+            return undefined;
+        }
+        if (!stmt) {
+            return undefined;
+        }
+
+        let node: INodeResult<IASTNode> = stmt;
+        if (isExpr(stmt.value)) {
+            node = stmt.value.right;
+            while(isExpr(node.value)) {
+                node = node.value.right;
+            }
+        }
+
+        return node;
     }
 
     /**

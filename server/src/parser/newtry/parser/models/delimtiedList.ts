@@ -48,11 +48,19 @@ export class DelimitedList<T extends NodeBase | Token> extends NodeBase {
         throw new Error('Method not implemented.');
     }
 
+    // FIXME: 0 childern node fails
     public get start(): Position {
         return this.childern[0].start;
     }
 
     public get end(): Position {
         return this.childern[this.childern.length - 1].end;
+    }
+
+    /**
+     * Gets the length of the DelimitedList. This is a number one higher than the highest index in the DelimitedList.
+     */
+    public get length(): number {
+        return this.childern.length;
     }
 }

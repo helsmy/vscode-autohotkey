@@ -199,7 +199,7 @@ connection.onSignatureHelp(
 		return undefined;
 	}
 
-	return DOCManager.selectDocument(uri).getFuncAtPosition(position);
+	return DOCManager.selectDocument(uri).getSignatureHelp(position);
 });
 
 connection.onDefinition(
@@ -232,7 +232,7 @@ connection.onHover(
 		return {
 			contents: {
 				kind: 'markdown',
-				value: `\`${TokenType[hoveringToken.type]}\` **${hoveringToken.content}**`
+				value: `\`${TokenType[hoveringToken.type]}\` **${hoveringToken.content}** [${hoveringToken.start.line}.${hoveringToken.start.character}-${hoveringToken.end.line}.${hoveringToken.end.character}]`
 			}
 		};
 		return undefined;

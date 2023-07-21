@@ -529,11 +529,8 @@ export class Tokenizer {
                         // 给换行的字符串token产生一个空字符串
                         // 为了`var=\n`产生空占位符
                         this.isLiteralToken = false;
-                        if (preType === TokenType.equal ||
-                            preType === TokenType.comma)
-                            return this.CreateToken(TokenType.string, '', p, p);
-                        else
-                            continue;
+                        this.AdvanceLine();
+                        return this.returnSkipEmptyLine(p);
                     default:
                         // is deref 
                         if (this.isLiteralDeref) break;

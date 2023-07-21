@@ -382,6 +382,7 @@ function matchNodeTypes(node: RangeSequence, types: NodeConstructor[]): boolean 
 }
 
 function inRange(r: Range, pos: Position): boolean {
+    if (r instanceof DelimitedList && r.length === 0) return false;
     // start <= pos
     const isAfterStart = r.start.line < pos.line ? true : 
         r.start.line === pos.line ? 
@@ -399,7 +400,7 @@ function inRange(r: Range, pos: Position): boolean {
 
 export function binarySearchNode<T extends Range>(nodes: T[], pos: Position): Maybe<T> {
     const index = binarySearchIndex(nodes, pos);
-    if (index) return nodes[index];
+    if (index !== undefined) return nodes[index];
     return undefined;
 }
 

@@ -208,7 +208,9 @@ export class CommandCall extends Stmt {
 	}
 
 	public get end(): Position {
-		return this.args.end;
+		return  (this.args.length === 0) ?
+				this.command.end :
+				this.args.end;;
 	}
 
 	public get ranges(): Range[] {
@@ -1001,9 +1003,9 @@ export class Drective extends Stmt {
 	}
 
 	public get end(): Position {
-		return (this.args.childern.length === 0) ?
-			this.drective.end :
-			this.args.end;
+		return (this.args.length === 0) ?
+				this.drective.end :
+				this.args.end;
 	}
 
 	public get ranges(): Range[] {

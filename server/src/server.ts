@@ -114,7 +114,7 @@ connection.onInitialize((params: InitializeParams) => {
 
 	// Update configuration of each service
 	configurationService.updateConfiguration({clientCapability: clientCapability});
-	configurationService.emit('change', configurationService);
+	onConfigChange(configurationService);
 
 	const result: InitializeResult = {
 		serverInfo: {
@@ -164,6 +164,9 @@ connection.onInitialized(() => {
 	}
 });
 
+/**
+ * @param resource Document uri
+ */
 function getDocumentSettings(resource: string): Thenable<AHKLSSettings> {
 	if (!hasConfigurationCapability) {
 		return Promise.resolve(globalSettings);
@@ -208,10 +211,7 @@ connection.onDefinition(
 
 	// search definiton at request position
 	let locations = DOCManager.selectDocument(params.textDocument.uri).getDefinitionAtPosition(position);
-	if (locations.length) {
-		return locations
-	}
-	return undefined;
+	return locations;
 });
 
 connection.onHover(
@@ -261,7 +261,7 @@ async function validateTextDocument(textDocument: TextDocument): Promise<void> {
 
 connection.onDidChangeWatchedFiles(_change => {
 	// Monitored files have change in VSCode
-	connection.console.log('We received an file change event');
+	logger.log('We received an file change event');
 });
 
 // This handler provides the initial list of the completion items.
@@ -320,8 +320,19 @@ connection.onCompletionResolve(
 	}
 );
 
-configurationService.on('change', DOCManager.onConfigChange.bind(DOCManager));
-configurationService.on('change', logger.onConfigChange.bind(logger));
+function onConfigChange(config: ConfigurationService) {
+	const sendError = config.getConfig('sendError');
+	if (DOCManager.sendError != sendError) {
+		DOCManager.sendError = sendError;
+		DOCManager.updateErrors();
+	}
+
+	const trace = config.getConfig('traceServer');
+	const level = LogLevel[trace.level];
+	logger.updateLevel(level);
+}
+
+configurationService.on('change', onConfigChange);
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events

@@ -38,11 +38,9 @@ export class Logger implements ILoggerBase {
 
 	}
 
-	onConfigChange(service: ConfigurationService) {
-        const traceServer = service.getConfig('traceServer');
-		const newLevel = LogLevel[traceServer.level];
-        if (this.logLevel != newLevel)
-            this.logLevel = newLevel;
+	updateLevel(level: LogLevel) {
+        if (this.logLevel != level)
+            this.logLevel = level;
     }
 }
 

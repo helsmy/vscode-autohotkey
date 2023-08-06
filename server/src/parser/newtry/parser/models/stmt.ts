@@ -442,7 +442,7 @@ export class CaseStmt extends Stmt {
 	}
 
 	public get end(): Position {
-		if (this.body.length !== 0)
+		if (this.body.length === 0)
 			return this.CaseNode.end;
 		else
 			return this.body[this.body.length - 1].end;

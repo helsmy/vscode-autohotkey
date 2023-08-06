@@ -50,14 +50,14 @@ export function rangeInRange(range1: Range, range2: Range): boolean {
 };
 
 /**
- * Is this range after this position
+ * Is this range before this position
  * @param range the target range
  * @param pos the query position
  */
-export const rangeAfter = (range: Range, pos: Position): boolean => {
-    if (pos.line < range.start.line) return true;
-    if (pos.line === range.start.line) {
-        if (pos.character < range.start.character) return true;
+export const rangeBefore = (range: Range, pos: Position): boolean => {
+    if (pos.line > range.end.line) return true;
+    if (pos.line === range.end.line) {
+        if (pos.character > range.end.character) return true;
     }
 
     return false;

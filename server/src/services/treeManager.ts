@@ -60,8 +60,7 @@ import { IFindResult, ScriptASTFinder, binarySearchIndex } from './scriptFinder'
 import { BracketIndex, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../parser/newtry/parser/models/suffixterm';
 import * as Stmt from "../parser/newtry/parser/models/stmt";
 import * as Expr from "../parser/newtry/parser/models/expr";
-import { posInRange, rangeAfter } from '../utilities/positionUtils';
-import { ConfigurationService } from './configurationService';
+import { posInRange, rangeBefore } from '../utilities/positionUtils';
 
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];
@@ -154,14 +153,6 @@ export class TreeManager implements IASTProvider
         this.SLibDir = 'C:\\Program Files\\AutoHotkey\\Lib'
         this.ULibDir = homedir() + '\\Documents\\AutoHotkey\\Lib'
         this.logger = logger;
-    }
-
-    public onConfigChange(service: ConfigurationService) {
-        const sendError = service.getConfig('sendError');
-        if (this.sendError != sendError) {
-            this.sendError = sendError;
-            this.updateErrors();
-        }
     }
 
     public getDocInfo(uri: string): Maybe<DocInfo> {
@@ -601,7 +592,7 @@ export class TreeManager implements IASTProvider
 
         let allTerms = [];
         for (const item of suffix.suffixTerm.getElements()) {
-            if (posInRange(item, pos) || rangeAfter(item, pos)) 
+            if (posInRange(item, pos) || rangeBefore(item, pos)) 
                 allTerms.push(item);
         }
 
@@ -879,7 +870,7 @@ export class TreeManager implements IASTProvider
             return symbol ? symbol.resolveProp(lexems[lexems.length-1]) : undefined;
         }
         
-        return scope.resolve(lexems[0]);
+        return lexems[0] !== undefined ? scope.resolve(lexems[0]) : undefined;
     }
 
 
@@ -961,7 +952,7 @@ export class TreeManager implements IASTProvider
         // Wrong result, should not happen
         if (found.outterFactor === undefined || !(found.nodeResult instanceof Call)) return undefined;
         
-        nameList = this.getAllName(found.outterFactor);
+        nameList = this.getAllName(found.outterFactor, position);
 
         let find = this.searchNode(nameList.reverse(), position);
         let index = this.findActiveParam(found.nodeResult, position);
@@ -1078,7 +1069,7 @@ export class TreeManager implements IASTProvider
      * @param factor factor expression
      * @returns list of class(function) name
      */
-    private getAllName(factor: Expr.Factor): string[] {
+    private getAllName(factor: Expr.Factor, pos: Position): string[] {
         let names: string[] = []
         // TODO: Support fake base. eg "String".Method()
         if (!(factor.suffixTerm.atom instanceof Identifier))
@@ -1088,11 +1079,15 @@ export class TreeManager implements IASTProvider
         const elements = factor.trailer.suffixTerm.getElements()
         for (let i = 0; i < elements.length; i += 1) {
             const suffix = elements[i];
+            const isInRange = posInRange(suffix, pos)
             // TODO: 复杂的索引查找，估计不会搞这个，
             // 动态语言的类型推断不会，必不可能搞
-            if (suffix.brackets && i < elements.length - 1) return [];
+            if (suffix.brackets && i < elements.length - 1 && !isInRange) return [];
             if (!(suffix.atom instanceof Identifier)) return [];
             names.push(suffix.atom.token.content);
+            // If we are at the position of request position,
+            // rest name is needless.
+            if (isInRange) return names;
         }
         return names;
     }
@@ -1261,11 +1256,21 @@ export class TreeManager implements IASTProvider
         return 0;
     }
 
-    public getDefinitionAtPosition(position: Position): Location[] {
-        let lexems = this.getLexemsAtPosition(position);
-        if (!lexems) return [];
+    public getDefinitionAtPosition(position: Position): Maybe<Location[]> {
+        let docinfo: DocInfo|undefined;
+        docinfo = this.docsAST.get(this.currentDocUri);
+        if (!docinfo) return undefined;
+
+        const AST = docinfo.AST.script.stmts;
+        const find = this.finder.find(AST, position, [Expr.Factor, Call]);
+        const lexems = find && find.nodeResult instanceof Expr.Factor? 
+                    this.getAllName(find.nodeResult, position).reverse() :
+                    this.getLexemsAtPosition(position);
+        if (!lexems) return undefined;
+
         const symbol = this.searchNode(lexems, position);
-        if (!symbol) return [];
+        if (!symbol) return undefined;
+        
         let locations: Location[] = [];
         if (symbol instanceof VaribaleSymbol ||
             symbol instanceof AHKMethodSymbol ||

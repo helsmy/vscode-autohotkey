@@ -1,29 +1,49 @@
+import { ConfigurationService } from '../services/configurationService';
+export enum LogLevel {
+    veberse,
+    info,
+    warn,
+    error,
+    off,
+}
+
+
 /**
  * Simple Logger, reference: kos-language-server
  */
 export class Logger implements ILoggerBase {
 	constructor(
-		private readonly connection: ILoggerBase
+		private readonly connection: ILoggerBase,
+		private logLevel: LogLevel
 	) { }
 
 	error(message: string) {
-		this.connection.warn(message);
+		if (this.logLevel <= LogLevel.warn)
+			this.connection.warn(message);
 	}
 
 	warn(message: string) {
-		this.connection.warn(message);
-
+		if (this.logLevel <= LogLevel.warn)
+			this.connection.warn(message);
 	}
 
 	log(message: string) {
-		this.connection.log(message);
-
+		if (this.logLevel <= LogLevel.veberse)
+			this.connection.log(message);
 	}
 
 	info(message: string) {
-		this.connection.info(message);
+		if (this.logLevel <= LogLevel.info)
+			this.connection.info(message);
 
 	}
+
+	onConfigChange(service: ConfigurationService) {
+        const traceServer = service.getConfig('traceServer');
+		const newLevel = LogLevel[traceServer.level];
+        if (this.logLevel != newLevel)
+            this.logLevel = newLevel;
+    }
 }
 
 /**

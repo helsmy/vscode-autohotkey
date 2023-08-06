@@ -71,11 +71,11 @@ export class SuffixTrailer extends SuffixTermBase {
     }
 
     public get start(): Position {
-        return this.suffixTerm.start;
+        return this.dot.start;
     }
 
     public get end(): Position {
-        return this.suffixTerm.end;
+        return this.suffixTerm.length === 0 ? this.dot.end : this.suffixTerm.end;
     }
 
     public get ranges(): Range[] {

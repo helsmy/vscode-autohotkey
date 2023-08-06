@@ -3,7 +3,7 @@ import {
     DidChangeConfigurationParams, 
     IConnection 
 } from 'vscode-languageserver';
-import { ServerConfiguration } from '../parser/newtry/config/serverConfiguration';
+import { AHKLSSettings, ServerConfiguration } from '../parser/newtry/config/serverConfiguration';
 import { ServerName } from '../utilities/constants';
 
 type ConfigurationConnection = Pick<IConnection, 'onDidChangeConfiguration'>;
@@ -12,7 +12,7 @@ export interface ChangeConfiguration {
     serverConfiguration: ServerConfiguration;
 }
 
-type ChangeHandler = (configurations: ChangeConfiguration) => void;
+type ChangeHandler = (configurations: ConfigurationService) => void;
 
 export declare interface ConfigurationService {
     on(event: 'change', listener: ChangeHandler): this;
@@ -27,7 +27,7 @@ export class ConfigurationService extends EventEmitter {
     /**
      * configurations of server
      */
-    public serverConfiguration: ServerConfiguration;
+    private serverConfiguration: ServerConfiguration;
 
     /**
      * default server configuration
@@ -59,7 +59,7 @@ export class ConfigurationService extends EventEmitter {
                 .merge(change.settings[ServerName]);
             if (!this.serverConfiguration.equal(serverConfiguration)) {
                 this.serverConfiguration = serverConfiguration;
-                this.emit('change', {serverConfiguration});
+                this.emit('change', this);
             }
         }
     }
@@ -70,5 +70,9 @@ export class ConfigurationService extends EventEmitter {
      */
     public updateConfiguration(config: Partial<ServerConfiguration>) {
         this.serverConfiguration = this.serverConfiguration.merge(config);
+    }
+
+    public getConfig<K extends keyof AHKLSSettings>(key: K): AHKLSSettings[K] {
+        return this.serverConfiguration[key];
     }
 }

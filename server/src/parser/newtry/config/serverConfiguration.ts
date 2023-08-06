@@ -11,7 +11,7 @@ export enum docLangName {
 /**
  * Log level of server
  */
-type LogLevel = 'error' | 'info'| 'veberse' | 'off'
+type LogLevelClient = 'error' | 'info'| 'veberse' | 'off'
 
 // The AHK Language Server settings
 export interface AHKLSSettings {
@@ -19,7 +19,7 @@ export interface AHKLSSettings {
     documentLanguage: docLangName;            // which language doc to be used
     sendError: boolean;
     traceServer: {
-        level: LogLevel
+        level: LogLevelClient
     }
 }
 
@@ -28,7 +28,7 @@ export class ServerConfiguration implements AHKLSSettings {
 		public readonly maxNumberOfProblems: number,
         public readonly documentLanguage: docLangName,
         public readonly sendError: boolean,
-        public readonly traceServer: {level: LogLevel},
+        public readonly traceServer: {level: LogLevelClient},
         public readonly clientCapability: IClientCapabilities
 	) {
 

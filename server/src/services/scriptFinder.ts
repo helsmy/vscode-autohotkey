@@ -7,11 +7,12 @@ import * as Expr from '../parser/newtry/parser/models/expr';
 import { IStmt, IStmtVisitor, RangeSequence, SuffixTermTrailer, Token } from '../parser/newtry/types';
 import { DelimitedList } from '../parser/newtry/parser/models/delimtiedList';
 import { Call } from '../parser/newtry/parser/models/suffixterm';
+import { posInRange } from '../utilities/positionUtils';
 
 export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: NodeConstructor[]) => Maybe<IFindResult>> {
     constructor() {}
     visitDeclVariable(decl: Decl.VarDecl, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(decl.assigns, parameters[0])) {
+        if (posInRange(decl.assigns, parameters[0])) {
             const deepMatch = this.searchDelimitedList(decl.assigns, ...parameters); 
             if (deepMatch) return deepMatch;
         }
@@ -19,7 +20,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitDeclClass(decl: Decl.ClassDef, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(decl.body, parameters[0])) {
+        if (posInRange(decl.body, parameters[0])) {
             const deepMatch = decl.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
@@ -27,11 +28,11 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitDynamicProperty(decl: Decl.DynamicProperty, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (decl.param && inRange(decl.param, parameters[0])) {
+        if (decl.param && posInRange(decl.param, parameters[0])) {
             const deepMatch = decl.param.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
-        if (inRange(decl.body, parameters[0])) {
+        if (posInRange(decl.body, parameters[0])) {
             const deepMatch = decl.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
@@ -45,11 +46,11 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         if (matchNodeTypes(decl, parameters[1])) return createResult(decl);
     }
     visitDeclFunction(decl: Decl.FuncDef, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(decl.params, parameters[0])) {
+        if (posInRange(decl.params, parameters[0])) {
             const paramMatch = decl.params.accept(this, parameters) as Maybe<IFindResult>; 
             if (paramMatch) return paramMatch;
         }
-        if (inRange(decl.body, parameters[0])) {
+        if (posInRange(decl.body, parameters[0])) {
             const deepMatch = decl.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
@@ -57,7 +58,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitDeclParameter(decl: Decl.Param, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(decl.ParamaterList, parameters[0])) {
+        if (posInRange(decl.ParamaterList, parameters[0])) {
             const deepMatch = this.searchDelimitedList(decl.ParamaterList, ...parameters); 
             if (deepMatch) return deepMatch;
         }
@@ -65,7 +66,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitDeclGetterSetter(decl: Decl.GetterSetter, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(decl.body, parameters[0])) {
+        if (posInRange(decl.body, parameters[0])) {
             const deepMatch = decl.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
@@ -79,7 +80,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return;
     }
     visitDrective(stmt: Stmt.Drective, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.args, parameters[0])) {
+        if (posInRange(stmt.args, parameters[0])) {
             const deepMatch = this.searchDelimitedList(stmt.args, ...parameters); 
             if (deepMatch) return deepMatch;
         }
@@ -95,11 +96,11 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitExpr(stmt: Stmt.ExprStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.expression, parameters[0])) {
+        if (posInRange(stmt.expression, parameters[0])) {
             const exprMatch = this.searchExpression(stmt.expression, ...parameters); 
             if (exprMatch) return exprMatch;
         }
-        if (stmt.trailerExpr && inRange(stmt.trailerExpr.exprList, parameters[0])) {
+        if (stmt.trailerExpr && posInRange(stmt.trailerExpr.exprList, parameters[0])) {
             const exprMatch = this.searchDelimitedList(stmt.trailerExpr.exprList, ...parameters); 
             if (exprMatch) return exprMatch;
         }
@@ -107,7 +108,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitCommandCall(stmt: Stmt.CommandCall, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.args, parameters[0])) {
+        if (posInRange(stmt.args, parameters[0])) {
             const deepMatch = this.searchDelimitedList(stmt.args, ...parameters); 
             if (deepMatch) return deepMatch;
         }
@@ -115,15 +116,15 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitAssign(stmt: Stmt.AssignStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.left, parameters[0])) {
+        if (posInRange(stmt.left, parameters[0])) {
             const leftMatch = this.searchExpression(stmt.left, ...parameters); 
             if (leftMatch) return leftMatch;
         }
-        if (inRange(stmt.expr, parameters[0])) {
+        if (posInRange(stmt.expr, parameters[0])) {
             const exprMatch = this.searchExpression(stmt.expr, ...parameters); 
             if (exprMatch) return exprMatch;
         }
-        if (stmt.trailerExpr && inRange(stmt.trailerExpr.exprList, parameters[0])) {
+        if (stmt.trailerExpr && posInRange(stmt.trailerExpr.exprList, parameters[0])) {
             const exprMatch = this.searchDelimitedList(stmt.trailerExpr.exprList, ...parameters); 
             if (exprMatch) return exprMatch;
         }
@@ -131,15 +132,15 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitIf(stmt: Stmt.If, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.condition, parameters[0])) {
+        if (posInRange(stmt.condition, parameters[0])) {
             const exprMatch = this.searchExpression(stmt.condition, ...parameters); 
             if (exprMatch) return exprMatch;
         }
-        if (inRange(stmt.body, parameters[0])) {
+        if (posInRange(stmt.body, parameters[0])) {
             const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
-        if (stmt.elseStmt && inRange(stmt.elseStmt, parameters[0])) {
+        if (stmt.elseStmt && posInRange(stmt.elseStmt, parameters[0])) {
             const elseMatch = stmt.elseStmt.accept(this, parameters) as Maybe<IFindResult>;
             if (elseMatch) return elseMatch;
         }
@@ -147,7 +148,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitElse(stmt: Stmt.Else, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.body, parameters[0])) {
+        if (posInRange(stmt.body, parameters[0])) {
             const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
@@ -156,7 +157,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     }
     visitReturn(stmt: Stmt.Return, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
         if (matchNodeTypes(stmt, parameters[1])) return createResult(stmt);
-        if (stmt.value && inRange(stmt.value, parameters[0])) {
+        if (stmt.value && posInRange(stmt.value, parameters[0])) {
             const match = this.searchExpression(stmt.value, ...parameters);
             return match ? match : undefined;
         };
@@ -168,7 +169,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         if (matchNodeTypes(stmt, parameters[1])) return createResult(stmt);
     }
     visitSwitch(stmt: Stmt.SwitchStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.condition, parameters[0])) {
+        if (posInRange(stmt.condition, parameters[0])) {
             const exprMatch = this.searchExpression(stmt.condition, ...parameters);; 
             if (exprMatch) return exprMatch;
         }
@@ -179,7 +180,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitCase(stmt: Stmt.CaseStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.CaseNode, parameters[0])) {
+        if (posInRange(stmt.CaseNode, parameters[0])) {
             if (stmt.CaseNode instanceof Stmt.CaseExpr) {
                 const exprMatch = this.searchDelimitedList(stmt.CaseNode.conditions, ...parameters);; 
                 if (exprMatch) return exprMatch;
@@ -192,7 +193,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitLoop(stmt: Stmt.LoopStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (stmt.condition && inRange(stmt.condition, parameters[0])) {
+        if (stmt.condition && posInRange(stmt.condition, parameters[0])) {
             if (stmt.condition instanceof Expr.Expr) {
                 const exprMatch = this.searchExpression(stmt.condition, ...parameters);; 
                 if (exprMatch) return exprMatch;
@@ -202,7 +203,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
                 if (exprMatch) return exprMatch;
             }
         }
-        if (inRange(stmt.body, parameters[0])) {
+        if (posInRange(stmt.body, parameters[0])) {
             const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
@@ -210,11 +211,11 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitWhile(stmt: Stmt.WhileStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.condition, parameters[0])) {
+        if (posInRange(stmt.condition, parameters[0])) {
             const exprMatch = this.searchExpression(stmt.condition, ...parameters);; 
             if (exprMatch) return exprMatch;
         }
-        if (inRange(stmt.body, parameters[0])) {
+        if (posInRange(stmt.body, parameters[0])) {
             const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
@@ -222,11 +223,11 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitFor(stmt: Stmt.ForStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.iterable, parameters[0])) {
+        if (posInRange(stmt.iterable, parameters[0])) {
             const exprMatch = this.searchExpression(stmt.iterable, ...parameters);; 
             if (exprMatch) return exprMatch;
         }
-        if (inRange(stmt.body, parameters[0])) {
+        if (posInRange(stmt.body, parameters[0])) {
             const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
@@ -234,15 +235,15 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitTry(stmt: Stmt.TryStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.body, parameters[0])) {
+        if (posInRange(stmt.body, parameters[0])) {
             const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
         }
-        if (stmt.catchStmt && inRange(stmt.catchStmt, parameters[0])) {
+        if (stmt.catchStmt && posInRange(stmt.catchStmt, parameters[0])) {
             const catchMatch = stmt.catchStmt.accept(this, parameters) as Maybe<IFindResult>;
             if (catchMatch) return catchMatch;
         }
-        if (stmt.finallyStmt && inRange(stmt.finallyStmt, parameters[0])) {
+        if (stmt.finallyStmt && posInRange(stmt.finallyStmt, parameters[0])) {
             const finallyMatch = stmt.finallyStmt.accept(this, parameters) as Maybe<IFindResult>;
             if (finallyMatch) return finallyMatch;
         }
@@ -250,7 +251,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitCatch(stmt: Stmt.CatchStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.body, parameters[0])) {
+        if (posInRange(stmt.body, parameters[0])) {
             // const exprMatch = this.searchExpression(stmt.errors, ...parameters);
             const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult>; 
             if (deepMatch) return deepMatch;
@@ -259,8 +260,8 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitFinally(stmt: Stmt.FinallyStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
-        if (inRange(stmt.body, parameters[0])) {
-            if (inRange(stmt.body, parameters[0])) {
+        if (posInRange(stmt.body, parameters[0])) {
+            if (posInRange(stmt.body, parameters[0])) {
                 const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult>; 
                 if (deepMatch) return deepMatch;
             }
@@ -270,7 +271,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     }
     visitThrow(stmt: Stmt.Throw, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult> {
         if (matchNodeTypes(stmt, parameters[1])) return createResult(stmt);
-        if (inRange(stmt.expr, parameters[0])) {
+        if (posInRange(stmt.expr, parameters[0])) {
             const match = this.searchExpression(stmt.expr, ...parameters);
             return match ? match : undefined;
         }
@@ -278,7 +279,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     
     private searchExpression(expr: Expr.Expr, pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult> {
         if (expr instanceof Expr.Factor) {
-            if (expr.trailer && inRange(expr.trailer, pos)) {
+            if (expr.trailer && posInRange(expr.trailer, pos)) {
                 const match = binarySearchNode(expr.trailer.suffixTerm.getElements(), pos);
                 if (match) {
                     return this.bracketsMatch(expr, match.brackets, pos, matchNodeType)
@@ -289,25 +290,25 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         }
         else if (expr instanceof Expr.Unary) {
             let deepMatch: Maybe<IFindResult>;
-            if (inRange(expr.factor, pos))
+            if (posInRange(expr.factor, pos))
                 deepMatch = this.searchExpression(expr.factor, pos, matchNodeType);
             return deepMatch ? deepMatch : matchNodeTypes(expr, matchNodeType) ? createResult(expr) : undefined;
         }
         else if (expr instanceof Expr.Binary) {
             let deepMatch: Maybe<IFindResult>;
-            if (inRange(expr.left, pos))
+            if (posInRange(expr.left, pos))
                 deepMatch = this.searchExpression(expr.left, pos, matchNodeType);
-            if (inRange(expr.right, pos)) 
+            if (posInRange(expr.right, pos)) 
                 deepMatch = this.searchExpression(expr.right, pos, matchNodeType);
             return deepMatch ? deepMatch : matchNodeTypes(expr, matchNodeType) ? createResult(expr) : undefined;
         }
         else if (expr instanceof Expr.Ternary) {
             let deepMatch: Maybe<IFindResult>;
-            if (inRange(expr.condition, pos))
+            if (posInRange(expr.condition, pos))
                 deepMatch = this.searchExpression(expr.condition, pos, matchNodeType);
-            if (inRange(expr.trueExpr, pos)) 
+            if (posInRange(expr.trueExpr, pos)) 
                 deepMatch = this.searchExpression(expr.trueExpr, pos, matchNodeType);
-            if (inRange(expr.falseExpr, pos)) 
+            if (posInRange(expr.falseExpr, pos)) 
                 deepMatch = this.searchExpression(expr.falseExpr, pos, matchNodeType);
             return deepMatch ? deepMatch : matchNodeTypes(expr, matchNodeType) ? createResult(expr) : undefined;
         }
@@ -322,7 +323,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         if (!bracketMatch) return matchNodeTypes(expr, matchNodeType) ? createResult(expr) : undefined;
 
         const nextSearch = bracketMatch instanceof Call ? bracketMatch.args : bracketMatch.indexs;
-        const deepMatch = inRange(nextSearch, pos) ? 
+        const deepMatch = posInRange(nextSearch, pos) ? 
                           this.searchDelimitedList(nextSearch, pos, matchNodeType) : 
                           undefined;
         if (deepMatch) return deepMatch;
@@ -379,23 +380,6 @@ function matchNodeTypes(node: RangeSequence, types: NodeConstructor[]): boolean 
         if (node instanceof t) return true;
     }
     return false;
-}
-
-function inRange(r: Range, pos: Position): boolean {
-    if (r instanceof DelimitedList && r.length === 0) return false;
-    // start <= pos
-    const isAfterStart = r.start.line < pos.line ? true : 
-        r.start.line === pos.line ? 
-            r.start.character <= pos.character ? true : 
-        false : 
-    false;
-    // end >= pos
-    const isBeforeEnd = r.end.line > pos.line ? true : 
-        r.end.line === pos.line ? 
-            r.end.character >= pos.character ? true : 
-        false : 
-    false;
-    return isAfterStart && isBeforeEnd;
 }
 
 export function binarySearchNode<T extends Range>(nodes: T[], pos: Position): Maybe<T> {

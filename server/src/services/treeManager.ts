@@ -57,9 +57,11 @@ import { AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, 
 import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
 import { DocInfo, IASTProvider } from './types';
 import { IFindResult, ScriptASTFinder, binarySearchIndex } from './scriptFinder';
-import { Call, Identifier } from '../parser/newtry/parser/models/suffixterm';
+import { BracketIndex, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../parser/newtry/parser/models/suffixterm';
 import * as Stmt from "../parser/newtry/parser/models/stmt";
 import * as Expr from "../parser/newtry/parser/models/expr";
+import { posInRange, rangeAfter } from '../utilities/positionUtils';
+import { ConfigurationService } from './configurationService';
 
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];
@@ -152,6 +154,14 @@ export class TreeManager implements IASTProvider
         this.SLibDir = 'C:\\Program Files\\AutoHotkey\\Lib'
         this.ULibDir = homedir() + '\\Documents\\AutoHotkey\\Lib'
         this.logger = logger;
+    }
+
+    public onConfigChange(service: ConfigurationService) {
+        const sendError = service.getConfig('sendError');
+        if (this.sendError != sendError) {
+            this.sendError = sendError;
+            this.updateErrors();
+        }
     }
 
     public getDocInfo(uri: string): Maybe<DocInfo> {
@@ -531,44 +541,145 @@ export class TreeManager implements IASTProvider
         .concat(incCompletion);
     }
 
-    public getScopedCompletion(pos: Position): CompletionItem[] {
-        let docinfo: DocInfo|undefined;
-        docinfo = this.docsAST.get(this.currentDocUri);
-        if (!docinfo) return [];
-        const scope = this.getCurrentScope(pos, docinfo.table);
-        const lexems = this.getLexemsAtPosition(pos);
-        if (lexems && lexems.length > 1) {
-            const perfixs = lexems.reverse();
-            const symbol = this.searchPerfixSymbol(perfixs.slice(0, -1), scope);
-            if (!symbol) return [];
-            return symbol.allSymbols().map(sym => this.convertSymCompletion(sym));
-        }
+    public getSymbolCompletion(scope: IScope): Maybe<CompletionItem[]> {
         if (scope.name === 'global') return this.getGlobalCompletion()
                                     .concat(this.keywordCompletions)
                                     .concat(this.builtinVarCompletions);
-        // Now scoop is a method.
-        const symbols = scope.allSymbols();
-        return symbols.map(sym => this.convertSymCompletion(sym))
-                .concat(this.getGlobalCompletion())
-                .concat(this.keywordCompletions)
-                .concat(this.builtinVarCompletions);
+            // Now scoop is a method.
+            const symbols = scope.allSymbols();
+            return symbols.map(sym => this.convertSymCompletion(sym))
+                    .concat(this.getGlobalCompletion())
+                    .concat(this.keywordCompletions)
+                    .concat(this.builtinVarCompletions);
     }
 
-    private getNamedTokensAtPosition(pos: Position, tokens: Token[]): Token[] {
-        let list: Token[] = [];
-        const tokenIndex = this.getTokenIndexAtPos(pos, tokens);
-        if (!tokenIndex) return [];
-        let p = tokenIndex - 1;
-        // Use delimiter `.` Token as a placeholder for the unfinished property
-        // And to check next token
-        if (tokens[tokenIndex].type === TokenType.dot) p--;
-        list.push(tokens[tokenIndex]);
-        while (tokens[p].type === TokenType.dot) {
-            p--;
-            list.push(tokens[p]);
-            p--;
+    public getScopedCompletion(pos: Position): Maybe<CompletionItem[]> {
+        let docinfo: DocInfo|undefined;
+        docinfo = this.docsAST.get(this.currentDocUri);
+        if (!docinfo) return undefined;
+        
+        const scope = this.getCurrentScope(pos, docinfo.table);
+        const found = this.finder.find(docinfo.AST.script.stmts, pos, [Expr.Factor]);
+        
+        // if nothing found, just do scoped symbol completion
+        if (found === undefined || found.nodeResult === undefined)
+            return this.getSymbolCompletion(scope);
+
+        // Should not happen
+        // FIXME: raise Exception here, to log the wrong function trace
+        if (!(found.nodeResult instanceof Expr.Factor)) return undefined;
+
+        const node = found.nodeResult
+        // if we are in atom do scoped symbol completion
+        if (posInRange(node.suffixTerm.atom, pos)) {
+            return this.getSymbolCompletion(scope);
         }
-        return list;
+
+        // now we need completions about suffix
+        return this.getSuffixCompletion(node, scope, pos);
+
+        // TODO: failback to old way
+        // const lexems = this.getLexemsAtPosition(pos);
+        // if (lexems && lexems.length > 1) {
+        //     const perfixs = lexems.reverse();
+        //     const symbol = this.searchPerfixSymbol(perfixs.slice(0, -1), scope);
+        //     if (!symbol) return undefined;
+        //     return symbol.allSymbols().map(sym => this.convertSymCompletion(sym));
+        // }
+    }
+
+    /**
+     * Get all completions related to the suffix 
+     * @param node factor contains the suffix terms
+     * @param scope current scope of the suffix
+     * @param pos postion of the request
+     */
+    private getSuffixCompletion(node: Expr.Factor, scope: IScope, pos: Position): Maybe<CompletionItem[]> {
+        const suffix = node.trailer;
+        if (suffix === undefined) 
+            return undefined;
+
+        let allTerms = [];
+        for (const item of suffix.suffixTerm.getElements()) {
+            if (posInRange(item, pos) || rangeAfter(item, pos)) 
+                allTerms.push(item);
+        }
+
+        let nextScope = this.resolveSuffixTermSymbol(node.suffixTerm, scope);
+        if (nextScope instanceof VaribaleSymbol) {
+            const varType = nextScope.getType();
+            // not a instance of class
+            if (varType.length === 0) return undefined;
+            nextScope = this.searchPerfixSymbol(varType, scope);
+        }
+        if (!(nextScope && nextScope instanceof AHKObjectSymbol)) return undefined;
+        for (const lexem of allTerms) {
+            const currentScope = this.resolveSuffixTermSymbol(lexem, nextScope as AHKObjectSymbol, true);
+            // if (currentScope === undefined) return undefined;
+            if (currentScope && currentScope instanceof AHKObjectSymbol) {
+                nextScope = currentScope
+            }
+            else if (currentScope instanceof VaribaleSymbol) {
+                const varType = currentScope.getType();
+                // not a instance of class
+                if (varType.length === 0) return undefined;
+                const referenceScope = this.searchPerfixSymbol(varType, nextScope as AHKObjectSymbol);
+                if (referenceScope === undefined) return undefined;
+                nextScope = referenceScope
+            }
+            else 
+                return undefined;
+        }
+        if (nextScope instanceof AHKObjectSymbol)
+            return nextScope.allSymbols().map(sym => this.convertSymCompletion(sym));
+        return undefined;
+    }
+
+    /**
+     * Find type class symbol of target suffix
+     * @param suffix target suffix
+     * @param scope current type symbol
+     * @param alwaysResolveProp does always take scope as class 
+     */
+    private resolveSuffixTermSymbol(suffix: SuffixTerm, scope: IScope, alwaysResolveProp?: boolean): Maybe<ISymbol> {
+        const { atom, brackets } = suffix;
+
+        // TODO: no type casting on function call for now
+        for (const bracket of brackets) {
+            if (bracket instanceof Call) return undefined;
+        }
+
+        if (atom instanceof Identifier) {
+            // factor的第一个符号的类型需要从当前作用域找到
+            // 之后的符号的都是类的属性需要用resolveProp
+            const sym = alwaysResolveProp ? 
+                        // 懒得写根据参数的类型了就类型断言解决了
+                        (<AHKObjectSymbol>scope).resolveProp(atom.token.content):
+                        scope.resolve(atom.token.content);
+            // no more index need to be resolve here
+            if (brackets.length === 0) return sym;
+            if (!(sym instanceof AHKObjectSymbol)) return undefined
+            // resolve rest index
+            let nextScope = sym;
+            for (const bracket of brackets) {
+                // FIXME: indexs may be empty string
+                const { indexs } = (<BracketIndex>bracket);
+                // no type casting on complex indexing
+                if (indexs.length !== 1) return undefined;
+                const first = indexs.childern[0]
+                if (first instanceof Expr.Factor && first.suffixTerm.atom instanceof Literal) {
+                    const current = nextScope.resolveProp(first.suffixTerm.atom.token.content);
+                    if (!(current instanceof AHKObjectSymbol)) return undefined;
+                    nextScope = current;
+                    continue;
+                }
+                
+            }
+        }
+        // 不管动态特性
+        if (atom instanceof PercentDereference) return undefined;
+        // TODO: 字符串和数字的fakebase特性
+        // TODO: 数组和关联数组的自带方法
     }
 
     public getTokenAtPos(pos: Position): Maybe<Token> {
@@ -762,6 +873,7 @@ export class TreeManager implements IASTProvider
         const scope = this.getCurrentScope(position, docinfo.table);
         if (lexems.length > 1) {
             // check if it is a property access
+            // FIXME: 把这个遗留的反转的分词顺序解决一下
             const perfixs = lexems.reverse().slice(0, -1);
             const symbol = this.searchPerfixSymbol(perfixs, scope);
             return symbol ? symbol.resolveProp(lexems[lexems.length-1]) : undefined;
@@ -804,7 +916,7 @@ export class TreeManager implements IASTProvider
      * Convert a symbol to comletion item
      * @param sym symbol to be converted
      */
-    public convertSymCompletion(sym: ISymbol): CompletionItem {
+    private convertSymCompletion(sym: ISymbol): CompletionItem {
 		let ci = CompletionItem.create(sym.name);
 		if (sym instanceof AHKMethodSymbol) {
 			ci['kind'] = CompletionItemKind.Method;
@@ -851,7 +963,7 @@ export class TreeManager implements IASTProvider
         
         nameList = this.getAllName(found.outterFactor);
 
-        let find = this.searchNode(nameList, position);
+        let find = this.searchNode(nameList.reverse(), position);
         let index = this.findActiveParam(found.nodeResult, position);
         const funcName = nameList[0];
         // if no find, search build-in
@@ -961,6 +1073,11 @@ export class TreeManager implements IASTProvider
         return undefined;
     }
 
+    /**
+     * Get all name token content of a `name.name.+`
+     * @param factor factor expression
+     * @returns list of class(function) name
+     */
     private getAllName(factor: Expr.Factor): string[] {
         let names: string[] = []
         // TODO: Support fake base. eg "String".Method()
@@ -968,14 +1085,16 @@ export class TreeManager implements IASTProvider
             return names;
         names.push(factor.suffixTerm.atom.token.content);
         if (factor.trailer === undefined) return names;
-        for (const suffix of factor.trailer.suffixTerm.getElements()) {
+        const elements = factor.trailer.suffixTerm.getElements()
+        for (let i = 0; i < elements.length; i += 1) {
+            const suffix = elements[i];
             // TODO: 复杂的索引查找，估计不会搞这个，
             // 动态语言的类型推断不会，必不可能搞
-            if (suffix.brackets) return [];
+            if (suffix.brackets && i < elements.length - 1) return [];
             if (!(suffix.atom instanceof Identifier)) return [];
             names.push(suffix.atom.token.content);
-        } 
-        return names
+        }
+        return names;
     }
 
     private findCommandSignature(name: string, index: number|null): Maybe<SignatureHelp> {

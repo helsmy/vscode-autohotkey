@@ -37,7 +37,7 @@ import {
 
 import { builtin_variable } from "./utilities/builtins";
 import { TreeManager } from './services/treeManager';
-import { Logger } from './utilities/logger';
+import { Logger, LogLevel } from './utilities/logger';
 import { 
 	AHKLSSettings, 
 	docLangName,
@@ -80,7 +80,10 @@ let globalSettings: AHKLSSettings = defaultSettings;
 // Cache the settings of all open documents
 let documentSettings: Map<string, Thenable<AHKLSSettings>> = new Map();
 
-const logger = new Logger(connection.console);
+const logger = new Logger(
+	connection.console, 
+	LogLevel[defaultSettings.traceServer.level]
+);
 const DOCManager: TreeManager = new TreeManager(connection, logger);
 const configurationService = new ConfigurationService(
 	defaultSettings,
@@ -109,8 +112,9 @@ connection.onInitialize((params: InitializeParams) => {
 		hasWorkspaceFolder: hasWorkspaceFolderCapability
 	}
 
+	// Update configuration of each service
 	configurationService.updateConfiguration({clientCapability: clientCapability});
-	onConfigChange(configurationService);
+	configurationService.emit('change', configurationService);
 
 	const result: InitializeResult = {
 		serverInfo: {
@@ -159,14 +163,6 @@ connection.onInitialized(() => {
 		});
 	}
 });
-
-function onConfigChange(change: ChangeConfiguration) {
-	const serverConfiguration = change.serverConfiguration;
-	if (DOCManager.sendError != serverConfiguration.sendError) {
-		DOCManager.sendError = serverConfiguration.sendError;
-		DOCManager.updateErrors();
-	}
-}
 
 function getDocumentSettings(resource: string): Thenable<AHKLSSettings> {
 	if (!hasConfigurationCapability) {
@@ -324,7 +320,8 @@ connection.onCompletionResolve(
 	}
 );
 
-configurationService.on('change', onConfigChange);
+configurationService.on('change', DOCManager.onConfigChange.bind(DOCManager));
+configurationService.on('change', logger.onConfigChange.bind(logger));
 
 // Make the text document manager listen on the connection
 // for open, change and close text document events

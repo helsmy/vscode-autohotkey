@@ -3,7 +3,7 @@ import {
 	CompletionItemKind,
     Definition,
     Diagnostic,
-    IConnection,
+    Connection,
     Location,
 	ParameterInformation,
 	Position,
@@ -12,7 +12,7 @@ import {
 	SignatureInformation,
 	SymbolInformation,
 	SymbolKind
-} from 'vscode-languageserver';
+} from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { 
@@ -79,7 +79,7 @@ function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
 
 export class TreeManager implements IASTProvider
 {
-    private conn: IConnection;
+    private conn: Connection;
 	/**
 	 * server cached documnets
 	 */
@@ -139,7 +139,7 @@ export class TreeManager implements IASTProvider
 
     public sendError: boolean = false;
 
-	constructor(conn: IConnection, logger: ILoggerBase) {
+	constructor(conn: Connection, logger: ILoggerBase) {
         this.conn = conn;
 		this.serverDocs = new Map();
         this.docsAST = new Map();
@@ -936,6 +936,7 @@ export class TreeManager implements IASTProvider
 
         // If finder did not find anything, failback to old way.
         if (found === undefined) {
+            this.logger.log('SignatureHelp: Fail back to old way.');
             return this.getSignatureHelpOld(position);
         }
 
@@ -992,7 +993,7 @@ export class TreeManager implements IASTProvider
         }
     }
 
-    private getSignatureHelpOld(position: Position) {
+    private getSignatureHelpOld(position: Position): Maybe<SignatureHelp> {
         const node: Maybe<INodeResult<IASTNode>> = this.findFuncAtPosOld(position);
         if (node === undefined) return undefined;
         const stmt = node as INodeResult<IFunctionCall | IMethodCall | IPropertCall | IAssign | ICommandCall>;
@@ -1014,7 +1015,7 @@ export class TreeManager implements IASTProvider
 
             const funcName = lastnode.name;
             let index = lastnode.actualParams.length===0 ?
-                        null: lastnode.actualParams.length-1;
+                        undefined: lastnode.actualParams.length-1;
             if (lastnode instanceof CommandCall) {
                 // All Commands are built-in, just search built-in Commands
                 const bfind = arrayFilter(this.builtinCommand, item => item.name.toLowerCase() === funcName.toLowerCase());
@@ -1092,7 +1093,7 @@ export class TreeManager implements IASTProvider
         return names;
     }
 
-    private findCommandSignature(name: string, index: number|null): Maybe<SignatureHelp> {
+    private findCommandSignature(name: string, index: Maybe<number>): Maybe<SignatureHelp> {
         const bfind = arrayFilter(this.builtinCommand, item => item.name.toLowerCase() === name.toLowerCase());
         const info = this.convertBuiltin2Signature(bfind, true);
         if (info) {
@@ -1104,7 +1105,7 @@ export class TreeManager implements IASTProvider
         }
     }
 
-    private findActiveParam(node: Call|Stmt.CommandCall, pos: Position): number|null {
+    private findActiveParam(node: Call|Stmt.CommandCall, pos: Position): Maybe<number> {
         const args = node.args;
         if (args.length === 0) return 0;
         
@@ -1146,7 +1147,7 @@ export class TreeManager implements IASTProvider
             actualParams.push(r);
         }
         const active = binarySearchIndex(actualParams, pos);
-        return active ?? null;
+        return active ?? undefined;
     }
 
     private findFuncAtPos(pos: Position): Maybe<IFindResult> {

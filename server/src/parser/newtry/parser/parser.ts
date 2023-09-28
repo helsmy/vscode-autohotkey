@@ -523,8 +523,6 @@ export class AHKParser {
                 return this.idLeadStatement();
             case TokenType.openBrace:
                 return this.block();
-            // case TokenType.command:
-            //     return this.command();
             case TokenType.if:
                 return this.ifStmt();
             case TokenType.break:

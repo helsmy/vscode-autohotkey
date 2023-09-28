@@ -11,6 +11,11 @@ export interface IScope {
 	 * Scopes belongs to this scope
 	 */
 	readonly dependcyScope: Set<IScope>;
+
+	/**
+	 * File URI that this scope is belonged to
+	 */
+	readonly uri: string
 	/**
 	 * Define a symbol
 	 */

@@ -102,14 +102,16 @@ export class SymbolTable implements IScope {
 				info.push(SymbolInformation.create(
 					sym.name,
 					SymbolKind.Variable,
-					sym.range
+					sym.range,
+					this.uri
 				));
 			}
 			else if (sym instanceof AHKMethodSymbol) {
 				info.push(SymbolInformation.create(
 					sym.name,
 					SymbolKind.Method,
-					sym.range
+					sym.range,
+					this.uri
 				));
 				info.push(...sym.symbolInformations());
 			}
@@ -117,7 +119,8 @@ export class SymbolTable implements IScope {
 				info.push(SymbolInformation.create(
 					sym.name,
 					SymbolKind.Class,
-					sym.range
+					sym.range,
+					this.uri
 				));
 				info.push(...sym.symbolInformations());
 			}
@@ -125,7 +128,8 @@ export class SymbolTable implements IScope {
 				info.push(SymbolInformation.create(
 					sym.name,
 					SymbolKind.Event,
-					sym.range
+					sym.range,
+					this.uri
 				));
 			}
 			else

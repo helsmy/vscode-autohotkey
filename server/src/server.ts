@@ -23,14 +23,14 @@ import {
 	CompletionParams,
 	HoverParams,
 	Hover,
-} from 'vscode-languageserver';
+	// InlayHintParams,
+	// InlayHint,
+} from 'vscode-languageserver/node';
 
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 import {
-	buildKeyWordCompletions,
-	buildbuiltin_variable,
 	// serverName,
 	ServerName
 } from './utilities/constants'
@@ -43,7 +43,7 @@ import {
 	docLangName,
 	ServerConfiguration
 } from './parser/newtry/config/serverConfiguration';
-import { ChangeConfiguration, ConfigurationService } from './services/configurationService';
+import { ConfigurationService } from './services/configurationService';
 import { IClientCapabilities } from './types';
 import { TokenType } from './parser/newtry/tokenizor/tokenTypes';
 
@@ -137,7 +137,8 @@ connection.onInitialize((params: InitializeParams) => {
 			},
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			definitionProvider: true
+			definitionProvider: true,
+			// inlayHintProvider: true,
 		}
 	};
 	if (hasWorkspaceFolderCapability) {
@@ -234,6 +235,13 @@ connection.onHover(
 		return undefined;
 });
 
+// connection.languages.inlayHint.on(
+// 	async (param: InlayHintParams, token): Promise<Maybe<InlayHint[]>> => {
+// 		logger.log(JSON.stringify(param));
+// 		return undefined;
+// 	}
+// );
+
 // load opened document
 documents.onDidOpen(async e => {
 	// let lexer = new Lexer(e.document, logger);
@@ -250,6 +258,8 @@ documents.onDidClose(e => {
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent(change => {
 	DOCManager.updateDocumentAST(change.document.uri, change.document);
+	// Refresh inlay hints each times 
+	// connection.languages.inlayHint.refresh();
 	validateTextDocument(change.document);
 });
 

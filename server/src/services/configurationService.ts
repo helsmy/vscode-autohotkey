@@ -1,12 +1,12 @@
 import { EventEmitter } from 'events';
 import { 
     DidChangeConfigurationParams, 
-    IConnection 
-} from 'vscode-languageserver';
+    Connection 
+} from 'vscode-languageserver/node';
 import { AHKLSSettings, ServerConfiguration } from '../parser/newtry/config/serverConfiguration';
 import { ServerName } from '../utilities/constants';
 
-type ConfigurationConnection = Pick<IConnection, 'onDidChangeConfiguration'>;
+type ConfigurationConnection = Pick<Connection, 'onDidChangeConfiguration'>;
 
 export interface ChangeConfiguration {
     serverConfiguration: ServerConfiguration;
@@ -36,7 +36,7 @@ export class ConfigurationService extends EventEmitter {
 
     constructor(
         defaultServerConfiguration: ServerConfiguration,
-        conn: IConnection
+        conn: Connection
     ) {
         super();
         this.serverConfiguration = defaultServerConfiguration;

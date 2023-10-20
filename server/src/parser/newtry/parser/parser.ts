@@ -85,8 +85,10 @@ export class AHKParser {
                     
                 // 下一行是运算符或者','时丢弃EOL, `++` 和 `--`除外
                 // discard EOL
-                if (token.type >= TokenType.power &&
-                    token.type <= TokenType.comma) {
+                if ((token.type >= TokenType.power &&
+                    token.type <= TokenType.comma) ||
+                    // `:` in ternay expression and associative array
+                    token.type === TokenType.colon) {
                     this.tokens.push(token);
                 }
                 else {
@@ -897,6 +899,13 @@ export class AHKParser {
     private assignStmt(): Stmt.AssignStmt|Stmt.ExprStmt {
         const isExprStart = this.isExpressionStart(this.currentToken);
         const left = this.factor();
+
+        // `,`豁免检查是否是赋值表达式
+        const delimiter = this.eatOptional(TokenType.comma);
+        if (delimiter) {
+            const trailer = this.tailorExpr(delimiter);
+            return new Stmt.ExprStmt(left, trailer);
+        }
 
         if (this.check(TokenType.equal)) {
             // if is a `=` let tokenizer take literal token(string)

@@ -11,7 +11,9 @@ import {
 	SignatureHelp,
 	SignatureInformation,
 	SymbolInformation,
-	SymbolKind
+	SymbolKind,
+    Hover,
+    MarkupKind
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
@@ -53,14 +55,18 @@ import { AHKParser } from '../parser/newtry/parser/parser';
 import { PreProcesser } from '../parser/newtry/analyzer/semantic';
 import { IParseError, Token } from '../parser/newtry/types';
 import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
-import { AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotkeySymbol, HotStringSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
-import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
+import { AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
 import { DocInfo, IASTProvider } from './types';
 import { IFindResult, ScriptASTFinder, binarySearchIndex } from './scriptFinder';
 import { BracketIndex, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../parser/newtry/parser/models/suffixterm';
 import * as Stmt from "../parser/newtry/parser/models/stmt";
 import * as Expr from "../parser/newtry/parser/models/expr";
 import { posInRange, rangeBefore } from '../utilities/positionUtils';
+import { NodeConstructor } from '../parser/newtry/parser/models/parseError';
+import { ClassDef, FuncDef, Parameter } from '../parser/newtry/parser/models/declaration';
+import { NodeBase } from '../parser/newtry/parser/models/nodeBase';
+import { convertSymbolsHover, convertSymbolCompletion, getFuncPrototype, convertBuiltin2Signature } from './utils/converter';
+import { resolveCommandCall, resolveFactor, resolveSubclass, searchPerfixSymbol } from './utils/symbolResolver';
 
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];
@@ -462,37 +468,6 @@ export class TreeManager implements IASTProvider
         return info.table.symbolInformations();
     }
 
-    /**
-     * Returns a string in the form of the function node's definition
-     * @param symbol Function node to be converted
-     * @param cmdFormat If ture, return in format of command
-     */
-    public getFuncPrototype(symbol: IFuncNode|BuiltinFuncNode, cmdFormat: boolean = false): string {
-        const paramStartSym = cmdFormat ? ', ' : '(';
-        const paramEndSym = cmdFormat ? '' : ')'
-        let result = symbol.name + paramStartSym;
-        symbol.params.map((param, index, array) => {
-            result += param.name;
-            if (param.isOptional) result += '?';
-            if (param.defaultVal) result += ' := ' + param.defaultVal;
-            if (array.length-1 !== index) result += ', ';
-        })
-        return result+paramEndSym;
-    }
-
-    public convertParamsCompletion(node: ISymbolNode): CompletionItem[] {
-        if (node.kind === SymbolKind.Function) {
-            let params =  (<IFuncNode>node).params
-            return params.map(param => {
-                let pc = CompletionItem.create(param.name);
-                pc.kind = CompletionItemKind.Variable;
-                pc.detail = '(parameter) '+param.name;
-                return pc;
-            })
-        }
-        return [];
-    }
-
     public getGlobalCompletion(): CompletionItem[] {
         let incCompletion: CompletionItem[] = [];
         let docinfo: DocInfo|undefined;
@@ -509,23 +484,23 @@ export class TreeManager implements IASTProvider
             const table = this.localAST.get(incUri)?.table;
             if (table) {
                 incCompletion.push(...table.allSymbols().map(node => {
-                    let c = this.convertSymCompletion(node);
+                    let c = convertSymbolCompletion(node);
                     c.data += '  \nInclude from ' + raw;
                     return c;
                 }))
             }
         }
         
-        return symbols.map(sym => this.convertSymCompletion(sym))
+        return symbols.map(sym => convertSymbolCompletion(sym))
         .concat(this.builtinFunction.map(node => {
             let ci = CompletionItem.create(node.name);
-            ci.data = this.getFuncPrototype(node);
+            ci.data = getFuncPrototype(node);
             ci.kind = CompletionItemKind.Function;
             return ci;
         }))
         .concat(this.builtinCommand.map(node => {
             let ci = CompletionItem.create(node.name);
-            ci.data = this.getFuncPrototype(node, true);
+            ci.data = getFuncPrototype(node, true);
             ci.kind = CompletionItemKind.Function;
             return ci;
         }))
@@ -538,7 +513,7 @@ export class TreeManager implements IASTProvider
                                     .concat(this.builtinVarCompletions);
             // Now scoop is a method.
             const symbols = scope.allSymbols();
-            return symbols.map(sym => this.convertSymCompletion(sym))
+            return symbols.map(sym => convertSymbolCompletion(sym))
                     .concat(this.getGlobalCompletion())
                     .concat(this.keywordCompletions)
                     .concat(this.builtinVarCompletions);
@@ -601,7 +576,7 @@ export class TreeManager implements IASTProvider
             const varType = nextScope.getType();
             // not a instance of class
             if (varType.length === 0) return undefined;
-            nextScope = this.searchPerfixSymbol(varType, scope);
+            nextScope = searchPerfixSymbol(varType, scope);
         }
         if (!(nextScope && nextScope instanceof AHKObjectSymbol)) return undefined;
         for (const lexem of allTerms) {
@@ -614,7 +589,7 @@ export class TreeManager implements IASTProvider
                 const varType = currentScope.getType();
                 // not a instance of class
                 if (varType.length === 0) return undefined;
-                const referenceScope = this.searchPerfixSymbol(varType, nextScope as AHKObjectSymbol);
+                const referenceScope = searchPerfixSymbol(varType, nextScope as AHKObjectSymbol);
                 if (referenceScope === undefined) return undefined;
                 nextScope = referenceScope
             }
@@ -622,7 +597,7 @@ export class TreeManager implements IASTProvider
                 return undefined;
         }
         if (nextScope instanceof AHKObjectSymbol)
-            return nextScope.allSymbols().map(sym => this.convertSymCompletion(sym));
+            return nextScope.allSymbols().map(sym => convertSymbolCompletion(sym));
         return undefined;
     }
 
@@ -825,33 +800,6 @@ export class TreeManager implements IASTProvider
         }
         return [suffix.name].concat(perfixs);
     }
-    
-    /**
-     * Get suffixs list of a given perfixs list
-     * @param prefixs perfix list for search(top scope at first)
-     */
-    private searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKObjectSymbol> {
-        let nextScope = scope.resolve(prefixs[0]);
-        if (!(nextScope && nextScope instanceof AHKObjectSymbol)) return undefined;
-        for (const lexem of prefixs.slice(1)) {
-            const currentScope: Maybe<ISymbol> = (<AHKObjectSymbol>nextScope).resolveProp(lexem);
-            // if (currentScope === undefined) return undefined;
-            if (currentScope && currentScope instanceof AHKObjectSymbol) {
-                nextScope = currentScope
-            }
-            else if (currentScope instanceof VaribaleSymbol) {
-                const varType = currentScope.getType();
-                // not a instance of class
-                if (varType.length === 0) return undefined;
-                const referenceScope = this.searchPerfixSymbol(varType, nextScope as AHKObjectSymbol);
-                if (referenceScope === undefined) return undefined;
-                nextScope = referenceScope
-            }
-            else 
-                return undefined;
-        }
-        return nextScope as AHKObjectSymbol;
-    }
 
     /**
      * Get node of position and lexems
@@ -866,7 +814,7 @@ export class TreeManager implements IASTProvider
             // check if it is a property access
             // FIXME: 把这个遗留的反转的分词顺序解决一下
             const perfixs = lexems.reverse().slice(0, -1);
-            const symbol = this.searchPerfixSymbol(perfixs, scope);
+            const symbol = searchPerfixSymbol(perfixs, scope);
             return symbol ? symbol.resolveProp(lexems[lexems.length-1]) : undefined;
         }
         
@@ -903,33 +851,6 @@ export class TreeManager implements IASTProvider
         return undefined;
     }
 
-    /**
-     * Convert a symbol to comletion item
-     * @param sym symbol to be converted
-     */
-    private convertSymCompletion(sym: ISymbol): CompletionItem {
-		let ci = CompletionItem.create(sym.name);
-		if (sym instanceof AHKMethodSymbol) {
-			ci['kind'] = CompletionItemKind.Method;
-            sym.requiredParameters
-			ci.data = sym.toString();
-		} else if (sym instanceof VaribaleSymbol || sym instanceof BuiltinVaribelSymbol) {
-			ci.kind = sym.tag === VarKind.property ? 
-                      CompletionItemKind.Property :
-                      CompletionItemKind.Variable;
-            if (sym.tag === VarKind.parameter)
-                ci.detail = '(parameter)';
-		} else if (sym instanceof AHKObjectSymbol) {
-			ci['kind'] = CompletionItemKind.Class;
-			ci.data = ''
-		} else if (sym instanceof HotkeySymbol || sym instanceof HotStringSymbol) {
-			ci['kind'] = CompletionItemKind.Event;
-		} else {
-			ci['kind'] = CompletionItemKind.Text;
-		} 
-		return ci;
-	}
-
     public getSignatureHelp(position: Position): Maybe<SignatureHelp> {
         let nameList: string[];
         const found = this.findFuncAtPos(position);
@@ -953,7 +874,7 @@ export class TreeManager implements IASTProvider
         // Wrong result, should not happen
         if (found.outterFactor === undefined || !(found.nodeResult instanceof Call)) return undefined;
         
-        nameList = this.getAllName(found.outterFactor, position);
+        nameList = this.getAllName(found.outterFactor.nodeResult, position);
 
         let find = this.searchNode(nameList.reverse(), position);
         let index = this.findActiveParam(found.nodeResult, position);
@@ -962,7 +883,7 @@ export class TreeManager implements IASTProvider
         if (!find) {
             if (funcName === undefined) return undefined;
             const bfind = arrayFilter(this.builtinFunction, item => item.name.toLowerCase() === funcName.toLowerCase());
-            const info = this.convertBuiltin2Signature(bfind);
+            const info = convertBuiltin2Signature(bfind);
             if (info) {
                 return {
                     signatures: info,
@@ -1019,7 +940,7 @@ export class TreeManager implements IASTProvider
             if (lastnode instanceof CommandCall) {
                 // All Commands are built-in, just search built-in Commands
                 const bfind = arrayFilter(this.builtinCommand, item => item.name.toLowerCase() === funcName.toLowerCase());
-                const info = this.convertBuiltin2Signature(bfind, true);
+                const info = convertBuiltin2Signature(bfind, true);
                 if (info) {
                     return {
                         signatures: info,
@@ -1032,7 +953,7 @@ export class TreeManager implements IASTProvider
             // if no find, search build-in
             if (!find) {
                 const bfind = arrayFilter(this.builtinFunction, item => item.name.toLowerCase() === funcName.toLowerCase());
-                const info = this.convertBuiltin2Signature(bfind);
+                const info = convertBuiltin2Signature(bfind);
                 if (info) {
                     return {
                         signatures: info,
@@ -1066,8 +987,10 @@ export class TreeManager implements IASTProvider
     }
 
     /**
-     * Get all name token content of a `name.name.+`
+     * Get all name token content of a `name.name.+`,
+     * until given position.
      * @param factor factor expression
+     * @param pos    given position
      * @returns list of class(function) name
      */
     private getAllName(factor: Expr.Factor, pos: Position): string[] {
@@ -1077,12 +1000,14 @@ export class TreeManager implements IASTProvider
             return names;
         names.push(factor.suffixTerm.atom.token.content);
         if (factor.trailer === undefined) return names;
-        const elements = factor.trailer.suffixTerm.getElements()
+        if (posInRange(factor.suffixTerm.atom, pos)) return names;
+        const elements = factor.trailer.suffixTerm.getElements();
         for (let i = 0; i < elements.length; i += 1) {
             const suffix = elements[i];
             const isInRange = posInRange(suffix, pos)
             // TODO: 复杂的索引查找，估计不会搞这个，
             // 动态语言的类型推断不会，必不可能搞
+            // 条件：任何的一种括号，并且这个括号不是最后一个，以防是在请求括号前的所有标识符
             if (suffix.brackets && i < elements.length - 1 && !isInRange) return [];
             if (!(suffix.atom instanceof Identifier)) return [];
             names.push(suffix.atom.token.content);
@@ -1095,7 +1020,7 @@ export class TreeManager implements IASTProvider
 
     private findCommandSignature(name: string, index: Maybe<number>): Maybe<SignatureHelp> {
         const bfind = arrayFilter(this.builtinCommand, item => item.name.toLowerCase() === name.toLowerCase());
-        const info = this.convertBuiltin2Signature(bfind, true);
+        const info = convertBuiltin2Signature(bfind, true);
         if (info) {
             return {
                 signatures: info,
@@ -1150,7 +1075,7 @@ export class TreeManager implements IASTProvider
         return active ?? undefined;
     }
 
-    private findFuncAtPos(pos: Position): Maybe<IFindResult> {
+    private findFuncAtPos(pos: Position): Maybe<IFindResult<NodeBase>> {
         const docinfo = this.docsAST.get(this.currentDocUri);
         if (!docinfo) return undefined;
         const token = this.getTokenAtPos(pos);
@@ -1225,23 +1150,6 @@ export class TreeManager implements IASTProvider
         return node;
     }
 
-    private convertBuiltin2Signature(symbols: BuiltinFuncNode[], iscmd: boolean = false): Maybe<SignatureInformation[]> {
-        if (symbols.length === 0)
-            return undefined;
-        const info: SignatureInformation[] = [];
-        for (const sym of symbols) {
-            const paraminfo: ParameterInformation[] = sym.params.map(param => ({
-                label: `${param.name}${param.isOptional ? '?' : ''}${param.defaultVal ? ' = '+param.defaultVal: ''}`
-            }))
-            info.push(SignatureInformation.create(
-                this.getFuncPrototype(sym, iscmd),
-                undefined,
-                ...paraminfo
-            ))
-        }
-        return info;
-    }
-
     /**
      * Find which index of signatures is active
      * @param symbols symbols to be found
@@ -1258,20 +1166,9 @@ export class TreeManager implements IASTProvider
     }
 
     public getDefinitionAtPosition(position: Position): Maybe<Location[]> {
-        let docinfo: DocInfo|undefined;
-        docinfo = this.docsAST.get(this.currentDocUri);
-        if (!docinfo) return undefined;
+        const symbol = this.getSymbolAtPosition(position, Expr.Factor, Call);
+        if (symbol === undefined) return undefined;
 
-        const AST = docinfo.AST.script.stmts;
-        const find = this.finder.find(AST, position, [Expr.Factor, Call]);
-        const lexems = find && find.nodeResult instanceof Expr.Factor? 
-                    this.getAllName(find.nodeResult, position).reverse() :
-                    this.getLexemsAtPosition(position);
-        if (!lexems) return undefined;
-
-        const symbol = this.searchNode(lexems, position);
-        if (!symbol) return undefined;
-        
         let locations: Location[] = [];
         if (symbol instanceof VaribaleSymbol ||
             symbol instanceof AHKMethodSymbol ||
@@ -1281,6 +1178,89 @@ export class TreeManager implements IASTProvider
                 symbol.range
             ));
         return locations;
+    }
+
+    public getHoverAtPosition(position: Position): Maybe<Hover> {
+        const token = this.getTokenAtPos(position);
+        if (token === undefined) return undefined;
+        let docinfo: DocInfo|undefined;
+        docinfo = this.docsAST.get(this.currentDocUri);
+        if (!docinfo) return undefined;
+
+        const AST = docinfo.AST.script.stmts;
+        const find = this.finder.find(AST, position, [Expr.Factor, Stmt.CommandCall, Parameter, FuncDef, ClassDef]);
+        if (find === undefined) return undefined;
+        
+        const node = find.nodeResult
+        const scope = this.getCurrentScope(position, docinfo.table);
+        if (node instanceof Expr.Factor) {
+            const symbols = resolveFactor(node, position, scope);
+            return symbols ? convertSymbolsHover(symbols, token) : undefined;
+        }
+        else if (node instanceof Stmt.CommandCall) {
+            const cmd = resolveCommandCall(node);
+            if (!cmd) return undefined;
+            return {
+                contents: {
+                    kind: MarkupKind.Markdown,
+                    value: '```autohotkey\n'+cmd+'\n```'
+                },
+                range: token
+            };
+        }
+        else if (node instanceof Parameter) {
+            const symbol = scope.resolve(node.identifier.content);
+            return symbol ? convertSymbolsHover([symbol], token) : undefined;
+        }
+        else if (node instanceof FuncDef) {
+            // Block hint in body content
+            // FIXME: finder should not find result of function decleration
+            // if position is in body
+            const block = node.body;
+            if (posInRange(block, position)) return undefined;
+            // Should not happen
+            if (!(scope instanceof AHKMethodSymbol)) return undefined;
+
+            // If hover on function decleration, 
+            // current scope is the symbol of finding
+            const last = scope;
+            let symbols: AHKSymbol[] = [last];
+            // Find if function is belong to a class
+            const parent = last.parentScoop;
+            if (parent === undefined)
+                return convertSymbolsHover([last], token);
+
+            const prefix = resolveSubclass(parent);
+            return convertSymbolsHover(prefix.concat(last), token);
+        }
+        else if (node instanceof ClassDef) {
+            // Block hint in body content
+            const block = node.body;
+            if (posInRange(block, position)) return undefined;
+            // Should not happen
+            if (!(scope instanceof AHKObjectSymbol)) return undefined;
+
+            // If hover on class decleration, 
+            // current scope is the symbol of finding
+            return convertSymbolsHover(resolveSubclass(scope), token);
+        }
+    }
+
+    private getSymbolAtPosition(position: Position, ...matchNodeType: NodeConstructor[]): Maybe<ISymbol> {
+        let docinfo: DocInfo|undefined;
+        docinfo = this.docsAST.get(this.currentDocUri);
+        if (!docinfo) return undefined;
+
+        const AST = docinfo.AST.script.stmts;
+        const find = this.finder.find(AST, position, matchNodeType);
+        const lexems = find && find.nodeResult instanceof Expr.Factor? 
+                    this.getAllName(find.nodeResult, position).reverse() :
+                    this.getLexemsAtPosition(position);
+        if (!lexems) return undefined;
+
+        const symbol = this.searchNode(lexems, position);
+        if (!symbol) return undefined;
+        return symbol;
     }
 
     private getWordAtPosition(position: Position): Word {

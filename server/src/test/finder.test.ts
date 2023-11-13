@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { Position, SymbolKind } from 'vscode-languageserver-types';
-import { ScriptASTFinder } from '../services/scriptFinder';
+import { IFindResult, ScriptASTFinder } from '../services/scriptFinder';
 import { AHKParser } from '../parser/newtry/parser/parser';
 import { FuncDef } from '../parser/newtry/parser/models/declaration';
 import { Call, Identifier } from '../parser/newtry/parser/models/suffixterm';
@@ -88,13 +88,13 @@ suite('Script Finder Test', () => {
         let res = finder.find(docinfo.script.stmts, Position.create(45, 30), [Call]);
         assert.ok(res, 'Find Fail');
         assert.strictEqual(res.nodeResult instanceof Call, true, 'Not A Call');
-        if (res.outterFactor) {
-            const outter = res.outterFactor;
+        if (res.outterFactor && res.nodeResult instanceof Call) {
+            const outter = (<IFindResult<Call>>res).outterFactor;
             assert.strictEqual(outter instanceof Factor, true, 'Not A Factor');
-            if (res instanceof Factor) {
-                assert.strictEqual(outter.suffixTerm.atom instanceof Identifier, true, 'Not A Id');
-                if (outter.suffixTerm.atom instanceof Identifier)
-                    assert.strictEqual(outter.suffixTerm.atom.token.content, 'func2');
+            if (res instanceof Factor && outter !== undefined) {
+                assert.strictEqual(outter.nodeResult.suffixTerm.atom instanceof Identifier, true, 'Not A Id');
+                if (outter.nodeResult.suffixTerm.atom instanceof Identifier)
+                    assert.strictEqual(outter.nodeResult.suffixTerm.atom.token.content, 'func2');
                 assert.strictEqual(res.suffixTerm.brackets[0] instanceof Call, true, 'Not A Call');
             }
         }
@@ -108,12 +108,12 @@ suite('Script Finder Test', () => {
         assert.ok(res, 'Find Fail');
         assert.strictEqual(res.nodeResult instanceof Call, true, 'Not A Call');
         if (res.outterFactor) {
-            const outter = res.outterFactor;
-            if (res instanceof Factor) {
-                assert.strictEqual(outter.suffixTerm.atom instanceof Identifier, true, 'Not A Id');
-                if (outter.suffixTerm.atom instanceof Identifier)
-                    assert.strictEqual(outter.suffixTerm.atom.token.content, 'bb');
-                assert.strictEqual(outter.suffixTerm.brackets[0] instanceof Call, true, 'Not A Call');
+            const outter = (<IFindResult<Call>>res).outterFactor;
+            if (res instanceof Factor && outter !== undefined) {
+                assert.strictEqual(outter.nodeResult.suffixTerm.atom instanceof Identifier, true, 'Not A Id');
+                if (outter.nodeResult.suffixTerm.atom instanceof Identifier)
+                    assert.strictEqual(outter.nodeResult.suffixTerm.atom.token.content, 'bb');
+                assert.strictEqual(outter.nodeResult.suffixTerm.brackets[0] instanceof Call, true, 'Not A Call');
             }
         }
     })

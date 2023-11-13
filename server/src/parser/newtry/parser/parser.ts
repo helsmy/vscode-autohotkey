@@ -327,7 +327,8 @@ export class AHKParser {
     private isClassMemberDeclarationStart(): boolean {
         const t = this.currentToken.type;
         if (t >= TokenType.if && t <= TokenType.byref ||
-            t === TokenType.id || t === TokenType.drective) 
+            t === TokenType.id || t === TokenType.drective ||
+            t === TokenType.class) 
             return true;
         return false;
     }
@@ -428,6 +429,9 @@ export class AHKParser {
         const token = this.currentToken;
         if (token.type === TokenType.static)
             return this.varDecl();
+        // If class keyword is not used as name of property or method
+        if (token.type === TokenType.class && !(this.tokenizer.Peek() === '(')) 
+            return this.classDefine()
         if (isValidIdentifier(this.currentToken.type))
             return this.idLeadClassMember();
         if (token.type === TokenType.drective)

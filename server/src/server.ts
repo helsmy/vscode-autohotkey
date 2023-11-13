@@ -217,22 +217,32 @@ connection.onDefinition(
 
 connection.onHover(
 	async (params: HoverParams, token, CancellationToken): Promise<Maybe<Hover>> => {
-		const hoveringToken = DOCManager.selectDocument(params.textDocument.uri)
-							.getTokenAtPos(params.position);
-		if (!hoveringToken)
-			return {
-				contents: {
-					kind: 'markdown',
-					value: '**Test Hover**'
-				}
-			};
-		return {
-			contents: {
-				kind: 'markdown',
-				value: `\`${TokenType[hoveringToken.type]}\` **${hoveringToken.content}** [${hoveringToken.start.line}.${hoveringToken.start.character}-${hoveringToken.end.line}.${hoveringToken.end.character}]`
-			}
-		};
-		return undefined;
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		let { position } = params;
+
+		const hover = DOCManager.selectDocument(params.textDocument.uri).getHoverAtPosition(position);
+		return hover;
+
+		// For debug usage
+		// const hoveringToken = DOCManager.selectDocument(params.textDocument.uri)
+		// 					.getTokenAtPos(params.position);
+		// if (!hoveringToken)
+		// 	return {
+		// 		contents: {
+		// 			kind: 'markdown',
+		// 			value: '**Test Hover**'
+		// 		}
+		// 	};
+		// return {
+		// 	contents: {
+		// 		kind: 'markdown',
+		// 		value: `\`${TokenType[hoveringToken.type]}\` **${hoveringToken.content}** [${hoveringToken.start.line}.${hoveringToken.start.character}-${hoveringToken.end.line}.${hoveringToken.end.character}]`
+		// 	},
+		// 	range: hoveringToken
+		// };
 });
 
 // connection.languages.inlayHint.on(

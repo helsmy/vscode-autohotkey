@@ -1,5 +1,5 @@
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver-types';
-import { buildbuiltin_variable } from '../../../../utilities/constants';
+import { buildBuiltinFunctionNode, buildbuiltin_variable } from '../../../../utilities/constants';
 import { IScope, ISymbol, VarKind } from '../types';
 import {
 	BuiltinTypeSymbol, 
@@ -10,8 +10,11 @@ import {
 	HotkeySymbol, 
 	HotStringSymbol,
 	BuiltinVaribelSymbol,
-	LabelSymbol
+	LabelSymbol,
+	AHKBuiltinMethodSymbol,
+	ParameterSymbol
 } from './symbol';
+import { Position, Range } from 'vscode-languageserver';
 
 type SymbolMap = Map<string, AHKSymbol>;
 
@@ -149,15 +152,41 @@ export class SymbolTable implements IScope {
 	}
 }
 
-const BuildinScope: Map<string, AHKSymbol> = new Map(buildbuiltin_variable().map(
-	v => [
-		v.label.toLowerCase(),
-		new BuiltinVaribelSymbol(
-			v.label,
-			VarKind.variable,
-			undefined
-		)
-	]
-));
-
-
+const BuildinScope = (function (): Map<string, AHKSymbol> {
+	const fakeRange: Range = {
+		start: Position.create(-1, -1),
+		end:   Position.create(-1, -1)
+	}
+	
+	// add built-in function
+	let b: Map<string, AHKSymbol> = new Map(buildBuiltinFunctionNode().map(f => {
+		const reqParam = f.params.filter(p => !(p.isOptional));
+		const optParam = f.params.filter(p => !!(p.isOptional));
+	
+		return [f.name.toLowerCase(), 
+			new AHKBuiltinMethodSymbol(
+				f.name, 
+				reqParam.map(p => new ParameterSymbol(
+					'__Builtin__', p.name, fakeRange, VarKind.parameter, false, false
+				)),
+				optParam.map(p => new ParameterSymbol(
+					'__Builtin__', p.name, fakeRange, VarKind.parameter, false, false
+				)),
+		)];
+	}));
+	// add built-in variable
+	const v = buildbuiltin_variable().map(
+		(v): [string, AHKSymbol] => [
+			v.label.toLowerCase(),
+			new BuiltinVaribelSymbol(
+				v.label,
+				VarKind.variable,
+				undefined
+			)
+		]
+	);
+	for (const [name, sym] of v)
+		b.set(name, sym);
+	
+	return b;
+})() 

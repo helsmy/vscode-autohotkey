@@ -1,7 +1,7 @@
 import { IScope, ISymbol, ISymType, VarKind } from '../types';
 import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver/node';
 
-type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
+export type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
 
 export abstract class AHKSymbol implements ISymbol {
 	public readonly name: string;
@@ -214,8 +214,8 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScope {
 export class AHKBuiltinMethodSymbol extends ScopedSymbol {
 	constructor(
 		name: string,
-		public readonly requiredParameters: VaribaleSymbol[],
-		public readonly optionalParameters: VaribaleSymbol[],
+		public readonly requiredParameters: ParameterSymbol[],
+		public readonly optionalParameters: ParameterSymbol[],
 		enclosingScoop?: IScope
 	) {
 		super('__Builtin__', name, enclosingScoop);
@@ -225,6 +225,12 @@ export class AHKBuiltinMethodSymbol extends ScopedSymbol {
 	private initParameters() {
 		this.requiredParameters.forEach(v => this.define(v));
 		this.optionalParameters.forEach(v => this.define(v));
+	}
+
+	public toString(): string {
+		const reqParaStr = this.requiredParameters.map(param => `${param.isByref ? 'byref ' : ''}${param.name}`);
+		const optParaStr = this.optionalParameters.map(param => `${param.isByref ? 'byref ' : ''}${param.name}${param.isSpread? '*': '?'}`);
+		return `${this.name}(${reqParaStr.concat(optParaStr).join(', ')})`
 	}
 }
 

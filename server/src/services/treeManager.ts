@@ -55,7 +55,7 @@ import { AHKParser } from '../parser/newtry/parser/parser';
 import { PreProcesser } from '../parser/newtry/analyzer/semantic';
 import { IParseError, Token } from '../parser/newtry/types';
 import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
-import { AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
+import { AHKBuiltinMethodSymbol, AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
 import { DocInfo, IASTProvider } from './types';
 import { IFindResult, ScriptASTFinder, binarySearchIndex } from './scriptFinder';
 import { BracketIndex, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../parser/newtry/parser/models/suffixterm';
@@ -852,8 +852,11 @@ export class TreeManager implements IASTProvider
     }
 
     public getSignatureHelp(position: Position): Maybe<SignatureHelp> {
-        let nameList: string[];
-        const found = this.findFuncAtPos(position);
+        const docinfo = this.docsAST.get(this.currentDocUri);
+        if (!docinfo) return undefined;
+        const token = this.getTokenAtPos(position);
+        if (!token) return undefined;
+        const found = this.finder.find(docinfo.AST.script.stmts, position, [Call, Stmt.CommandCall])
 
         // If finder did not find anything, failback to old way.
         if (found === undefined) {
@@ -873,45 +876,35 @@ export class TreeManager implements IASTProvider
             position.character >= found.nodeResult.end.character) return undefined;
         // Wrong result, should not happen
         if (found.outterFactor === undefined || !(found.nodeResult instanceof Call)) return undefined;
-        
-        nameList = this.getAllName(found.outterFactor.nodeResult, position);
+        const scope = this.getCurrentScope(position, docinfo.table);
+        const relativeSymbol = resolveFactor(found.outterFactor.nodeResult, position, scope);
 
-        let find = this.searchNode(nameList.reverse(), position);
+        if (!relativeSymbol) return undefined;
+        
+        const func = relativeSymbol[relativeSymbol.length - 1];
+        // Wrong result, should not happen
+        if (!(func instanceof AHKMethodSymbol) && !(func instanceof AHKBuiltinMethodSymbol)) 
+            return undefined;
+        
         let index = this.findActiveParam(found.nodeResult, position);
-        const funcName = nameList[0];
-        // if no find, search build-in
-        if (!find) {
-            if (funcName === undefined) return undefined;
-            const bfind = arrayFilter(this.builtinFunction, item => item.name.toLowerCase() === funcName.toLowerCase());
-            const info = convertBuiltin2Signature(bfind);
-            if (info) {
-                return {
-                    signatures: info,
-                    activeParameter: index,
-                    activeSignature: this.findActiveSignature(bfind, index || 0)
-                }
-            }
-        }
-        if (find instanceof AHKMethodSymbol) {
-            const reqParam: ParameterInformation[] = find.requiredParameters.map(param => ({
-                label: `${param.isByref ? 'byref ' : ''}${param.name}`
-            }));
-            const optParam: ParameterInformation[] = find.optionalParameters.map((param, i) => {
-                // fix active parameter on spread parameter
-                index = param.isSpread ? reqParam.length+i : index;
-                return {label: `${param.isByref ? 'byref ' : ''}${param.name}${param.isSpread? '*': '?'}`};
-            });
-            return {
-                signatures: [SignatureInformation.create(
-                    find.toString(),
-                    undefined,
-                    ...reqParam,
-                    ...optParam
-                )],
-                activeSignature: 0,
-                activeParameter: index
-            };
-        }
+        const reqParam: ParameterInformation[] = func.requiredParameters.map(param => ({
+            label: `${param.isByref ? 'byref ' : ''}${param.name}`
+        }));
+        const optParam: ParameterInformation[] = func.optionalParameters.map((param, i) => {
+            // fix active parameter on spread parameter
+            index = param.isSpread ? reqParam.length+i : index;
+            return {label: `${param.isByref ? 'byref ' : ''}${param.name}${param.isSpread? '*': '?'}`};
+        });
+        return {
+            signatures: [SignatureInformation.create(
+                func.toString(),
+                undefined,
+                ...reqParam,
+                ...optParam
+            )],
+            activeSignature: 0,
+            activeParameter: index
+        };
     }
 
     private getSignatureHelpOld(position: Position): Maybe<SignatureHelp> {
@@ -1073,14 +1066,6 @@ export class TreeManager implements IASTProvider
         }
         const active = binarySearchIndex(actualParams, pos);
         return active ?? undefined;
-    }
-
-    private findFuncAtPos(pos: Position): Maybe<IFindResult<NodeBase>> {
-        const docinfo = this.docsAST.get(this.currentDocUri);
-        if (!docinfo) return undefined;
-        const token = this.getTokenAtPos(pos);
-        if (!token) return undefined;
-        return this.finder.find(docinfo.AST.script.stmts, pos, [Call, Stmt.CommandCall])
     }
 
     private findFuncAtPosOld(position: Position): Maybe<INodeResult<IASTNode>> {
@@ -1253,9 +1238,15 @@ export class TreeManager implements IASTProvider
 
         const AST = docinfo.AST.script.stmts;
         const find = this.finder.find(AST, position, matchNodeType);
-        const lexems = find && find.nodeResult instanceof Expr.Factor? 
-                    this.getAllName(find.nodeResult, position).reverse() :
-                    this.getLexemsAtPosition(position);
+        if (find && find.nodeResult instanceof Expr.Factor) {
+            const scope = this.getCurrentScope(position, docinfo.table);
+            const symbol = resolveFactor(find.nodeResult, position, scope);
+            // last symbol is the symbol on the position
+            return symbol ? symbol[symbol.length - 1] : undefined;
+        }
+        
+        // Fail back to old way
+        const lexems = this.getLexemsAtPosition(position);
         if (!lexems) return undefined;
 
         const symbol = this.searchNode(lexems, position);

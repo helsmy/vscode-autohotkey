@@ -45,7 +45,6 @@ import {
 } from './parser/newtry/config/serverConfiguration';
 import { ConfigurationService } from './services/configurationService';
 import { IClientCapabilities } from './types';
-import { TokenType } from './parser/newtry/tokenizor/tokenTypes';
 
 
 // Create a connection for the server, using Node's IPC as a transport.

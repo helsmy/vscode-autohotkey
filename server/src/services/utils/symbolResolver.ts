@@ -1,10 +1,10 @@
-import { Hover, Position, Range } from 'vscode-languageserver';
+import { Position } from 'vscode-languageserver';
 import { Factor } from '../../parser/newtry/parser/models/expr';
-import { Call, Identifier, SuffixTerm } from '../../parser/newtry/parser/models/suffixterm';
-import { AHKBuiltinMethodSymbol, AHKObjectSymbol, AHKSymbol, ParameterSymbol, VaribaleSymbol } from '../../parser/newtry/analyzer/models/symbol';
+import { Identifier } from '../../parser/newtry/parser/models/suffixterm';
+import {AHKObjectSymbol, AHKSymbol, VaribaleSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { posInRange } from '../../utilities/positionUtils';
 import { IScope, ISymbol, VarKind } from '../../parser/newtry/analyzer/types';
-import { builtin_command, builtin_function } from '../../utilities/builtins';
+import { builtin_command } from '../../utilities/builtins';
 import { CommandCall } from '../../parser/newtry/parser/models/stmt';
 
 export function resolveFactor(factor: Factor, postion: Position, table: IScope): Maybe<AHKSymbol[]> {
@@ -64,6 +64,10 @@ export function resolveFactor(factor: Factor, postion: Position, table: IScope):
         const scope = resolveRelative(suffix.atom.token.content, currentScope);
         if (!(scope instanceof AHKObjectSymbol)) return undefined;
         currentScope = scope;
+        // 如果当前的符号是另一个class的实例，那么之前的class信息就没用了
+        // 符号之后的属性等只和另一个class有关
+        if (scope.name.toLowerCase() !== symbol.name.toLowerCase())
+            symbols = [];
         symbols.push(scope);
     }
     return undefined;

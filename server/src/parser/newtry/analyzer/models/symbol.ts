@@ -219,10 +219,6 @@ export class AHKBuiltinMethodSymbol extends ScopedSymbol {
 		enclosingScoop?: IScope
 	) {
 		super('__Builtin__', name, enclosingScoop);
-		this.initParameters();
-	}
-
-	private initParameters() {
 		this.requiredParameters.forEach(v => this.define(v));
 		this.optionalParameters.forEach(v => this.define(v));
 	}
@@ -271,10 +267,6 @@ export class AHKMethodSymbol extends ScopedSymbol {
 		public readonly parentScoop?: AHKObjectSymbol
 	) {
 		super(uri, name, enclosingScoop);
-		this.initParameters();
-	}
-
-	private initParameters() {
 		this.requiredParameters.forEach(v => this.define(v));
 		this.optionalParameters.forEach(v => this.define(v));
 	}

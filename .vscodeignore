@@ -10,7 +10,8 @@
 contributing.md
 .travis.yml
 client/testFixture
-client/node_modules/*
+client/out/test
+client/node_modules/**
 !client/node_modules/vscode-jsonrpc
 !client/node_modules/vscode-languageclient
 !client/node_modules/vscode-languageserver-protocol

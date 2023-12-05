@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.9.5
+1. fix bugs.
+2. basic support of Hover feature.
+
 ## 0.9.4
 1. fix about brackets
 2. correctly parse spread parameter

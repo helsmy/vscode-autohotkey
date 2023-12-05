@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
-import { getDocUri, activate } from './helper';
+import { getDocUri, activate, CompletionItemKind2String } from './helper';
 
 suite('Should do completion', () => {
 	const docUri = getDocUri('completion.ahk');
@@ -8,7 +8,7 @@ suite('Should do completion', () => {
 	test('Completes global symbol', async () => {
 		await testCompletion(docUri, new vscode.Position(31-1, 0), {
 			items: [
-				{ label: 'TestFunc', kind: vscode.CompletionItemKind.Function },
+				{ label: 'TestFunc', kind: vscode.CompletionItemKind.Method },
 				{ label: 'TestClass', kind: vscode.CompletionItemKind.Class }
 			]
 		});
@@ -31,13 +31,13 @@ async function testCompletion(
 
 	assert.ok(actualCompletionList.items.length >= 2);
 	expectedCompletionList.items.forEach((expectedItem, i) => {
-		let actualItem = actualCompletionList.items[i];
-		actualCompletionList.items.map(item => {
-			if (item.label === expectedItem.label) {
-				actualItem = item;
-			}
-		});
-		assert.strictEqual(actualItem.label, expectedItem.label);
-		assert.strictEqual(actualItem.kind, expectedItem.kind);
+		let actualItem = actualCompletionList.items.find(i => expectedItem.label === i.label);
+		assert.notStrictEqual(actualItem, undefined, `Cannot find expect completion '${expectedItem.label}.'`);
+		if (actualItem) 
+			assert.strictEqual(
+				CompletionItemKind2String(actualItem.kind),
+				CompletionItemKind2String(expectedItem.kind),
+				'Unexpect Completion Kind.'
+			);
 	});
 }

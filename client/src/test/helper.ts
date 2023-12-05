@@ -45,3 +45,7 @@ export async function setTestContent(content: string): Promise<boolean> {
 	);
 	return editor.edit(eb => eb.replace(all, content));
 }
+
+export const CompletionItemKind2String = (kind: vscode.CompletionItemKind | undefined) => {
+	return kind ? vscode.CompletionItemKind[kind] : undefined;
+}

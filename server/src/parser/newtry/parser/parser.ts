@@ -17,6 +17,7 @@ import { NodeBase } from './models/nodeBase';
 import { ParseContext } from './models/parseContext';
 import { URI } from 'vscode-uri';
 import { join } from 'path';
+import { idFactor } from './utils/nodeBuilder';
 
 type IsStartFn = (t: Token) => boolean;
 type ParseFn<T> = () => T; 
@@ -795,10 +796,10 @@ export class AHKParser {
 
     private forStmt(): Stmt.ForStmt {
         const forToken = this.eat();
-        const id1 = this.eatId();
+        const id1 = idFactor(this.eatId());
         if (this.currentToken.type === TokenType.comma) {
             const comma = this.eat();
-            const id2 = this.eatId();
+            const id2 = idFactor(this.eatId());
             const inToken = this.eatType(TokenType.in);
             const iterable = this.expression();
             const body = this.declaration();

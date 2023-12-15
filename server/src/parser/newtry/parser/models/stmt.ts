@@ -661,20 +661,18 @@ export class ForStmt extends Stmt {
 		public readonly inToken: Token,
 		public readonly iterable: Expr.Expr,
 		public readonly body: IStmt,
-		public readonly iter1id: Token,
+		public readonly iter1id: Expr.Factor,
 		public readonly comma?: Token,
-		public readonly iter2id?: Token
+		public readonly iter2id?: Expr.Factor
 	) {
 		super();
 	}
 
 	public toLines(): string[] {
-		const iterLine = this.comma && this.iter2id ?
-		 				`${this.iter1id.content} ${this.comma} ${this.iter2id}` :
-						 this.iter1id.content;
+		const iterLine = this.iter1id.toLines();
 		const bodyLines = this.body.toLines();
 
-		return joinLines(' ', [iterLine], bodyLines);
+		return joinLines(' ', iterLine, bodyLines);
 	}
 
 	public get start(): Position {

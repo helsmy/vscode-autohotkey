@@ -261,6 +261,16 @@ export class Factor extends Expr {
         return [this.suffixTerm];
     }
 
+    /**
+     * How many suffix term this factor has.
+     * Including the first term
+     */
+    public get termCount(): number {
+        if (this.trailer)
+            return 1 + this.trailer.suffixTerm.length;
+        return 1;
+    }
+
     public toLines(): string[] {
         const suffixTermLines = this.suffixTerm.toLines();
 

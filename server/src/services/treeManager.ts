@@ -1182,6 +1182,29 @@ export class TreeManager implements IASTProvider
             const symbols = resolveFactor(node, position, scope);
             return symbols ? convertSymbolsHover(symbols, token) : undefined;
         }
+        // 只有为new表达式时才为 unary
+        else if (node instanceof Expr.Unary) {
+            // 不对复杂的表达式作处理，只考虑直接接 factor 的情况
+            if (!(node.factor instanceof Expr.Factor)) return;
+
+            const symbol = resolveFactor(node.factor, position, docinfo.table);
+            if (!symbol) return undefined;
+            // 当hover的位置不在最后一个term时，
+            // 就是在请求类构造器前面的upper class
+            // 应该直接返回查找到的symbol
+            if (symbol.length < node.factor.termCount)
+                return convertSymbolsHover(symbol, token);
+
+            const last = symbol[symbol.length-1]
+            // 查找类构造器
+            if (last instanceof AHKObjectSymbol) {
+                const constructor = last.resolve('__new');
+                if (constructor instanceof AHKMethodSymbol) 
+                    return convertSymbolsHover(
+                        symbol.concat(constructor), token
+                    );
+            }
+        }
         else if (node instanceof Stmt.CommandCall) {
             const cmd = resolveCommandCall(node);
             if (!cmd) return undefined;
@@ -1199,8 +1222,6 @@ export class TreeManager implements IASTProvider
         }
         else if (node instanceof FuncDef) {
             // Block hint in body content
-            // FIXME: finder should not find result of function decleration
-            // if position is in body
             const block = node.body;
             if (posInRange(block, position)) return undefined;
             // Should not happen

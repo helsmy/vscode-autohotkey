@@ -1,9 +1,12 @@
-import { CompletionItem, CompletionItemKind, Hover, MarkupKind, ParameterInformation, Range, SignatureInformation } from 'vscode-languageserver';
+import { CompletionItem, CompletionItemKind, Hover, MarkupContent, MarkupKind, ParameterInformation, Range, SignatureInformation } from 'vscode-languageserver';
 import { AHKBuiltinMethodSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotStringSymbol, HotkeySymbol, VaribaleSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { ISymbol, VarKind } from '../../parser/newtry/analyzer/types';
 import { BuiltinFuncNode } from '../../utilities/constants';
 import { Parameter } from '../../parser/newtry/parser/models/declaration';
 
+type MarkdownHover = Omit<Hover, 'contents'> & {
+    contents: MarkupContent
+}
 
 /**
 * Returns a string in the form of the function node's definition
@@ -72,7 +75,7 @@ export function convertSymbolCompletion(sym: ISymbol): CompletionItem {
  * @param symbols AHK Symbols information
  * @param range range of current hovered tokenS
  */
-export function convertSymbolsHover(symbols: ISymbol[], range: Range): Hover {
+export function convertSymbolsHover(symbols: ISymbol[], range: Range): MarkdownHover {
     const last = symbols[symbols.length - 1];
     const prefix = hoverPrefixType(last);
 

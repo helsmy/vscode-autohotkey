@@ -6,8 +6,8 @@ import * as Decl from '../parser/models/declaration';
 import * as Expr from '../parser/models/expr';
 import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
-import { IExpr, IScript, MissingToken, SkipedToken, Token } from '../types';
-import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol as AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VaribaleSymbol } from './models/symbol';
+import { Atom, IScript, MissingToken, SkipedToken, Token } from '../types';
+import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VaribaleSymbol } from './models/symbol';
 import { IScope, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
@@ -601,29 +601,39 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitFor(stmt: Stmt.ForStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		// check if iter varible is defined, if not define them
-		if (!this.currentScoop.resolve(stmt.iter1id.content)) {
-			const sym = new VaribaleSymbol(
-				this.script.uri,
-				stmt.iter1id.content,
-				copyRange(stmt.iter1id),
-				VarKind.variable,
-				undefined
-			)
-			this.currentScoop.define(sym);
-		}
-		if (stmt.iter2id && 
-			!this.currentScoop.resolve(stmt.iter2id.content)) {
-			const sym = new VaribaleSymbol(
-				this.script.uri,
-				stmt.iter2id.content,
-				copyRange(stmt.iter2id),
-				VarKind.variable,
-				undefined
-			)
-			this.currentScoop.define(sym);
-		}
+		const id1 = stmt.iter1id.suffixTerm.atom;
+		const id2 = stmt.iter2id?.suffixTerm.atom;
+		errors.push(...this.visitIterId(id1, stmt));
+		if (id2) 
+			errors.push(...this.visitIterId(id2, stmt));
+
 		return errors.concat(stmt.body.accept(this, []));
+	}
+
+	private visitIterId(id1: Atom, stmt: Stmt.ForStmt): Diagnostics {
+		const errors: Diagnostics = [];
+		if (id1 instanceof SuffixTerm.Invalid) {
+			errors.push(this.error(
+				copyRange(id1),
+				'Expect an Identifier in for iter'
+			));
+		}
+		else {
+			// parser 已经确保 id1 一定为标识符
+			const id = id1 as SuffixTerm.Identifier;
+			// check if iter varible is defined, if not define them
+			if (!this.currentScoop.resolve(id.token.content)) {
+				const sym = new VaribaleSymbol(
+					this.script.uri,
+					id.token.content,
+					copyRange(stmt.iter1id),
+					VarKind.variable,
+					undefined
+				);
+				this.currentScoop.define(sym);
+			}
+		}
+		return errors;
 	}
 
 	public visitTry(stmt: Stmt.TryStmt): Diagnostics {

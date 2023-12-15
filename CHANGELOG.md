@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.9.6
+1. fix hover dosen't show on iter identifer of for statements.
+2. fix hover dosen't show on items of array and associative array.
+3. hover will show `__new()` meta function on new expression.
+
 ## 0.9.5
 1. fix bugs.
 2. basic support of Hover feature.

@@ -13,8 +13,9 @@ AutoHotKey language support for VS Code
 
 ## What's New
 
-1. Debugger runtime executable path overlap. For detail, see [Feature](#feature)
-2. Build-in Variable and Function(partly) hint.
+1. Support onHover
+2. Debugger runtime executable path overlap. For detail, see [Feature](#feature)
+3. Build-in Variable and Function(partly) hint.
    - Need documentions which is easy to be parsed by js/ts. If you find any, help please([Example](others/Contribute.md)).
 
 ## Notice
@@ -56,6 +57,7 @@ For vim user, how to use this extension in vim.
 * Document symbol(class, method, variable, label, hotkey) 
 * Goto Definition(only works for "code", file name is not supported for now)
 * Signature Helper (tooltip for method parameters)
+* Hover
 * Enumerate include documents
   * The documents must be explicitly included by `#include`
 * Folding region commnet

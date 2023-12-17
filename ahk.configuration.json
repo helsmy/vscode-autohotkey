@@ -1,8 +1,8 @@
 {
 	"comments": {
-		// symbol used for single line comment. Remove this entry if your language does not support line comments
+		// symbol used for single line comment.
 		"lineComment": ";",
-		// symbols used for start and end a block comment. Remove this entry if your language does not support block comments
+		// symbols used for start and end a block comment. 
 		"blockComment": [ "/*", "*/" ]
 	},
 	"capabilities" : {
@@ -46,5 +46,25 @@
     "indentationRules": {
         "increaseIndentPattern": "^((?!\\/\\/).)*(\\{[^}\"'`]*|\\([^)\"'`]*|\\[[^\\]\"'`]*)$",
         "decreaseIndentPattern": "^((?!.*?\\/\\*).*\\*/)?\\s*[\\)\\}\\]].*$"
-    }
+    },
+    "onEnterRules": [
+        // Auto fill leading `*` in doc comment.
+        {
+            "beforeText": "^\\s* +\\*.*",
+            "previousLineText": "^((\\s*\\/\\*\\*)|( +\\*)).*",
+            "action": { 
+                "indent": "none", 
+                "appendText": "* "
+            }
+        },
+        // Auto expend `/** */` doc comment
+        {
+            "beforeText": "\\s*\\/\\*\\*",
+            "afterText": "\\s*\\*\\/\\s*$",
+            "action": { 
+                "indent": "indentOutdent", 
+                "appendText": " * "
+            }
+        }
+    ]
 }

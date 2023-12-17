@@ -332,7 +332,9 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
                 deepMatch = this.searchExpression(expr.factor, pos, matchNodeType);
             if (deepMatch) {
                 // 如果是 new 表达式，那么返回整个 new 表达式，以便之后分析时能知道是new class()的形式
-                if (expr.operator.type === TokenType.new) 
+                if (expr.operator.type === TokenType.new &&
+                    // deepMatch.nodeResult should not be in the sub-expression of expr 
+                    deepMatch.nodeResult === expr.factor) 
                     return createResult(expr);
                 return deepMatch;
             }

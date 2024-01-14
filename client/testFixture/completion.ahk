@@ -29,10 +29,14 @@ class TestClass
 }
 
 
-TestClass.Ne
+TestClass.
 
 ScopedFunc(param) 
 {
-	localVar := 1
+	localVar := param + 1
 	
 }
+
+TestClass.__New()
+aTest := new TestClass()
+aTest.__New()

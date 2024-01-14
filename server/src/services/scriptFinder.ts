@@ -384,6 +384,15 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
             if (match) {
                 return this.searchSuffixTerm(factor, match, pos, matchNodeType);
             } 
+            // Temporary fixes on DelimitedList parsering
+            // 因为解析的时候会停止在 suffix 不能被继续解析的 delimiter 前
+            // check if `pos` is in the range of last delimiter
+            const termsList = factor.trailer.suffixTerm.childern;
+            // 如果 termList 的最后一项是 undefined 那么说明 termList 是个空列表
+            // 此时 最后一个 delimiter 是第一个 dot
+            const lastDelimiter = termsList[termsList.length - 1] ?? factor.trailer.dot;
+            if (lastDelimiter instanceof Token && posInRange(lastDelimiter, pos)) 
+                return matchNodeTypes(factor, matchNodeType) ? createResult(factor) : undefined;
         }
         return undefined;
 

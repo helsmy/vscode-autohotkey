@@ -177,10 +177,10 @@ export class TrailerExprList extends Stmt {
 		throw new Error('Method not implemented.');
 	}
 	public get start(): Position {
-		throw new Error('Method not implemented.');
+		return this.delimiter.start;
 	}
 	public get end(): Position {
-		throw new Error('Method not implemented.');
+		return this.exprList.length !== 0 ? this.exprList.end : this.delimiter.end ;
 	}
 	public accept<T extends (...args: any) => any>(
 		visitor: IStmtVisitor<T>,

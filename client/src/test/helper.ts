@@ -1,6 +1,6 @@
 /* --------------------------------------------------------------------------------------------
- * Copyright (c) Microsoft Corporation. All rights reserved.
- * Licensed under the MIT License. See License.txt in the project root for license information.
+ * Modifed from Microsoft lsp-simple, MIT Lisence
+ * Test utility functions
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
@@ -12,7 +12,7 @@ export let documentEol: string;
 export let platformEol: string;
 
 /**
- * Activates the vscode.lsp-sample extension
+ * Activates the autohotkey simple support extension
  */
 export async function activate(docUri: vscode.Uri) {
 	// The extensionId is `publisher.name` from package.json
@@ -47,5 +47,18 @@ export async function setTestContent(content: string): Promise<boolean> {
 }
 
 export const CompletionItemKind2String = (kind: vscode.CompletionItemKind | undefined) => {
-	return kind ? vscode.CompletionItemKind[kind] : undefined;
+	return kind !== undefined ? vscode.CompletionItemKind[kind] : undefined;
 }
+
+/**
+ * Gen a 0 based position from 1 based line and character
+ * @param line 1 based line
+ * @param character 1 based character
+ * @returns 0 based Position
+ */
+export const To0BasedPostion = (line: number, character: number): vscode.Position => 
+	new vscode.Position(line-1, character-1);
+
+export const AHKMarkdownString = (value: string) => new vscode.MarkdownString(
+	'```autohotkey\n'+value+'\n```'
+);

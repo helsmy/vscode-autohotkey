@@ -13,6 +13,23 @@ suite('Should do completion', () => {
 			]
 		});
 	});
+
+	test('Completes scoped symbol',async () => {
+		await testCompletion(docUri, new vscode.Position(37-1, 0), {
+			items: [
+				{ label: 'localVar', kind: vscode.CompletionItemKind.Variable },
+				{ label: 'param', kind: vscode.CompletionItemKind.Variable }
+			]
+		});
+	});
+
+	test('Completes suffix symbol',async () => {
+		await testCompletion(docUri, new vscode.Position(32-1, 10), {
+			items: [
+				{ label: 'NestedFunc', kind: vscode.CompletionItemKind.Method }
+			]
+		});
+	});
 });
 
 async function testCompletion(
@@ -29,15 +46,20 @@ async function testCompletion(
 		position
 	)) as vscode.CompletionList;
 
-	assert.ok(actualCompletionList.items.length >= 2);
+	const actualItems = actualCompletionList.items.filter(i => i.kind !== vscode.CompletionItemKind.Snippet);
+	assert.ok(actualItems.length >= expectedCompletionList.items.length);
 	expectedCompletionList.items.forEach((expectedItem, i) => {
-		let actualItem = actualCompletionList.items.find(i => expectedItem.label === i.label);
+		let actualItem = actualItems.find(i => expectedItem.label === i.label);
 		assert.notStrictEqual(actualItem, undefined, `Cannot find expect completion '${expectedItem.label}.'`);
 		if (actualItem) 
 			assert.strictEqual(
-				CompletionItemKind2String(actualItem.kind),
-				CompletionItemKind2String(expectedItem.kind),
-				'Unexpect Completion Kind.'
+				actualItem.kind,
+				expectedItem.kind,
+				[
+					'Unexpect Completion Kind.',
+					`Expect: ${CompletionItemKind2String(expectedItem.kind)}`,
+					`Actual: ${CompletionItemKind2String(actualItem.kind)}`
+				].join('\n')
 			);
 	});
 }

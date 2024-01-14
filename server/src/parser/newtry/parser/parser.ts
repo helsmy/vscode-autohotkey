@@ -159,6 +159,8 @@ export class AHKParser {
                 list.addElement(parseElementFn());
             }
             else if (!allowEmptyElement) {
+                // TODO: Maybe that add a MissingToken is better then 
+                // that just break here
                 break;
             }
             const delimiterToken = this.eatOptional(delimiter);

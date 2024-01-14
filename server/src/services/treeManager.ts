@@ -46,7 +46,8 @@ import {
     dirname,
     extname,
     normalize,
-    isAbsolute
+    isAbsolute,
+    join
 } from 'path';
 import { homedir } from "os";
 import { IoEntity, IoKind, IoService } from './ioService';
@@ -438,7 +439,7 @@ export class TreeManager implements IASTProvider
         switch (extname(normalized)) {
             case '.ahk':
                 if (!isAbsolute(normalized)) // if dir start as ../ or .
-                    return normalize(scriptDir + '\\' + normalized);
+                    return join(scriptDir, normalized);
                 else    // absolute path
                     return normalized;
             // lib include <lib name>
@@ -1198,7 +1199,7 @@ export class TreeManager implements IASTProvider
             const last = symbol[symbol.length-1]
             // 查找类构造器
             if (last instanceof AHKObjectSymbol) {
-                const constructor = last.resolve('__new');
+                const constructor = last.resolveProp('__new');
                 if (constructor instanceof AHKMethodSymbol) 
                     return convertSymbolsHover(
                         symbol.concat(constructor), token

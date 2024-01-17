@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.9.7
+
+1. fix completions dose not show at object property and method
+2. fix hover error on new expression
+3. fix include file can not find on unix like path
+4. `jsdoc` like document comment autofill
+
 ## 0.9.6
 1. fix hover dosen't show on iter identifer of for statements.
 2. fix hover dosen't show on items of array and associative array.

@@ -159,6 +159,8 @@ export const builtin_variable = [
     ["A_LoopRegTimeModified", "此变量仅在注册表循环Loop, Reg中有效. 当前子键或其中任何一个值的上次修改时间. 格式为 YYYYMMDDHH24MISS. 当前获取项不是子键(即 A_LoopRegType 不是单词 KEY) 时,此变量将为空."],
     ["A_LoopReadLine", "请参阅文件读取循环loop, files. 当前获取的文件或文件夹的名称(不含路径)."],
     ["A_LoopField", "请参阅解析循环Loop, Parse. 它包含了 InputVar 中当前子字符串(片段) 的内容. 如果一个内层解析循环包含在一个外层解析循环中, 则最内层循环的片段将具有优先权."],
+    ["A_InitialWorkingDir", "脚本的初始工作目录, 这是由启动方式决定的. 例如, 如果它是通过快捷方式运行的 -- 比如在开始菜单上 -- 它的初始工作目录由快捷方式属性中的 \"起始位置\" 字段决定."],
+    ["A_Clipboard", "Clipboard 的别名."],
     ["true", "布尔值 true, 内置变量值为 1"],
     ["false", "布尔值 false, 内置变量值为 0"]
 ]
@@ -412,6 +414,15 @@ export const builtin_function: BuiltinFuncNode[] = [
         "params": [
             {
                 "name": "LabelName",
+                "isOptional": false
+            }
+        ]
+    },
+    {
+        "name": "IsSet",
+        "params": [
+            {
+                "name": "Var",
                 "isOptional": false
             }
         ]

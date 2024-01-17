@@ -3,7 +3,7 @@ import {
     DidChangeConfigurationParams, 
     Connection 
 } from 'vscode-languageserver/node';
-import { AHKLSSettings, ServerConfiguration } from '../parser/newtry/config/serverConfiguration';
+import { AHKLSSettings, ServerConfiguration } from './config/serverConfiguration';
 import { ServerName } from '../utilities/constants';
 
 type ConfigurationConnection = Pick<Connection, 'onDidChangeConfiguration'>;

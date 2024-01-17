@@ -31,6 +31,7 @@ import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
 import {
+	defaultSettings,
 	// serverName,
 	ServerName
 } from './utilities/constants'
@@ -42,7 +43,7 @@ import {
 	AHKLSSettings, 
 	docLangName,
 	ServerConfiguration
-} from './parser/newtry/config/serverConfiguration';
+} from './services/config/serverConfiguration';
 import { ConfigurationService } from './services/configurationService';
 import { IClientCapabilities } from './types';
 
@@ -57,19 +58,6 @@ const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 let hasConfigurationCapability: boolean = false;
 let hasWorkspaceFolderCapability: boolean = false;
 let hasDiagnosticRelatedInformationCapability: boolean = false;
-
-const defaultSettings = new ServerConfiguration(
-	1000,
-	docLangName.NO,
-	false,
-	{
-		level: 'info'
-	},
-	{
-		hasConfiguration : hasConfigurationCapability, 
-		hasWorkspaceFolder: hasWorkspaceFolderCapability
-	}
-)
 
 // The global settings, used when the `workspace/configuration` request is not supported by the client.
 // Please note that this is not the case when using this server with the client provided in this example
@@ -322,15 +310,14 @@ connection.onCompletionResolve(
 				// provide the document of it
 				if (item.detail === 'Built-in Variable') {
 					// TODO: configuration for each document.
-					let uri = documents.all()[0].uri;
-					let cfg = await documentSettings.get(uri);
-					if (cfg?.documentLanguage === docLangName.CN)
-					// item.data contains the infomation index(in builtin_variable)
-					// of variable
-					item.documentation = {
-						kind: 'markdown',
-						value: builtin_variable[item.data][1]
-					};
+					const docLang = configurationService.getConfig('documentLanguage');
+					if (docLang === docLangName.CN)
+						// item.data contains the infomation index(in builtin_variable)
+						// of variable
+						item.documentation = {
+							kind: 'markdown',
+							value: builtin_variable[item.data][1]
+						};
 				}
 			default:
 				break;

@@ -6,8 +6,22 @@ import {
     builtin_function,
 	builtin_command
 } from "./builtins";
+import { ServerConfiguration, docLangName } from '../services/config/serverConfiguration';
 
 export const ServerName = 'ahk-simple-language-server';
+
+export const defaultSettings = new ServerConfiguration(
+	1000,
+	docLangName.NO,
+	false,
+	{
+		level: 'info'
+	},
+	{
+		hasConfiguration : false, 
+		hasWorkspaceFolder: false
+	}
+)
 
 export const keywords = (() => {
 	let keyword: string[] = [];

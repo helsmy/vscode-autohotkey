@@ -55,7 +55,8 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceRoot}",
 				"--extensionTestsPath=${workspaceRoot}/client/out/test/index.js",
-				"${workspaceRoot}/client/testFixture"
+				"${workspaceRoot}/client/testFixture",
+				"--disable-extensions"
 			],
 			"outFiles": ["${workspaceRoot}/client/out/test/**/*.js"]
 		}

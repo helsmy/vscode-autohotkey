@@ -10,3 +10,7 @@ TestClass
 
 hover := new TestClass()
 hover.NestedFunc()
+
+arr := [hover, 123]
+dict := {"key": arr, "class": TestClass}
+deep := {"array": [arr, 1+hover, 123]}

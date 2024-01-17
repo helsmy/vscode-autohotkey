@@ -36,6 +36,31 @@ suite('Should do hover', () => {
 			)
 		);
 	});
+
+	test('Find array express hover', async () => {
+		await testHover(docUri, To0BasedPostion(14, 12), 
+			new vscode.Hover(
+				AHKMarkdownString('(varible) hover')
+			)
+		);
+	});
+
+	test('Find dict express hover', async () => {
+		await testHover(docUri, To0BasedPostion(15, 18), 
+			new vscode.Hover(
+				AHKMarkdownString('(varible) arr')
+			)
+		);
+	});
+
+	test('Find deep express hover', async () => {
+		await testHover(docUri, To0BasedPostion(16, 30), 
+			new vscode.Hover(
+				AHKMarkdownString('(varible) hover')
+			)
+		);
+	});
+	
 });
 
 async function testHover(

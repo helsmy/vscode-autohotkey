@@ -61,6 +61,13 @@ suite('Should do hover', () => {
 		);
 	});
 	
+	test('Find express list hover', async () => {
+		await testHover(docUri, To0BasedPostion(17, 16), 
+			new vscode.Hover(
+				AHKMarkdownString('(varible) hover')
+			)
+		);
+	});
 });
 
 async function testHover(

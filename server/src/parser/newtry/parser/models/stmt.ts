@@ -107,7 +107,7 @@ export class AssignStmt extends Stmt {
 	}
 
 	public get end(): Position {
-		return this.expr.end;
+		return this.trailerExpr ? this.trailerExpr.end : this.expr.end;
 	}
 
 	public get ranges(): Range[] {

@@ -242,6 +242,20 @@ export class TreeManager implements IASTProvider
         });
     }
 
+    /**
+     * Update cached include file AST when this file is saved
+     * @param uri update file uri
+     */
+    public updateLocalAST(uri: string) {
+        const ast = this.docsAST.get(uri);
+        if (!ast) return;
+        if (this.localAST.has(uri)) {
+            this.localAST.set(uri, ast);
+            for (const [docUri, doc] of this.docsAST)
+                doc.table.updateInclude(ast.table)
+        }
+    }
+
     private compareInclude(oldInc: Maybe<Set<string>>, newInc: Maybe<Set<string>>): [string[], string[]] {
         if (oldInc && newInc) {
             // useless need delete, useneed need to add

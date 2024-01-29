@@ -29,7 +29,7 @@ export class SymbolTable implements IScope {
 	private readonly builtinScope: SymbolMap = BuildinScope; 
 	public readonly enclosingScope: Maybe<SymbolTable>;
 	public readonly dependcyScope: Set<IScope>;
-	private includeTable: Set<SymbolTable>;
+	private includeTable: Map<string, SymbolTable>;
 	public readonly scoopLevel: number;
 	public readonly uri: string;
 
@@ -39,7 +39,7 @@ export class SymbolTable implements IScope {
 		this.scoopLevel = scoopLevel;
 		this.enclosingScope = enclosingScoop;
 		this.dependcyScope = new Set();
-		this.includeTable = new Set();
+		this.includeTable = new Map();
 		this.initTypeSystem();
 	}
 
@@ -63,7 +63,7 @@ export class SymbolTable implements IScope {
 		result = this.enclosingScope?.resolve(searchName);
 		if (result) return result;
 		// Third check include symbol table
-		for (const table of this.includeTable) {
+		for (const [uri, table] of this.includeTable) {
 			result = table.resolve(searchName);
 			if (result) return result;
 		}
@@ -76,7 +76,12 @@ export class SymbolTable implements IScope {
 	}
 
 	public addInclude(table: SymbolTable) {
-		this.includeTable.add(table);
+		this.includeTable.set(table.uri, table);
+	}
+
+	public updateInclude(table: SymbolTable) {
+		if (this.includeTable.has(table.uri))
+			this.includeTable.set(table.uri, table);
 	}
 
 	public allSymbols(): ISymbol[] {
@@ -92,7 +97,7 @@ export class SymbolTable implements IScope {
 	 */
 	public includeSymbols(): Map<string, ISymbol[]> {
 		let result: Map<string, ISymbol[]> = new Map();
-		for (const include of this.includeTable) {
+		for (const [uri, include] of this.includeTable) {
 			result.set(include.uri, include.allSymbols())
 		}
 		return result;

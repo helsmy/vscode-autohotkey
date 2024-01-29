@@ -251,6 +251,10 @@ documents.onDidClose(e => {
 	DOCManager.deleteUnusedDocument(e.document.uri);
 });
 
+documents.onDidSave(e => {
+	DOCManager.updateLocalAST(e.document.uri);
+})
+
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.
 documents.onDidChangeContent(change => {

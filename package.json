@@ -123,6 +123,12 @@
                     "type": "string",
                     "default": "",
                     "description": "Autohotkey Interpreter path, Such as `C:\\Program Files\\AutoHotkey\\AutoHotkey.exe`"
+                },
+                "ahk-simple-language-server.v2CompatibleMode": {
+                    "scope": "window",
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Make parser compatible with some v2 syntaxes."
                 }
             }
         },

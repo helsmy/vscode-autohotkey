@@ -2,6 +2,8 @@ import { IScope, ISymbol, ISymType, VarKind } from '../types';
 import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver/node';
 
 export type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
+export type AHKFunctionSymbol = AHKMethodSymbol | AHKBuiltinMethodSymbol;
+export type AHKBUiltinSymbol = AHKBuiltinObjectSymbol | AHKBuiltinMethodSymbol | BuiltinVaribelSymbol;
 
 export abstract class AHKSymbol implements ISymbol {
 	public readonly name: string;
@@ -427,4 +429,18 @@ export class AHKBaseObject extends AHKBuiltinObjectSymbol {
 		for (const name of ['__New', '__Delete', '__Init'])
 			this.define(new AHKBuiltinMethodSymbol(name, [], []));
 	}
+}
+
+export function isMethodObject(obj: ISymbol): obj is AHKFunctionSymbol {
+	return obj instanceof AHKMethodSymbol || obj instanceof AHKBuiltinMethodSymbol
+}
+
+export function isClassObject(obj: ISymbol): obj is AHKClassSymbol {
+	return obj instanceof AHKObjectSymbol || obj instanceof AHKBuiltinObjectSymbol
+}
+
+export function isBuiltinSymbol(obj: ISymbol): obj is AHKBUiltinSymbol {
+	return obj instanceof AHKBuiltinMethodSymbol 
+		|| obj instanceof AHKBuiltinObjectSymbol
+		|| obj instanceof BuiltinVaribelSymbol
 }

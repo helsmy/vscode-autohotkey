@@ -56,7 +56,7 @@ import { AHKParser } from '../parser/newtry/parser/parser';
 import { PreProcesser } from '../parser/newtry/analyzer/semantic';
 import { IParseError, Token } from '../parser/newtry/types';
 import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
-import { AHKBuiltinMethodSymbol, AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, VaribaleSymbol } from '../parser/newtry/analyzer/models/symbol';
+import { AHKBuiltinMethodSymbol, AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, ScopedSymbol, VaribaleSymbol, isBuiltinSymbol, isClassObject, isMethodObject } from '../parser/newtry/analyzer/models/symbol';
 import { DocInfo, IASTProvider } from './types';
 import { IFindResult, ScriptASTFinder, binarySearchIndex } from './scriptFinder';
 import { BracketIndex, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../parser/newtry/parser/models/suffixterm';
@@ -66,7 +66,7 @@ import { posInRange, rangeBefore } from '../utilities/positionUtils';
 import { NodeConstructor } from '../parser/newtry/parser/models/parseError';
 import { ClassDef, FuncDef, Parameter } from '../parser/newtry/parser/models/declaration';
 import { NodeBase } from '../parser/newtry/parser/models/nodeBase';
-import { convertSymbolsHover, convertSymbolCompletion, getFuncPrototype, convertBuiltin2Signature } from './utils/converter';
+import { convertSymbolsHover, convertSymbolCompletion, getFuncPrototype, convertBuiltin2Signature, convertFactorHover, convertNewClassHover } from './utils/converter';
 import { resolveCommandCall, resolveFactor, resolveSubclass, searchPerfixSymbol } from './utils/symbolResolver';
 
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
@@ -145,6 +145,8 @@ export class TreeManager implements IASTProvider
     private readonly ULibDir: string;
 
     public sendError: boolean = false;
+
+    public v2CompatibleMode: boolean = false;
 
 	constructor(conn: Connection, logger: ILoggerBase) {
         this.conn = conn;
@@ -890,16 +892,30 @@ export class TreeManager implements IASTProvider
         if (position.line >= found.nodeResult.end.line &&
             position.character >= found.nodeResult.end.character) return undefined;
         // Wrong result, should not happen
+        // 这个outterFactor就一个用处，找Call的时候带上从属的Factor
+        // 毕竟Call里面就只有调用的参数
         if (found.outterFactor === undefined || !(found.nodeResult instanceof Call)) return undefined;
         const scope = this.getCurrentScope(position, docinfo.table);
-        const relativeSymbol = resolveFactor(found.outterFactor.nodeResult, position, scope);
 
+        const relativeSymbol = resolveFactor(found.outterFactor.nodeResult, position, scope);
         if (!relativeSymbol) return undefined;
         
-        const func = relativeSymbol[relativeSymbol.length - 1];
+        let func = relativeSymbol[relativeSymbol.length - 1];
         // Wrong result, should not happen
-        if (!(func instanceof AHKMethodSymbol) && !(func instanceof AHKBuiltinMethodSymbol)) 
+        if (!(func instanceof ScopedSymbol)) 
             return undefined;
+        if (!isMethodObject(func)) {
+            // found里不包含factor外面是不是new表达式
+            // 懒了，不想给new表达式专门判断是不是
+            // 如果是Class symbol一律按照是new表达式处理
+            // 就当是永远兼容v2了
+            if (!isClassObject(func)) return undefined;
+            const constructor = func.resolveProp('__new');
+            if (!constructor || !isMethodObject(constructor)) return undefined;
+            func = constructor;
+        }
+        // Make TS Happy OTZ
+        if (!isMethodObject(func)) return undefined;
         
         let index = this.findActiveParam(found.nodeResult, position);
         const reqParam: ParameterInformation[] = func.requiredParameters.map(param => ({
@@ -1194,31 +1210,13 @@ export class TreeManager implements IASTProvider
         const node = find.nodeResult
         const scope = this.getCurrentScope(position, docinfo.table);
         if (node instanceof Expr.Factor) {
-            const symbols = resolveFactor(node, position, scope);
-            return symbols ? convertSymbolsHover(symbols, token) : undefined;
+            return convertFactorHover(node, position, scope, token, this.v2CompatibleMode);
         }
         // 只有为new表达式时才为 unary
         else if (node instanceof Expr.Unary) {
             // 不对复杂的表达式作处理，只考虑直接接 factor 的情况
             if (!(node.factor instanceof Expr.Factor)) return;
-
-            const symbol = resolveFactor(node.factor, position, docinfo.table);
-            if (!symbol) return undefined;
-            // 当hover的位置不在最后一个term时，
-            // 就是在请求类构造器前面的upper class
-            // 应该直接返回查找到的symbol
-            if (symbol.length < node.factor.termCount)
-                return convertSymbolsHover(symbol, token);
-
-            const last = symbol[symbol.length-1]
-            // 查找类构造器
-            if (last instanceof AHKObjectSymbol) {
-                const constructor = last.resolveProp('__new');
-                if (constructor instanceof AHKMethodSymbol) 
-                    return convertSymbolsHover(
-                        symbol.concat(constructor), token
-                    );
-            }
+            return convertNewClassHover(node.factor, position, docinfo.table, token);
         }
         else if (node instanceof Stmt.CommandCall) {
             const cmd = resolveCommandCall(node);

@@ -337,6 +337,11 @@ function onConfigChange(config: ConfigurationService) {
 		DOCManager.updateErrors();
 	}
 
+	const v2CompatibleMode = config.getConfig('v2CompatibleMode');
+	if (DOCManager.v2CompatibleMode != v2CompatibleMode) {
+		DOCManager.v2CompatibleMode = v2CompatibleMode;
+	}
+
 	const trace = config.getConfig('traceServer');
 	const level = LogLevel[trace.level];
 	logger.updateLevel(level);

@@ -20,7 +20,8 @@ export const defaultSettings = new ServerConfiguration(
 	{
 		hasConfiguration : false, 
 		hasWorkspaceFolder: false
-	}
+	},
+	false
 )
 
 export const keywords = (() => {

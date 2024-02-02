@@ -4871,5 +4871,14 @@ export const builtin_command: BuiltinFuncNode[] = [
                 "isOptional": true
             }
         ]
+    },
+    {
+        "name": "Sleep",
+        "params": [
+            {
+                "name": "Delay",
+                "isOptional": false
+            }
+        ]
     }
 ]

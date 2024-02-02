@@ -161,6 +161,7 @@
         "test": "./node_modules/.bin/mocha -u tdd ./server/out/test/**/*.test.js",
         "publish": "vsce publish",
         "package": "vsce package",
+        "syntaxGen": "gulp syntax_gen",
         "gulp": "gulp",
         "esbuild": "esbuild"
     },

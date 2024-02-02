@@ -208,11 +208,12 @@ function parseFunc(f: string): MethodInfo {
 	if (p === ':') {
 		return parseAssign();
 	}
-	if (isAlpha(p)) {
-		info.name = current.content
-		advance();
-		info.parameter = parseParam();
-	}
+
+	// other command call like function
+	info.name = current.content;
+	advance();
+	info.parameter = parseParam();
+
 
 	return info;
 
@@ -396,6 +397,7 @@ function getFunctionDetail(path: string, funcName: string) {
 	const libPath = path.split('#')[0];
 	const html = readFileSync(join(rootPath, libPath), {encoding: 'utf-8'});
 	const root = HTMLParser.parse(html);
+	// TODO: store parameter doc in params.
 	const params = getParams(root);
 	
 	// If name of .htm is not the same of function name,

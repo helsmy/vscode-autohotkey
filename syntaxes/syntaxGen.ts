@@ -409,14 +409,30 @@ function getFunctionDetail(path: string, funcName: string) {
 	if (!syntax) return undefined;
 
 	const optSafe = spanTagRender(syntax.text);
-	const m = optSafe.replace(/<[\/\w\s"=#]+?>/g, '');
+	const m = optSafe.replace(/<[\/\w\s"=#]+?>/g, '').trim();
 	// Remove invaild token on .htm
 	if (funcName === "FileSelect")
-		return [parseFunc(m.trim().replace('RootDir\\Filename', '"RootDir\\Filename"')), params];
+		return [parseFunc(m.replace('RootDir\\Filename', '"RootDir\\Filename"')), params];
 	if (funcName === "StatusBarGetText" || funcName === "StatusBarWait")
-		return [parseFunc(m.trim().replace('Part#', '"Part#"')), params];
+		return [parseFunc(m.replace('Part#', '"Part#"')), params];
 	
-	return [parseFunc(m.trim()), params];
+	// Deal with overide
+	if (m.includes('\n') &&
+	// FIXME: Skip RegWrite. Because it has ', ,' which will cause an Error.
+		funcName !== "RegWrite") {
+		const infos: MethodInfo[] = [];
+		for (const f of m.split('\n')) {
+			// FIXME: Skip method call parse for now
+			if (/\w\.\w/.test(f)) {
+				continue;
+			}
+			const info = parseFunc(f.trim());
+			if (info.name === funcName)
+				infos.push(info);
+		}
+		return [...infos, params];
+	}
+	return [parseFunc(m), params];
 }
 
 function findFunctionInMulti(root: HTMLParser.HTMLElement, funcName: string) {

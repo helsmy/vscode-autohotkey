@@ -406,7 +406,10 @@ function getFunctionDetail(path: string, funcName: string) {
 	const syntax = libPath.includes(funcName) ? 
 					root.querySelector('.Syntax') :
 					findFunctionInMulti(root, funcName);
-	if (!syntax) return undefined;
+	if (!syntax) {
+		console.log(`Can not get infomation of ${funcName}. Function name was not found in Syntax node.`);
+		return undefined;
+	}
 
 	const optSafe = spanTagRender(syntax.text);
 	const m = optSafe.replace(/<[\/\w\s"=#]+?>/g, '').trim();
@@ -442,18 +445,18 @@ function findFunctionInMulti(root: HTMLParser.HTMLElement, funcName: string) {
 		const text = s.text;
 		const name = getFuncName(text);
 		if (!name) continue;
-		if (name !== funcName) {
-			// if there are multi-function in one syntax tag
-			if (!text.includes('\n')) continue;
-			for (const f of text.split('\n')) {
-				if (getFuncName(f) !== funcName) continue;
-				s.set_content(f);
-				return s; 
-			}
-		}	
-		return s;
+		if (name === funcName)
+			return s;
+		
+		// name !== funcName
+		// if there are multi-function in one syntax tag
+		if (!text.includes('\n')) continue;
+		for (const f of text.split('\n')) {
+			if (getFuncName(f) !== funcName) continue;
+			s.set_content(f);
+			return s; 
+		}
 	}
-
 	return undefined;
 }
 

@@ -36,6 +36,13 @@ interface MethodInfo {
 	full?: string
 }
 
+interface ObjectInfo {
+	name: string,
+	staticMethod: MethodInfo[],
+	method: MethodInfo[],
+	property: string[]
+}
+
 class ParamInfo {
 	public name: string;
 	public isOptional: boolean = false;
@@ -153,8 +160,11 @@ export function syntaxGen() {
 					getFunctionDetail(item_path, item_name)
 				]);
 				continue;
-			case SyntaxType.BuiltinClass:   
-				g_knownClasses.add(item_name);
+			case SyntaxType.BuiltinClass:
+				g_knownClasses.add([
+					item_name,
+					getObjectDetail(item_path, item_name)
+				]);
 				continue;
 			case SyntaxType.Operator:
 				g_operator.add(item_name);
@@ -203,6 +213,14 @@ function parseFunc(f: string): MethodInfo {
 		advance();
 		advance();
 		info.parameter = parseParam();
+		return info;
+	}
+	if (scanner.Peek(0) === '.') {
+		const factor = parseFactor();
+		info.name = factor[factor.length-1];
+		advance();
+		info.parameter = parseParam();
+		return info;
 	}
 	const p = scanner.Peek(1, true);
 	if (p === ':') {
@@ -346,14 +364,30 @@ function parseFunc(f: string): MethodInfo {
 		info.return = advance().content;
 		// :=
 		advance();
-		const name = advance();
-		if (name?.type !== TokenType.id)
-			throw new ParseError('id', name,f);
-		info.name = name.content;
+		const factor = parseFactor();
+		const name = factor[factor.length-1];
+		info.name = name;
 		// should be '('
 		advance();
 		info.parameter = parseParam();
 		return info;
+	}
+
+	function parseFactor(): string[] {
+		const name: string[] = [];
+		while (true) {
+			if (!isValidIdentifier(current.type)) 
+				throw new ParseError('id', current, f);;
+			name.push(current.content);
+			advance();
+			if (current.type === TokenType.dot) {
+				name.push(current.content);
+				advance();
+				continue;
+			}
+			break;
+		}
+		return name;
 	}
 
 	function advance() {
@@ -391,7 +425,77 @@ class ParseError extends Error {
 	}
 }
 
+function getObjectDetail(path: string, objName: string): ObjectInfo|undefined {
+	const libPath = path.split('#')[0];
+	const html = readFileSync(join(rootPath, libPath), {encoding: 'utf-8'});
+	const root = HTMLParser.parse(html);
+	const body = root.querySelectorAll('body')[0];
+	if (!body) {
+		console.log(objName, path);
+		for (const child of root.childNodes) {
+			if (child instanceof HTMLParser.HTMLElement) {
+				for (const tag of child.childNodes) {
+					if (tag instanceof HTMLParser.HTMLElement) {
+						console.log(tag.localName);
+					}
+					else
+						console.log(tag.rawText);
+				}
+			}
+		}
+		return undefined;
+	}
 
+	let StaticMethods: MethodInfo[] = [];
+	let Methods: MethodInfo[] = [];
+	let Properties: string[] = [];
+
+	let tempArray: Array<string|MethodInfo> = StaticMethods;
+	let status = '';
+
+	for (const child of body.childNodes) {
+		const element = child as HTMLParser.HTMLElement;
+		if (element.id === 'StaticMethods') {
+			tempArray = StaticMethods;
+			status = 'StaticMethods'
+		}
+		if (element.id === 'Methods') {
+			tempArray = Methods;
+			status ='Methods';
+		}
+		if (element.id === 'Properties') {
+			tempArray = Properties;
+			status = 'Properties';
+		}
+		if (element.classNames === 'methodShort') {
+			// console.log(status);
+			if (status === 'Properties') {
+				tempArray.push(element.id);
+				continue;
+			}
+			// Need not to do this, this is for the loop.
+			if (element.id === '__Enum') 
+				continue;
+			const syntax = element.querySelector('.Syntax');
+			if (!syntax) {
+				console.log(`Can not get infomation of ${element.id}. Syntax node was not found.`);
+				return undefined;
+			}
+			const optSafe = spanTagRender(syntax.text);
+			const m = optSafe.replace(/<[\.\/\w\s"=#]+?>/g, '').trim();
+
+			tempArray.push(parseFunc(m));
+		}
+		
+	}
+
+	return {
+		name: objName,
+		staticMethod: StaticMethods,
+		method: Methods,
+		property: Properties
+	};
+}
 
 function getFunctionDetail(path: string, funcName: string) {
 	const libPath = path.split('#')[0];

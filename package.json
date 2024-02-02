@@ -168,6 +168,7 @@
     "devDependencies": {
         "@types/glob": "^8.1.0",
         "@types/gulp": "^4.0.17",
+        "@types/jsdom": "^21.1.6",
         "@types/mocha": "^10.0.4",
         "@types/node": "^12.12.0",
         "@typescript-eslint/parser": "^5.2.0",
@@ -175,6 +176,7 @@
         "esbuild": "^0.20.0",
         "eslint": "^8.1.0",
         "gulp": "^4.0.2",
+        "jsdom": "^24.0.0",
         "mocha": "^10.2.0",
         "node-html-parser": "^6.1.12",
         "ts-node": "^10.9.2",

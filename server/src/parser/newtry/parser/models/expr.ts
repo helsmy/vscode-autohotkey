@@ -4,12 +4,11 @@ import { TokenType } from '../../tokenizor/tokenTypes';
 import {
     IExpr,
     SyntaxKind,
-    Token,
-    SyntaxNode
 } from '../../types';
 import { DelimitedList } from './delimtiedList';
 import { NodeBase } from './nodeBase';
 import * as SuffixTerm from './suffixterm';
+import { Token } from '../../tokenizor/types';
 
 export type ExpersionList = DelimitedList<Expr>;
 

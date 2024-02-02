@@ -9,7 +9,8 @@ import * as Stmt from '../../parser/newtry/parser/models/stmt';
 import { Identifier, Literal } from '../../parser/newtry/parser/models/suffixterm';
 import { AHKParser } from "../../parser/newtry/parser/parser";
 import { TokenType } from '../../parser/newtry/tokenizor/tokenTypes';
-import { IExpr, IStmt, Token } from '../../parser/newtry/types';
+import { IExpr, IStmt } from '../../parser/newtry/types';
+import { Token } from '../../parser/newtry/tokenizor/types';
 
 function getAST(s: string) {
     let parser = new AHKParser(s, 'testFile');

@@ -1,7 +1,7 @@
 import {
     Token,
     ITokenMap,
-} from "../types";
+} from "./types";
 
 import { TokenType } from "./tokenTypes"
 import { Position, Range } from 'vscode-languageserver';
@@ -30,7 +30,10 @@ export class Tokenizer {
     private EscapeChar = '"';
     public isParseHotkey: boolean = false;
 
-    constructor(document: string) {
+    constructor(
+        document: string,
+        private readonly v2Mode: boolean = false
+    ) {
         this.document = document;
         this.currChar = document[this.pos];
     }
@@ -317,7 +320,7 @@ export class Tokenizer {
         // }
 
         // A id token confirmed, check if it is a command start
-        if (preType === TokenType.EOL &&
+        if (preType === TokenType.EOL && this.v2Mode === false &&
             COMMAND_TEST.has(value.toLowerCase())) {
             return this.GetCommand(p, value);
         }

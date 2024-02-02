@@ -1,8 +1,8 @@
 import { Position, Range } from 'vscode-languageserver-types';
-import { Token } from '../../types';
 import { IParseError } from "../../types";
 import { Expr } from './expr';
 import { Stmt } from './stmt';
+import { Token } from '../../tokenizor/types';
 
 export class ParseError implements IParseError {
 	public readonly token: Token;

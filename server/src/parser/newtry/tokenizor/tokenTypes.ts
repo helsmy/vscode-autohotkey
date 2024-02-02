@@ -129,7 +129,8 @@ export enum TokenType {
 }
 
 export function isValidIdentifier(type: TokenType): boolean {
-    if (type === TokenType.id || 
+    if (type === TokenType.id || type === TokenType.keyand ||
+        type === TokenType.keynot || type === TokenType.keyor ||
         (type >= TokenType.if && type <= TokenType.byref))
         return true;
     return false;

@@ -449,7 +449,7 @@ export const builtin_function: BuiltinFuncNode[] = [
         "name": "LV_Add",
         "params": [
             {
-                "name": "ptions",
+                "name": "options",
                 "isOptional": true
             },
             {

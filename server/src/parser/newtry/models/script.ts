@@ -1,6 +1,7 @@
-import { IStmt, IScript, SyntaxKind, Token } from '../types';
+import { IStmt, IScript, SyntaxKind } from '../types';
 import { Range, Position, Location } from 'vscode-languageserver';
 import { NodeBase } from '../parser/models/nodeBase';
+import { Token } from '../tokenizor/types';
 
 export class Script extends NodeBase implements IScript {
     constructor(

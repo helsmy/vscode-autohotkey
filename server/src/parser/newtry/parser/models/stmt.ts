@@ -1,9 +1,10 @@
 import { Position, Range } from 'vscode-languageserver';
-import { IExpr, IStmt, IStmtVisitor, SyntaxKind, Token } from '../../types';
+import { IExpr, IStmt, IStmtVisitor, SyntaxKind } from '../../types';
 import { NodeBase } from './nodeBase';
 import * as Expr from './expr'
 import { joinLines } from '../utils/stringUtils';
 import { DelimitedList } from './delimtiedList';
+import { Token } from '../../tokenizor/types';
 
 /**
  * Statement base class

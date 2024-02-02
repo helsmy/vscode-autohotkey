@@ -5,12 +5,12 @@ import {
     IExpr,
     ISuffixTerm,
     SuffixTermTrailer,
-    SyntaxKind,
-    Token
+    SyntaxKind
 } from '../../types';
 import { DelimitedList } from './delimtiedList';
 import { Expr } from './expr';
 import { NodeBase } from './nodeBase';
+import { Token } from '../../tokenizor/types';
 
 /**
  * Base class for all suffix terms

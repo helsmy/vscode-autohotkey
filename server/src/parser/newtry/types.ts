@@ -4,62 +4,17 @@
 
 import { Position, Range } from 'vscode-languageserver';
 import { ParseError } from './parser/models/parseError';
-import { TokenType } from './tokenizor/tokenTypes';
 import * as Expr from './parser/models/expr';
 import * as Stmt from './parser/models/stmt';
-import * as SuffixTerm from './parser/models/suffixterm'
-import * as Decl from './parser/models/declaration'
-import { IDiagnosticInfo } from './tokenizor/types';
+import * as SuffixTerm from './parser/models/suffixterm';
+import * as Decl from './parser/models/declaration';
+import { IDiagnosticInfo, Token } from './tokenizor/types';
 
 export enum SyntaxKind {
 	script,
 	stmt,
 	expr,
 	suffixTerm,
-}
-
-export interface IToken {
-	type: TokenType;
-	content: string;
-	start: Position;
-	end: Position;
-}
-
-export type ITokenMap = Map<string, TokenType>;
-
-export class Token implements IToken {
-	public readonly type: TokenType;
-	public readonly content: string;
-	public readonly start: Position;
-	public readonly end: Position;
-	constructor(type: TokenType, content: string, start: Position, end: Position) {
-		this.type = type;
-		this.content = content;
-		this.start = start;
-		this.end = end;
-	}
-}
-
-export class MissingToken extends Token {
-	constructor(type: TokenType, start: Position) {
-		super(
-			type,
-			'',
-			start,
-			start
-		);
-	}
-}
-
-export class SkipedToken extends Token {
-	constructor(token: IToken) {
-		super(
-			token.type,
-			token.content,
-			token.start,
-			token.end
-		)
-	}
 }
 
 export interface IParseError extends Range {

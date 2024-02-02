@@ -54,7 +54,7 @@ import { IoEntity, IoKind, IoService } from './ioService';
 import { SymbolTable } from '../parser/newtry/analyzer/models/symbolTable';
 import { AHKParser } from '../parser/newtry/parser/parser';
 import { PreProcesser } from '../parser/newtry/analyzer/semantic';
-import { IParseError, Token } from '../parser/newtry/types';
+import { IParseError } from '../parser/newtry/types';
 import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
 import { AHKBuiltinMethodSymbol, AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, ScopedSymbol, VaribaleSymbol, isBuiltinSymbol, isClassObject, isMethodObject } from '../parser/newtry/analyzer/models/symbol';
 import { DocInfo, IASTProvider } from './types';
@@ -68,6 +68,7 @@ import { ClassDef, FuncDef, Parameter } from '../parser/newtry/parser/models/dec
 import { NodeBase } from '../parser/newtry/parser/models/nodeBase';
 import { convertSymbolsHover, convertSymbolCompletion, getFuncPrototype, convertBuiltin2Signature, convertFactorHover, convertNewClassHover } from './utils/converter';
 import { resolveCommandCall, resolveFactor, resolveSubclass, searchPerfixSymbol } from './utils/symbolResolver';
+import { Token } from '../parser/newtry/tokenizor/types';
 
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];

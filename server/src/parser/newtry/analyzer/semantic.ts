@@ -6,11 +6,12 @@ import * as Decl from '../parser/models/declaration';
 import * as Expr from '../parser/models/expr';
 import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
-import { Atom, IScript, MissingToken, SkipedToken, Token } from '../types';
+import { Atom, IScript } from '../types';
 import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VaribaleSymbol } from './models/symbol';
 import { IScope, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
+import { MissingToken, SkipedToken, Token } from '../tokenizor/types';
 
 type Diagnostics = Diagnostic[];
 interface ProcessResult {

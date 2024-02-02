@@ -1,6 +1,7 @@
 import * as esbuild from 'esbuild';
 import * as gulp from 'gulp';
 import * as glob from 'glob';
+import { syntaxGen } from './syntaxes/syntaxGen';
 
 const defaultOption: esbuild.BuildOptions = {
 	platform: 'node',
@@ -55,11 +56,13 @@ async function watchClient() {
 const buildServer = async () => await esbuild.build(serverOption);
 const buildClient = async () => await esbuild.build(clientOption)
 
-const watch = gulp.parallel(watchServer, watchClient);
-const build = gulp.series(
+export const watch = gulp.parallel(watchServer, watchClient);
+export const build = gulp.series(
 	buildServer,
 	buildClient
 );
 
-exports.watch = watch;
-exports.build = build;
+gulp.task('syntax_gen', done => {
+	syntaxGen();
+	done();
+})

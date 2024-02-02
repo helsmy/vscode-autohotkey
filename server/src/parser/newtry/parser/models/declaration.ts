@@ -1,11 +1,12 @@
 import { Position, Range } from 'vscode-languageserver';
 import { TokenType } from '../../tokenizor/tokenTypes';
-import { IExpr, IStmt, IStmtVisitor, MissingToken, Token } from '../../types';
+import { IStmtVisitor } from '../../types';
 import { joinLines } from '../utils/stringUtils';
 import { DelimitedList } from './delimtiedList';
 import { ExpersionList, Expr, Factor } from './expr';
 import { NodeBase } from './nodeBase';
 import { Block, Stmt } from "./stmt";
+import { Token } from '../../tokenizor/types';
 
 export abstract class Decl extends Stmt {
     constructor() {

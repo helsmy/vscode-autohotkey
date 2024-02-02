@@ -5,3 +5,7 @@ client/server
 *.vsix
 Abandoned
 *.cpuprofile
+syntaxes/**
+!syntaxes/ahk.tmLanguage.json
+!syntaxes/ahk.YAML-tmLanguage
+!syntaxes/syntaxGen.ts

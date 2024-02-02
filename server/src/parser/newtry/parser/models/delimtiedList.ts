@@ -1,6 +1,6 @@
 import { Range, Position } from 'vscode-languageserver';
 import { TokenType } from '../../tokenizor/tokenTypes';
-import { Token } from '../../types';
+import { Token } from '../../tokenizor/types';
 import { NodeBase } from './nodeBase';
 
 type PropEqual<T, U extends keyof T, V> =   T[U] extends V ? T : never;

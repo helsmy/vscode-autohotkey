@@ -4,11 +4,12 @@ import { NodeBase } from '../parser/newtry/parser/models/nodeBase';
 import { NodeConstructor } from '../parser/newtry/parser/models/parseError';
 import * as Stmt from '../parser/newtry/parser/models/stmt';
 import * as Expr from '../parser/newtry/parser/models/expr';
-import { IStmt, IStmtVisitor, RangeSequence, SuffixTermTrailer, Token } from '../parser/newtry/types';
+import { IStmt, IStmtVisitor, RangeSequence, SuffixTermTrailer } from '../parser/newtry/types';
 import { DelimitedList } from '../parser/newtry/parser/models/delimtiedList';
 import * as SuffixTerm from '../parser/newtry/parser/models/suffixterm';
 import { posInRange } from '../utilities/positionUtils';
 import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
+import { Token } from '../parser/newtry/tokenizor/types';
 
 export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: NodeConstructor[]) => Maybe<IFindResult<NodeBase>>> {
     constructor() {}

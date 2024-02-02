@@ -1,5 +1,5 @@
 import { DOCUMENT_START_TOKEN, Tokenizer } from "../tokenizor/tokenizer";
-import { Atom, IAST, IExpr, MissingToken, SkipedToken, SuffixTermTrailer, Token } from "../types";
+import { Atom, IAST, IExpr, SuffixTermTrailer } from "../types";
 import { isValidIdentifier, TokenType } from "../tokenizor/tokenTypes";
 import { IParseError } from "../types";
 import { ParseError } from './models/parseError';
@@ -8,7 +8,7 @@ import * as Expr from './models/expr';
 import * as SuffixTerm from './models/suffixterm';
 import { Precedences, UnaryPrecedence } from './models/precedences';
 import * as Decl from './models/declaration';
-import { IDiagnosticInfo, TokenKind } from '../tokenizor/types';
+import { IDiagnosticInfo, MissingToken, SkipedToken, Token, TokenKind } from '../tokenizor/types';
 import { mockLogger } from '../../../utilities/logger';
 import { Script } from '../models/script';
 import { Position } from 'vscode-languageserver-types';

@@ -1,10 +1,9 @@
 import * as assert from 'assert';
-import { Token } from '../../parser/newtry/types';
 
 import { Tokenizer } from '../../parser/newtry/tokenizor/tokenizer';
 import { TokenType } from '../../parser/newtry/tokenizor/tokenTypes';
 import { Position } from 'vscode-languageserver';
-import { TokenKind } from '../../parser/newtry/tokenizor/types';
+import { Token, TokenKind } from '../../parser/newtry/tokenizor/types';
 function getalltoken(text: string): Token[] {
 	let tokenizer = new Tokenizer(text);
 	let token = GetNoErrorToken(tokenizer, TokenType.EOL);

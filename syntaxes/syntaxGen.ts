@@ -428,23 +428,8 @@ class ParseError extends Error {
 function getObjectDetail(path: string, objName: string): ObjectInfo|undefined {
 	const libPath = path.split('#')[0];
 	const html = readFileSync(join(rootPath, libPath), {encoding: 'utf-8'});
-	const root = HTMLParser.parse(html);
+	const root = HTMLParser.parse(html, {fixNestedATags: true, parseNoneClosedTags:true});
 	const body = root.querySelectorAll('body')[0];
-	if (!body) {
-		console.log(objName, path);
-		for (const child of root.childNodes) {
-			if (child instanceof HTMLParser.HTMLElement) {
-				for (const tag of child.childNodes) {
-					if (tag instanceof HTMLParser.HTMLElement) {
-						console.log(tag.localName);
-					}
-					else
-						console.log(tag.rawText);
-				}
-			}
-		}
-		return undefined;
-	}
 
 	let StaticMethods: MethodInfo[] = [];
 	let Methods: MethodInfo[] = [];
@@ -476,6 +461,14 @@ function getObjectDetail(path: string, objName: string): ObjectInfo|undefined {
 			// Need not to do this, this is for the loop.
 			if (element.id === '__Enum') 
 				continue;
+			// this is also used in for loop
+			if (element.id === 'OwnProps') {
+				tempArray.push({
+					name: 'OwnProps',
+					parameter: []
+				});
+				continue;
+			}
 			const syntax = element.querySelector('.Syntax');
 			if (!syntax) {
 				console.log(`Can not get infomation of ${element.id}. Syntax node was not found.`);

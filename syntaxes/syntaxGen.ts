@@ -38,6 +38,7 @@ interface MethodInfo {
 
 interface ObjectInfo {
 	name: string,
+	extend?: string,
 	staticMethod: MethodInfo[],
 	method: MethodInfo[],
 	property: string[]
@@ -54,7 +55,7 @@ class ParamInfo {
 	}
 }
 
-const rootPath = resolvePath('../..','ahkdoc/v2/docs');
+const rootPath = resolvePath('../..', 'ahkdoc/v2/docs');
 
 function resolvePath(...path: string[]) {
 	return join(__dirname, ...path);
@@ -72,8 +73,8 @@ function createApiList<T>(api: Set<T>): string {
 }
 
 export function syntaxGen() {
-	let g_directivesExpr = new Set(["ClipboardTimeout","HotIfTimeout","InputLevel","MaxThreads",
-	"MaxThreadsBuffer","MaxThreadsPerHotkey","SuspendExempt","UseHook","WinActivateForce"]);
+	let g_directivesExpr = new Set(["ClipboardTimeout", "HotIfTimeout", "InputLevel", "MaxThreads",
+		"MaxThreadsBuffer", "MaxThreadsPerHotkey", "SuspendExempt", "UseHook", "WinActivateForce"]);
 	let g_directivesStr = new Set();
 	let g_controlFlow = new Set(["Loop"])
 	let g_reserved = new Set(["as", "contains", "false", "in", "IsSet", "super", "true", "unset"])
@@ -133,9 +134,9 @@ export function syntaxGen() {
 	])
 
 
-	const data_index = readFileSync(join(rootPath, 'static/source/data_index.js'), {encoding: 'utf-8'});
+	const data_index = readFileSync(join(rootPath, 'static/source/data_index.js'), { encoding: 'utf-8' });
 	const syntax_index = JSON.parse(
-		data_index.slice(12, data_index.length-1)
+		data_index.slice(12, data_index.length - 1)
 	) as DataType[];
 
 	for (const item of syntax_index) {
@@ -151,12 +152,12 @@ export function syntaxGen() {
 				else
 					g_directivesStr.add(dname);
 				continue;
-			case SyntaxType.BuiltinVar:   
+			case SyntaxType.BuiltinVar:
 				g_knownVars.add(item_name);
 				continue;
-			case SyntaxType.BuiltinFunction:   
+			case SyntaxType.BuiltinFunction:
 				g_knownFuncs.add([
-					item_name, 
+					item_name,
 					getFunctionDetail(item_path, item_name)
 				]);
 				continue;
@@ -169,18 +170,18 @@ export function syntaxGen() {
 			case SyntaxType.Operator:
 				g_operator.add(item_name);
 				continue;
-			case SyntaxType.Declaration: 
+			case SyntaxType.Declaration:
 				g_reserved.add(item_name);
 				continue;
-			case SyntaxType.ControlFlow:   
+			case SyntaxType.ControlFlow:
 				g_controlFlow.add(ControlFlowCasing(item_name));
 				continue;
 		}
 	}
-	
+
 	const f = openSync(join(__dirname, 'syntax.api'), 'w');
-	const api = 
-`g_controlFlow: 
+	const api =
+		`g_controlFlow: 
 ${createApiList(g_controlFlow)}
 g_directivesExpr:
 ${createApiList(g_directivesExpr)}
@@ -206,7 +207,7 @@ function parseFunc(f: string): MethodInfo {
 	let current = init();
 	let info: MethodInfo = {}
 	info.full = f;
-	
+
 	scanner.isLiteralToken = false;
 	if (scanner.Peek(0) === '(') {
 		info.name = current.content;
@@ -217,7 +218,7 @@ function parseFunc(f: string): MethodInfo {
 	}
 	if (scanner.Peek(0) === '.') {
 		const factor = parseFactor();
-		info.name = factor[factor.length-1];
+		info.name = factor[factor.length - 1];
 		advance();
 		info.parameter = parseParam();
 		return info;
@@ -239,7 +240,7 @@ function parseFunc(f: string): MethodInfo {
 		let tokenResult = tokenGen.next().value;
 		if (NotError(tokenResult)) {
 			let current = tokenResult.result;
-			if (!isValidIdentifier(current.type) && current.type !== TokenType.command) 
+			if (!isValidIdentifier(current.type) && current.type !== TokenType.command)
 				throw new ParseError('id', current, f);
 			return current;
 		}
@@ -256,7 +257,7 @@ function parseFunc(f: string): MethodInfo {
 					parameters.push(...parseOptional());
 					continue;
 				}
-				if (param.type ===TokenType.closeParen || isEnd(param))
+				if (param.type === TokenType.closeParen || isEnd(param))
 					break;
 				// ... on parameter
 				let p = '';
@@ -283,7 +284,7 @@ function parseFunc(f: string): MethodInfo {
 			// if is `ComObjArray(VarType, Count1 [, Count2, ... Count8])`
 			else if (current.type === TokenType.id) {
 				const param = advance();
-				const info = new ParamInfo('...'+param.content);
+				const info = new ParamInfo('...' + param.content);
 				parameters.push(info);
 			}
 			else if (current.type === TokenType.minus) {
@@ -295,7 +296,7 @@ function parseFunc(f: string): MethodInfo {
 					else
 						break;
 					advance();
-					
+
 					if (isValidIdentifier(current.type))
 						content += current.content
 					else
@@ -308,10 +309,10 @@ function parseFunc(f: string): MethodInfo {
 				const info = new ParamInfo(param.content);
 				info.isExtend = true;
 				parameters.push(info);
-				while(current.content === '.')
+				while (current.content === '.')
 					advance();
 			}
-			else if (current.type ===TokenType.aassign) {
+			else if (current.type === TokenType.aassign) {
 				const assign = advance();
 				const expr = advance();
 				const info = new ParamInfo(param.content);
@@ -329,7 +330,7 @@ function parseFunc(f: string): MethodInfo {
 				advance();
 				continue;
 			}
-			if (comma.type === TokenType.closeParen || 
+			if (comma.type === TokenType.closeParen ||
 				comma.type === TokenType.closeBracket ||
 				isEnd(comma))
 				break;
@@ -360,12 +361,12 @@ function parseFunc(f: string): MethodInfo {
 	}
 
 	function parseAssign(): MethodInfo {
-		let info: MethodInfo = {full: f};
+		let info: MethodInfo = { full: f };
 		info.return = advance().content;
 		// :=
 		advance();
 		const factor = parseFactor();
-		const name = factor[factor.length-1];
+		const name = factor[factor.length - 1];
 		info.name = name;
 		// should be '('
 		advance();
@@ -376,7 +377,7 @@ function parseFunc(f: string): MethodInfo {
 	function parseFactor(): string[] {
 		const name: string[] = [];
 		while (true) {
-			if (!isValidIdentifier(current.type)) 
+			if (!isValidIdentifier(current.type))
 				throw new ParseError('id', current, f);;
 			name.push(current.content);
 			advance();
@@ -399,7 +400,7 @@ function parseFunc(f: string): MethodInfo {
 		}
 		throw new ParseError('Token', token, f);
 	}
-	
+
 	function NotError(token: TokenResult): token is TakeToken {
 		switch (token.kind) {
 			case TokenKind.Token:
@@ -411,7 +412,7 @@ function parseFunc(f: string): MethodInfo {
 
 	function isEnd(token: Token): boolean {
 		return token.type === TokenType.EOF ||
-				token.type === TokenType.EOL;
+			token.type === TokenType.EOL;
 	}
 
 	function isAlpha(s: string): boolean {
@@ -420,22 +421,23 @@ function parseFunc(f: string): MethodInfo {
 }
 
 class ParseError extends Error {
-	constructor(expect: string, token: Token | TokenResult| undefined, full: string) {
+	constructor(expect: string, token: Token | TokenResult | undefined, full: string) {
 		super(`Parse Error, Expect an ${expect}. \ngot: ${JSON.stringify(token)}\nfull: ${full}`);
 	}
 }
 
-function getObjectDetail(path: string, objName: string): ObjectInfo|undefined {
+function getObjectDetail(path: string, objName: string): ObjectInfo | undefined {
 	const libPath = path.split('#')[0];
-	const html = readFileSync(join(rootPath, libPath), {encoding: 'utf-8'});
-	const root = HTMLParser.parse(html, {fixNestedATags: true, parseNoneClosedTags:true});
+	const html = readFileSync(join(rootPath, libPath), { encoding: 'utf-8' });
+	const root = HTMLParser.parse(html, { fixNestedATags: true, parseNoneClosedTags: true });
 	const body = root.querySelectorAll('body')[0];
 
 	let StaticMethods: MethodInfo[] = [];
 	let Methods: MethodInfo[] = [];
 	let Properties: string[] = [];
+	let extend: string | undefined = undefined;
 
-	let tempArray: Array<string|MethodInfo> = StaticMethods;
+	let tempArray: Array<string | MethodInfo> = StaticMethods;
 	let status = '';
 
 	for (const child of body.childNodes) {
@@ -446,11 +448,19 @@ function getObjectDetail(path: string, objName: string): ObjectInfo|undefined {
 		}
 		if (element.id === 'Methods') {
 			tempArray = Methods;
-			status ='Methods';
+			status = 'Methods';
 		}
 		if (element.id === 'Properties') {
 			tempArray = Properties;
 			status = 'Properties';
+		}
+		if (element.localName === 'pre' && element.classNames === 'NoIndent') {
+			const text = element.text;
+			const parentInfo = /class\s+([\w\.]+)\s+extends\s+([\w\.]+)/.exec(text);
+			if (parentInfo) {
+				if (parentInfo[1] === objName)
+					extend = parentInfo[2];
+			}
 		}
 		if (element.classNames === 'methodShort') {
 			// console.log(status);
@@ -459,7 +469,7 @@ function getObjectDetail(path: string, objName: string): ObjectInfo|undefined {
 				continue;
 			}
 			// Need not to do this, this is for the loop.
-			if (element.id === '__Enum') 
+			if (element.id === '__Enum')
 				continue;
 			// this is also used in for loop
 			if (element.id === 'OwnProps') {
@@ -479,11 +489,16 @@ function getObjectDetail(path: string, objName: string): ObjectInfo|undefined {
 
 			tempArray.push(parseFunc(m));
 		}
-		
+
 	}
+	if (StaticMethods.length === 0 &&
+		Methods.length === 0 &&
+		Properties.length === 0)
+		console.log(`Can not get class infomation of ${objName}.`);
 
 	return {
 		name: objName,
+		extend: extend,
 		staticMethod: StaticMethods,
 		method: Methods,
 		property: Properties
@@ -492,19 +507,19 @@ function getObjectDetail(path: string, objName: string): ObjectInfo|undefined {
 
 function getFunctionDetail(path: string, funcName: string) {
 	const libPath = path.split('#')[0];
-	const html = readFileSync(join(rootPath, libPath), {encoding: 'utf-8'});
+	const html = readFileSync(join(rootPath, libPath), { encoding: 'utf-8' });
 	const root = HTMLParser.parse(html);
 	// TODO: store parameter doc in params.
 	const params = getParams(root);
-	
+
 	// If name of .htm is not the same of function name,
 	// there are more than one function in one htm.
 	// try find the element of function
-	const syntax = libPath.includes(funcName) ? 
-					root.querySelector('.Syntax') :
-					findFunctionInMulti(root, funcName);
+	const syntax = libPath.includes(funcName) ?
+		root.querySelector('.Syntax') :
+		findFunctionInMulti(root, funcName);
 	if (!syntax) {
-		console.log(`Can not get infomation of ${funcName}. Function name was not found in Syntax node.`);
+		console.log(`Can not get function infomation of ${funcName}. Function name was not found in Syntax node.`);
 		return undefined;
 	}
 
@@ -515,10 +530,10 @@ function getFunctionDetail(path: string, funcName: string) {
 		return [parseFunc(m.replace('RootDir\\Filename', '"RootDir\\Filename"')), params];
 	if (funcName === "StatusBarGetText" || funcName === "StatusBarWait")
 		return [parseFunc(m.replace('Part#', '"Part#"')), params];
-	
+
 	// Deal with overide
 	if (m.includes('\n') &&
-	// FIXME: Skip RegWrite. Because it has ', ,' which will cause an Error.
+		// FIXME: Skip RegWrite. Because it has ', ,' which will cause an Error.
 		funcName !== "RegWrite") {
 		const infos: MethodInfo[] = [];
 		for (const f of m.split('\n')) {
@@ -537,21 +552,21 @@ function getFunctionDetail(path: string, funcName: string) {
 
 function findFunctionInMulti(root: HTMLParser.HTMLElement, funcName: string) {
 	const syntaxs = root.querySelectorAll('.Syntax');
-		
+
 	for (const s of syntaxs) {
 		const text = s.text;
 		const name = getFuncName(text);
 		if (!name) continue;
 		if (name === funcName)
 			return s;
-		
+
 		// name !== funcName
 		// if there are multi-function in one syntax tag
 		if (!text.includes('\n')) continue;
 		for (const f of text.split('\n')) {
 			if (getFuncName(f) !== funcName) continue;
 			s.set_content(f);
-			return s; 
+			return s;
 		}
 	}
 	return undefined;
@@ -563,7 +578,7 @@ function spanTagRender(t: string): string {
 	if (optTag === null) return t;
 	const tag = optTag[0];
 	const renderText = tag.replace('<span class="optional">', '[')
-						.replace('</span>', ']');
+		.replace('</span>', ']');
 	return t.replace(tag, renderText);
 }
 
@@ -573,8 +588,8 @@ function getParams(root: HTMLParser.HTMLElement): string[] | undefined {
 	if (!dlParams) return undefined;
 	for (const param of dlParams) {
 		for (const child of param.childNodes) {
-			const dt = child.nodeType == HTMLParser.NodeType.ELEMENT_NODE ? child as HTMLParser.HTMLElement : undefined; 
-			if (!dt) 
+			const dt = child.nodeType == HTMLParser.NodeType.ELEMENT_NODE ? child as HTMLParser.HTMLElement : undefined;
+			if (!dt)
 				continue;
 			// parameter name
 			if (dt.localName === 'dt')

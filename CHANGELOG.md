@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 0.9.8
+
+1. fix crash while hover on trailor expression.
+2. v2 CompatibleMode configuration. 
+
 ## 0.9.7
 
 1. fix completions dose not show at object property and method

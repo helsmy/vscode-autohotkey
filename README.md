@@ -13,9 +13,11 @@ AutoHotKey language support for VS Code
 
 ## What's New
 
-1. Support onHover
-2. Debugger runtime executable path overlap. For detail, see [Feature](#feature)
-3. Build-in Variable and Function(partly) hint.
+1. v2 CompatibleMode(expremental)
+   - Allows some v2 syntax
+2. Support onHover
+3. Debugger runtime executable path overlap. For detail, see [Feature](#feature)
+4. Build-in Variable and Function(partly) hint.
    - Need documentions which is easy to be parsed by js/ts. If you find any, help please([Example](others/Contribute.md)).
 
 ## Notice

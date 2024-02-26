@@ -67,15 +67,15 @@ let globalSettings: AHKLSSettings = defaultSettings;
 // Cache the settings of all open documents
 let documentSettings: Map<string, Thenable<AHKLSSettings>> = new Map();
 
-const logger = new Logger(
-	connection.console, 
-	LogLevel[defaultSettings.traceServer.level]
-);
-const DOCManager: TreeManager = new TreeManager(connection, logger);
 const configurationService = new ConfigurationService(
 	defaultSettings,
 	connection
 );
+const logger = new Logger(
+	connection.console, 
+	LogLevel[defaultSettings.traceServer.level]
+);
+const DOCManager: TreeManager = new TreeManager(connection, logger, configurationService);
 
 connection.onInitialize((params: InitializeParams) => {
 	let capabilities = params.capabilities;
@@ -99,9 +99,9 @@ connection.onInitialize((params: InitializeParams) => {
 		hasWorkspaceFolder: hasWorkspaceFolderCapability
 	}
 
+	logger.info('initializing.');
 	// Update configuration of each service
 	configurationService.updateConfiguration({clientCapability: clientCapability});
-	onConfigChange(configurationService);
 
 	const result: InitializeResult = {
 		serverInfo: {
@@ -331,17 +331,7 @@ connection.onCompletionResolve(
 );
 
 function onConfigChange(config: ConfigurationService) {
-	const sendError = config.getConfig('sendError');
-	if (DOCManager.sendError != sendError) {
-		DOCManager.sendError = sendError;
-		DOCManager.updateErrors();
-	}
-
-	const v2CompatibleMode = config.getConfig('v2CompatibleMode');
-	if (DOCManager.v2CompatibleMode != v2CompatibleMode) {
-		DOCManager.v2CompatibleMode = v2CompatibleMode;
-	}
-
+	logger.info('update configuration');
 	const trace = config.getConfig('traceServer');
 	const level = LogLevel[trace.level];
 	logger.updateLevel(level);

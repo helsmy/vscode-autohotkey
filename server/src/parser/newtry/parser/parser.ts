@@ -39,7 +39,10 @@ export class AHKParser {
 
     private readonly logger: ILoggerBase;
 
-    constructor(document: string, uri: string, logger: ILoggerBase = mockLogger) {
+    private readonly v2mode: boolean;
+
+    constructor(document: string, uri: string, v2mode = false, logger: ILoggerBase = mockLogger) {
+        this.v2mode = v2mode;
         this.tokenizer = new Tokenizer(document);
         this.tokenizer.isParseHotkey = true;
         this.tokenGetter = this.tokenizer.GenToken();
@@ -155,6 +158,9 @@ export class AHKParser {
     ): DelimitedList<T> {
         let list = new DelimitedList<T>();
         while (true) {
+            // v2 allow `,` on the end of line, 
+            // so there will be EOL be element
+            if (this.v2mode) this.jumpWhiteSpace();
             if (isElementStartFn(this.currentToken)) {
                 list.addElement(parseElementFn());
             }
@@ -1193,7 +1199,7 @@ export class AHKParser {
         // parse all exist trailor  
         while (true) {
             if (this.currentToken.type === TokenType.openBracket) {
-                const bracket = this.arrayBracket();
+                const bracket = this.arrayTerm();
                 trailers.push(bracket);
             }
             else if (this.currentToken.type === TokenType.openParen) {
@@ -1270,18 +1276,6 @@ export class AHKParser {
         const colon = this.eatType(TokenType.colon);
         const value = this.expression();
         return new SuffixTerm.Pair(key, colon, value);
-    }
-
-    private arrayBracket(): SuffixTerm.BracketIndex {
-        const open = this.eat();
-        const indexs = this.delimitedList(
-            TokenType.comma,
-            this.isExpressionStart,
-            () => this.expression()
-        );
-        const close = this.eatType(TokenType.closeBracket);
-
-        return new SuffixTerm.BracketIndex(open, indexs, close);
     }
 
     private funcCallTrailer(): SuffixTerm.Call {

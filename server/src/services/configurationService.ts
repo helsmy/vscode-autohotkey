@@ -55,12 +55,7 @@ export class ConfigurationService extends EventEmitter {
     private onConfigurationChange(change: DidChangeConfigurationParams): void {
         const clientCapability = this.serverConfiguration.clientCapability;
         if (clientCapability.hasConfiguration) {
-            const serverConfiguration = this.serverConfiguration
-                .merge(change.settings[ServerName]);
-            if (!this.serverConfiguration.equal(serverConfiguration)) {
-                this.serverConfiguration = serverConfiguration;
-                this.emit('change', this);
-            }
+            this.updateConfiguration(change.settings[ServerName]);
         }
     }
 
@@ -69,7 +64,21 @@ export class ConfigurationService extends EventEmitter {
      * @param config config used for update
      */
     public updateConfiguration(config: Partial<ServerConfiguration>) {
-        this.serverConfiguration = this.serverConfiguration.merge(config);
+        const serverConfiguration = this.serverConfiguration.merge(config);
+
+        if (!this.serverConfiguration.equal(serverConfiguration)) {
+            this.serverConfiguration = serverConfiguration;
+            // It is needless to notify clientCapbility, for now
+            // 现在LS的组件里没有需要clientCapbility的，
+            // treeManger的configuration done只要configuration更新一次就会完成
+            // 而实际需要的configuration则会在下次change事件才会得到
+            // 所以要暂时跳过clientCapbility改变的事件
+            // TODO: 发送变化的configuration给各个组件，方便各个组件判断
+            if (config.clientCapability && Object.keys(config).length === 1)
+                return;
+            this.emit('change', this);
+        }
+        
     }
 
     public getConfig<K extends keyof AHKLSSettings>(key: K): AHKLSSettings[K] {

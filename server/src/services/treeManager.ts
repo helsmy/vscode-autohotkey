@@ -59,7 +59,7 @@ import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
 import { AHKBuiltinMethodSymbol, AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, ScopedSymbol, VaribaleSymbol, isBuiltinSymbol, isClassObject, isMethodObject } from '../parser/newtry/analyzer/models/symbol';
 import { DocInfo, IASTProvider } from './types';
 import { IFindResult, ScriptASTFinder, binarySearchIndex } from './scriptFinder';
-import { BracketIndex, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../parser/newtry/parser/models/suffixterm';
+import { ArrayTerm, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../parser/newtry/parser/models/suffixterm';
 import * as Stmt from "../parser/newtry/parser/models/stmt";
 import * as Expr from "../parser/newtry/parser/models/expr";
 import { posInRange, rangeBefore } from '../utilities/positionUtils';
@@ -69,6 +69,8 @@ import { NodeBase } from '../parser/newtry/parser/models/nodeBase';
 import { convertSymbolsHover, convertSymbolCompletion, getFuncPrototype, convertBuiltin2Signature, convertFactorHover, convertNewClassHover } from './utils/converter';
 import { resolveCommandCall, resolveFactor, resolveSubclass, searchPerfixSymbol } from './utils/symbolResolver';
 import { Token } from '../parser/newtry/tokenizor/types';
+import { ConfigurationService } from './configurationService';
+import { Notifier } from './utils/notifier';
 
 function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
     let d12: Array<T> = [], d21: Array<T> = [];
@@ -145,11 +147,13 @@ export class TreeManager implements IASTProvider
      */
     private readonly ULibDir: string;
 
+    private _configurationDone = new Notifier();
+
     public sendError: boolean = false;
 
     public v2CompatibleMode: boolean = false;
 
-	constructor(conn: Connection, logger: ILoggerBase) {
+	constructor(conn: Connection, logger: ILoggerBase, config: ConfigurationService) {
         this.conn = conn;
 		this.serverDocs = new Map();
         this.docsAST = new Map();
@@ -163,6 +167,28 @@ export class TreeManager implements IASTProvider
         this.SLibDir = 'C:\\Program Files\\AutoHotkey\\Lib'
         this.ULibDir = homedir() + '\\Documents\\AutoHotkey\\Lib'
         this.logger = logger;
+        this._configurationDone.reset();
+        config.on('change', this.onConfigChange.bind(this));
+    }
+
+    private onConfigChange(config: ConfigurationService) {
+        const sendError = config.getConfig('sendError');
+        if (this.sendError != sendError) {
+            this.sendError = sendError;
+            this.updateErrors();
+        }
+
+        const v2CompatibleMode = config.getConfig('v2CompatibleMode');
+        if (v2CompatibleMode !== this.v2CompatibleMode) {
+            this.v2CompatibleMode = v2CompatibleMode;
+            if (this.docsAST.size > 0) {
+                this.docsAST = new Map();
+                this.localAST = new Map();
+                for (const [uri, doc] of this.serverDocs.entries())
+                    this.updateDocumentAST(uri, doc);
+            } 
+        }
+        this._configurationDone.notify();
     }
 
     public getDocInfo(uri: string): Maybe<DocInfo> {
@@ -195,9 +221,12 @@ export class TreeManager implements IASTProvider
      * @param doc TextDocument of update documnet
      */
 	public async updateDocumentAST(uri: string, doc: TextDocument) {
+        // wait for configuation 1000ms, before start any parsing.
+        await this._configurationDone.wait(1000);
         // update documnet
         this.serverDocs.set(uri, doc);
-        const parser = new AHKParser(doc.getText(), doc.uri, this.logger);
+        this.logger.info(`v2 mode ${this.v2CompatibleMode}.`)
+        const parser = new AHKParser(doc.getText(), doc.uri, this.v2CompatibleMode, this.logger);
         const ast = parser.parse();
         const preprocesser = new PreProcesser(ast.script);
         const processResult = preprocesser.process();
@@ -316,7 +345,7 @@ export class TreeManager implements IASTProvider
 
             const doc = await this.loadDocumnet(p);
             if (doc) {
-                const parser = new AHKParser(doc.getText(), doc.uri, this.logger);
+                const parser = new AHKParser(doc.getText(), doc.uri, this.v2CompatibleMode, this.logger);
                 const ast = parser.parse();
                 const preprocesser = new PreProcesser(ast.script);
                 const table = preprocesser.process();
@@ -647,10 +676,10 @@ export class TreeManager implements IASTProvider
             let nextScope = sym;
             for (const bracket of brackets) {
                 // FIXME: indexs may be empty string
-                const { indexs } = (<BracketIndex>bracket);
+                const { items } = (<ArrayTerm>bracket);
                 // no type casting on complex indexing
-                if (indexs.length !== 1) return undefined;
-                const first = indexs.childern[0]
+                if (items.length !== 1) return undefined;
+                const first = items.childern[0]
                 if (first instanceof Expr.Factor && first.suffixTerm.atom instanceof Literal) {
                     const current = nextScope.resolveProp(first.suffixTerm.atom.token.content);
                     if (!(current instanceof AHKObjectSymbol)) return undefined;

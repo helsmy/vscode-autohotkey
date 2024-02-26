@@ -403,7 +403,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         const bracketMatch = binarySearchNode(brackets, pos);
         if (!bracketMatch) return matchNodeTypes(expr, matchNodeType) ? createResult(expr) : undefined;
 
-        const nextSearch = bracketMatch instanceof SuffixTerm.Call ? bracketMatch.args : bracketMatch.indexs;
+        const nextSearch = bracketMatch instanceof SuffixTerm.Call ? bracketMatch.args : bracketMatch.items;
         const deepMatch = posInRange(nextSearch, pos) ? 
                           this.searchDelimitedList(nextSearch, pos, matchNodeType) : 
                           undefined;

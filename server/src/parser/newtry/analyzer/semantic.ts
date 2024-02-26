@@ -323,7 +323,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 							arg => errors.push(...this.processExpr(arg))
 						);
 					else 
-						bracket.indexs.getElements().forEach(
+						bracket.items.getElements().forEach(
 							index => errors.push(...this.processExpr(index))
 						);
 				}
@@ -501,7 +501,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 					arg => errors.push(...this.processExpr(arg))
 				);
 			else 
-				trailer.indexs.getElements().forEach(
+				trailer.items.getElements().forEach(
 					index => errors.push(...this.processExpr(index))
 				);
 		}

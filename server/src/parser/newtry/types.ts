@@ -76,7 +76,7 @@ export type SyntaxNode =
 
 export type SuffixTermTrailer =
 	| SuffixTerm.Call
-	| SuffixTerm.BracketIndex;
+	| SuffixTerm.ArrayTerm;
 
 export type Atom =
 	| SuffixTerm.Invalid

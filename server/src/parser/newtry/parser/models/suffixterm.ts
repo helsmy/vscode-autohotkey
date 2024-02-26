@@ -166,45 +166,6 @@ export class Call extends SuffixTermBase {
 }
 
 /**
- * Class containing all valid array bracket suffix term trailers
- */
-export class BracketIndex extends SuffixTermBase {
-    /**
-     * Constructor for the array bracket suffix term trailer
-     * @param open open bracket
-     * @param indexs index into the collection
-     * @param close close bracket
-     */
-    constructor(
-        public readonly open: Token,
-        public readonly indexs: DelimitedList<Expr>,
-        public readonly close: Token,
-    ) {
-        super();
-    }
-
-    public get start(): Position {
-        return this.open.start;
-    }
-
-    public get end(): Position {
-        return this.close.end;
-    }
-
-    public get ranges(): Range[] {
-        return [this.open, ...this.indexs.ranges, this.close];
-    }
-
-    public toLines(): string[] {
-        const lines = this.indexs.toLines();
-
-        lines[0] = `${this.open.content}${lines[0]}`;
-        lines[lines.length - 1] = `${lines[lines.length - 1]}${this.close.content}`;
-        return lines;
-    }
-}
-
-/**
  * Class containing percent dereference suffix terms
  */
 export class PercentDereference extends SuffixTermBase {

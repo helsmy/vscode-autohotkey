@@ -320,13 +320,18 @@ export class TreeManager implements IASTProvider
         } 
     }
 
+    /**
+     * Load include scripts' AST to `this.localAST`
+     * @param inc2update path of include files
+     * @param uri Uri of script
+     */
     private async EnumIncludes(inc2update: string[], uri: string) {
         let incQueue: string[] = [...inc2update];
         // this code works why?
         // no return async always fails?
         let path = incQueue.shift();
         while (path) {
-            const docDir = dirname(URI.parse(this.currentDocUri).fsPath);
+            const docDir = dirname(URI.parse(uri).fsPath);
             const p = this.include2Path(path, docDir);
             if (!p) {
                 this.logger.info(`${path} is an invalid file name.`);

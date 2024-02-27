@@ -1003,55 +1003,73 @@ export class AHKParser {
         this.tokenizer.isParseHotkey = false;
         let result: Expr.Expr;
 
-        switch (this.currentToken.type) {
-            // all Unary operator
-            case TokenType.plus:
-            case TokenType.minus:
-            case TokenType.and:
-            case TokenType.multi:
-            case TokenType.not:
-            case TokenType.bnot:
-            case TokenType.pplus:
-            case TokenType.mminus:
-            case TokenType.new:
-                const saveToken = this.currentToken;
-                this.advance();
-                const q = (saveToken.type >= TokenType.pplus &&
-                    saveToken.type <= TokenType.mminus) ?
-                    Precedences[TokenType.pplus] :
-                    UnaryPrecedence;
-                const expr = this.expression(q);
-                result = new Expr.Unary(saveToken, expr);
-                break;
-            case TokenType.openParen:
-                let OPar = this.eat();
-                result = this.expression();
-                let CPar = this.eatType(TokenType.closeParen);
-                result = new Expr.ParenExpr(OPar, result, CPar);
-                break;
-            case TokenType.number:
-            case TokenType.string:
-            case TokenType.openBrace:
-            case TokenType.openBracket:
-            case TokenType.id:
-            case TokenType.precent:
-                // TODO: process array, dict, and precent expression
-                result = this.factor();
-                break;
-            default:
-                // TODO: Allow all keywords as identifier and warn this
-                if (isValidIdentifier(this.currentToken.type)) {
+        do {
+            switch (this.currentToken.type) {
+                // all Unary operator
+                case TokenType.plus:
+                case TokenType.minus:
+                case TokenType.and:
+                case TokenType.multi:
+                case TokenType.not:
+                case TokenType.bnot:
+                case TokenType.pplus:
+                case TokenType.mminus:
+                case TokenType.new:
+                    const saveToken = this.currentToken;
+                    this.advance();
+                    const q = (saveToken.type >= TokenType.pplus &&
+                        saveToken.type <= TokenType.mminus) ?
+                        Precedences[TokenType.pplus] :
+                        UnaryPrecedence;
+                    const expr = this.expression(q);
+                    result = new Expr.Unary(saveToken, expr);
+                    break;
+                case TokenType.openParen:
+                    let OPar = this.eat();
+                    result = this.expression();
+                    let CPar = this.eatType(TokenType.closeParen);
+                    result = new Expr.ParenExpr(OPar, result, CPar);
+                    break;
+                case TokenType.number:
+                case TokenType.string:
+                case TokenType.openBrace:
+                case TokenType.openBracket:
+                case TokenType.id:
+                case TokenType.precent:
+                    // TODO: process array, dict, and precent expression
                     result = this.factor();
                     break;
-                }
-                return new Expr.Invalid(this.currentToken.start, [this.currentToken]);
-        }
+                case TokenType.EOL:
+                    // v2 allows skip all EOL in expression
+                    // v2 能够允许在表达式里面完全忽略换行
+                    // 允许在运算符后忽略换行
+                    if (this.v2mode) {
+                        const p = this.peek();
+                        if (this.matchTokens([
+                            TokenType.plus, TokenType.minus,TokenType.and,TokenType.multi,TokenType.not,TokenType.bnot,
+                            TokenType.pplus,TokenType.mminus,TokenType.new,TokenType.openParen,TokenType.number,
+                            TokenType.string,TokenType.openBrace,TokenType.openBracket,TokenType.id,TokenType.precent
+                        ])) {
+                            this.eatType(TokenType.EOL);
+                            continue;
+                        }
+                        // if nothing is matched, let it leak to default
+                    }
+                default:
+                    // TODO: Allow all keywords as identifier and warn this
+                    if (isValidIdentifier(this.currentToken.type)) {
+                        result = this.factor();
+                        break;
+                    }
+                    return new Expr.Invalid(this.currentToken.start, [this.currentToken]);
+            }
+            // 丐版 goto，有的时候 goto 是真的好用
+            break;
+        } while (true);
 
         // pratt parse
         while (true) {
             this.tokenizer.isParseHotkey = false;
-            // infix left-associative 
-                // infix left-associative 
             // infix left-associative 
             if ((this.currentToken.type >= TokenType.power &&
                 this.currentToken.type <= TokenType.logicor) &&
@@ -1096,8 +1114,6 @@ export class AHKParser {
             }
 
             // infix and ternary, right-associative 
-                // infix and ternary, right-associative 
-            // infix and ternary, right-associative 
             if ((this.currentToken.type >= TokenType.question &&
                 this.currentToken.type <= TokenType.lshifteq) &&
                 Precedences[this.currentToken.type] >= p) {
@@ -1108,13 +1124,9 @@ export class AHKParser {
                 // ternary expression
                 if (saveToken.type === TokenType.question) {
                     // This expression has no relation 
-                        // This expression has no relation 
-                    // This expression has no relation 
                     // with next expressions. Thus, 0 precedence
                     const trueExpr = this.expression();
                     const colon = this.eatType(TokenType.colon);
-                    // right-associative 
-                        // right-associative 
                     // right-associative 
                     const falseExpr = this.expression(q);
                     result = new Expr.Ternary(
@@ -1127,8 +1139,6 @@ export class AHKParser {
                 }
                 // other assignments
                 else {
-                    // right-associative 
-                        // right-associative 
                     // right-associative 
                     const right = this.expression(q);
                     result = new Expr.Binary(
@@ -1254,7 +1264,7 @@ export class AHKParser {
             () => this.expression()
         )
 
-        const close = this.eatType(TokenType.closeBracket);
+        const close = this.eatType(TokenType.closeBracket, true);
 
         return new SuffixTerm.ArrayTerm(open, close, items);
     }
@@ -1266,7 +1276,7 @@ export class AHKParser {
             this.isExpressionStart,
             () => this.pair()
         )
-        const close = this.eatType(TokenType.closeBrace);
+        const close = this.eatType(TokenType.closeBrace, true);
 
         return new SuffixTerm.AssociativeArray(open, close, pairs);
     }
@@ -1287,7 +1297,7 @@ export class AHKParser {
             () => this.expression(),
             true
         );
-        const close = this.eatType(TokenType.closeParen);
+        const close = this.eatType(TokenType.closeParen, true);
         return new SuffixTerm.Call(open, args, close);
     }
 
@@ -1402,7 +1412,7 @@ export class AHKParser {
             }
         )
 
-        const close = this.eatType(closeTokenType);
+        const close = this.eatType(closeTokenType, true);
         return new Decl.Param(
             open,
             allParameters,
@@ -1531,7 +1541,12 @@ export class AHKParser {
      * @param t token type
      * @returns Token
      */
-    private eatType(t: TokenType): Token {
+    private eatType(t: TokenType, skipEOL = false): Token {
+        if (this.currentToken.type === TokenType.EOL && this.v2mode && skipEOL) {
+            const p = this.peek();
+            if (p.type === t) 
+                this.advance();
+        }
         if (this.currentToken.type === t) {
             this.advance();
             return this.previous();

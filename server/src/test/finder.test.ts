@@ -90,7 +90,7 @@ suite('Script Finder Test', () => {
         assert.strictEqual(res.nodeResult instanceof Call, true, 'Not A Call');
         if (res.outterFactor && res.nodeResult instanceof Call) {
             const outter = (<IFindResult<Call>>res).outterFactor;
-            assert.strictEqual(outter instanceof Factor, true, 'Not A Factor');
+            assert.strictEqual(outter?.nodeResult instanceof Factor, true, 'Not A Factor');
             if (res instanceof Factor && outter !== undefined) {
                 assert.strictEqual(outter.nodeResult.suffixTerm.atom instanceof Identifier, true, 'Not A Id');
                 if (outter.nodeResult.suffixTerm.atom instanceof Identifier)

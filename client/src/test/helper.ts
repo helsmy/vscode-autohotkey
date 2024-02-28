@@ -50,6 +50,10 @@ export const CompletionItemKind2String = (kind: vscode.CompletionItemKind | unde
 	return kind !== undefined ? vscode.CompletionItemKind[kind] : undefined;
 }
 
+export const symbolKind2String = (kind: vscode.SymbolKind | undefined) => {
+	return kind !== undefined ? vscode.SymbolKind[kind] : undefined;
+}
+
 /**
  * Gen a 0 based position from 1 based line and character
  * @param line 1 based line

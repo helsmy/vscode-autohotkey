@@ -14,7 +14,7 @@ suite('Should do document symbol', () => {
 
 	test('Symbols on completion.ahk', async () => {
 		const docUri = getDocUri('completion.ahk');
-		
+
 		await testOutline(docUri, [
 			new PartialSymbol('TestFunc', vscode.SymbolKind.Method),
 			new PartialSymbol('TestClass', vscode.SymbolKind.Class, [
@@ -23,8 +23,9 @@ suite('Should do document symbol', () => {
 				]),
 				new PartialSymbol('NestedFunc', vscode.SymbolKind.Method),
 			]),
-			new PartialSymbol('ScopedFunc', vscode.SymbolKind.Method),
-			new PartialSymbol('localVar', vscode.SymbolKind.Variable),
+			new PartialSymbol('ScopedFunc', vscode.SymbolKind.Method,[
+				new PartialSymbol('localVar', vscode.SymbolKind.Variable)
+			]),
 			new PartialSymbol('aTest', vscode.SymbolKind.Variable),
 		]);
 	});

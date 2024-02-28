@@ -160,7 +160,8 @@ export class AHKParser {
         while (true) {
             // v2 allow `,` on the end of line, 
             // so there will be EOL be element
-            if (this.v2mode) this.jumpWhiteSpace();
+            if (this.v2mode && delimiter === TokenType.comma) 
+                this.jumpWhiteSpace();
             if (isElementStartFn(this.currentToken)) {
                 list.addElement(parseElementFn());
             }

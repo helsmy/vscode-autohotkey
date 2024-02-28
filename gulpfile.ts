@@ -59,8 +59,19 @@ const buildClient = async () => await esbuild.build(clientOption)
 export const watch = gulp.parallel(watchServer, watchClient);
 export const build = gulp.series(
 	buildServer,
-	buildClient
+	buildClient,
 );
+
+gulp.task('buildAllWithMap', async (done) => {
+	try {
+		await esbuild.build(serverDevOption);
+		await esbuild.build(clientDevOption);
+	} catch (error) {
+		done(error);
+		return;
+	}
+	done();
+});
 
 gulp.task('syntax_gen', done => {
 	syntaxGen();

@@ -289,7 +289,7 @@ export class AHKParser {
                 return t === TokenType.else;
             case ParseContext.CaseStatementElements:
                 return t === TokenType.case || 
-                       t === TokenType.default ||
+                       this.isDefauleCase() ||
                        t === TokenType.closeBrace;
         }
     }
@@ -305,8 +305,7 @@ export class AHKParser {
                 return this.isClassMemberDeclarationStart();
             // TODO: Handle default:
             case ParseContext.SwitchStatementElements:
-                const token = this.currentToken;
-                return token.type === TokenType.case || token.type === TokenType.default;
+                return this.currentToken.type === TokenType.case || this.isDefauleCase();
             case ParseContext.DynamicPropertyElemnets:
                 return this.isDynamicPropertyStart();
         }
@@ -584,17 +583,17 @@ export class AHKParser {
                 return this.func();
             case TokenType.hotkeyand:
             case TokenType.hotkey:
-                return this.hotkey();
-            // 其他是语法错误，统一当作有错误的赋值语句
+                return this.hotkey();            
+            // 允许 var++ 的语法
+            case TokenType.pplus:
+            case TokenType.mminus:
+                return this.exprStmt();
             case TokenType.colon:
                 // 如果不是贴在一起的`:`就直接穿透到default case
                 if (p.start.line === this.currentToken.end.line &&
                     p.start.character === this.currentToken.end.character)
                     return this.label();
-            // 允许 var++ 的语法
-            case TokenType.pplus:
-            case TokenType.mminus:
-                return this.exprStmt();
+            // 其他是语法错误，统一当作有错误的赋值语句
             default:
                 return this.assignStmt();
         }
@@ -1385,9 +1384,10 @@ export class AHKParser {
         let isDefaultParam = false;
         const allParameters = this.delimitedList(
             TokenType.comma,
-            token => isValidIdentifier(token.type),
+            token => isValidIdentifier(token.type) || token.type === TokenType.and,
             () => {
-                const byref = this.eatOptional(TokenType.byref);
+                // v2 use `&` instead of `byref` keyword
+                const byref = this.eatOptional(this.v2mode ? TokenType.and : TokenType.byref);
                 if (isDefaultParam) {
                     const param = this.optionalParameter(byref);
                     optionalParameters.push(param);
@@ -1616,5 +1616,15 @@ export class AHKParser {
     private atLineEnd(): boolean {
         return this.currentToken.type === TokenType.EOL ||
                this.currentToken.type === TokenType.EOF;
+    }
+
+    private isDefauleCase(): boolean {
+        if (this.currentToken.type === TokenType.id && this.currentToken.content.toLowerCase() === 'default') {
+            const p = this.peek();
+            return p.content === ':' && 
+                   p.start.line === this.currentToken.end.line &&
+                   p.start.character === this.currentToken.end.character;
+        }
+        return false;
     }
 }

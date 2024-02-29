@@ -106,7 +106,7 @@ export enum TokenType {
 
 
     // keyword
-    if, else, switch, case, default, loop,
+    if, else, switch, case, loop,
     for, in,
     while, until, break, continue,
     try, catch, finally,

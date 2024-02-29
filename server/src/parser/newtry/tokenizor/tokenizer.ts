@@ -762,8 +762,10 @@ export class Tokenizer {
         return (s >= 'A' && s <= 'Z') || (s >= 'a' && s <= 'z');
     }
 
-    private isWhiteSpace(s: string): boolean {
-        return s === ' ' || s === '\t'
+    private isWhiteSpace(s: string, containEOL = false): boolean {
+        if (containEOL)
+            return s === ' ' || s === '\t' || s === '\r' || s === '\n';
+        return s === ' ' || s === '\t';
     }
 
     private isMark(s: string): boolean {
@@ -917,9 +919,9 @@ const RESERVED_KEYWORDS = (() => {
 	let keyword: ITokenMap = new Map();
 	for (let k = TokenType.if; k <= TokenType.byref; k++)
 		keyword.set(TokenType[k], k);
-    keyword.set("or", TokenType.keyor)
-    keyword.set("and", TokenType.keyand)
-    keyword.set("not", TokenType.keynot)
+    keyword.set("or", TokenType.keyor);
+    keyword.set("and", TokenType.keyand);
+    keyword.set("not", TokenType.keynot);
 	return keyword;
 })();
 

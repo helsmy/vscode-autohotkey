@@ -40,8 +40,9 @@ import {
     buildBuiltinFunctionNode,
     buildBuiltinCommandNode,
     buildKeyWordCompletions,
-    buildbuiltin_variable
-} from '../utilities/constants';
+    buildbuiltin_variable,
+    getBuiltinScope
+} from '../constants';
 import {
     dirname,
     extname,
@@ -85,6 +86,11 @@ function setDiffSet<T>(set1: Set<T>, set2: Set<T>) {
         }
     }
     return [d12, d21];
+}
+
+interface IBuiltinScope {
+    v1: Map<string, AHKSymbol>
+    v2: Map<string, AHKSymbol>
 }
 
 export class TreeManager implements IASTProvider
@@ -131,6 +137,8 @@ export class TreeManager implements IASTProvider
      */
     private readonly builtinCommand = buildBuiltinCommandNode();
 
+    private readonly builtinScope: IBuiltinScope
+
     private readonly keywordCompletions = buildKeyWordCompletions();
 
     private readonly builtinVarCompletions = buildbuiltin_variable();
@@ -167,6 +175,10 @@ export class TreeManager implements IASTProvider
         this.SLibDir = 'C:\\Program Files\\AutoHotkey\\Lib'
         this.ULibDir = homedir() + '\\Documents\\AutoHotkey\\Lib'
         this.logger = logger;
+        this.builtinScope = {
+            v1: getBuiltinScope(false, logger),
+            v2: getBuiltinScope(true, logger)
+        }
         this._configurationDone.reset();
         config.on('change', this.onConfigChange.bind(this));
     }
@@ -228,7 +240,10 @@ export class TreeManager implements IASTProvider
         this.logger.info(`v2 mode ${this.v2CompatibleMode}.`)
         const parser = new AHKParser(doc.getText(), doc.uri, this.v2CompatibleMode, this.logger);
         const ast = parser.parse();
-        const preprocesser = new PreProcesser(ast.script);
+        const preprocesser = new PreProcesser(
+            ast.script, 
+            this.v2CompatibleMode ? this.builtinScope.v2 : this.builtinScope.v1
+        );
         const processResult = preprocesser.process();
         const docTable = processResult.table;
 
@@ -352,7 +367,10 @@ export class TreeManager implements IASTProvider
             if (doc) {
                 const parser = new AHKParser(doc.getText(), doc.uri, this.v2CompatibleMode, this.logger);
                 const ast = parser.parse();
-                const preprocesser = new PreProcesser(ast.script);
+                const preprocesser = new PreProcesser(
+                    ast.script, 
+                    this.v2CompatibleMode ? this.builtinScope.v2 : this.builtinScope.v1
+                );
                 const table = preprocesser.process();
                 // cache to local storage file AST
                 this.localAST.set(doc.uri, {

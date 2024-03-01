@@ -1,6 +1,5 @@
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver-types';
-import { buildBuiltinFunctionNode, buildbuiltin_variable } from '../../../../utilities/constants';
-import { IScope, ISymbol, VarKind } from '../types';
+import { IScope, ISymbol } from '../types';
 import {
 	BuiltinTypeSymbol, 
 	AHKSymbol, 
@@ -9,12 +8,8 @@ import {
 	AHKObjectSymbol, 
 	HotkeySymbol, 
 	HotStringSymbol,
-	BuiltinVaribelSymbol,
 	LabelSymbol,
-	AHKBuiltinMethodSymbol,
-	ParameterSymbol
 } from './symbol';
-import { Position, Range } from 'vscode-languageserver';
 
 type SymbolMap = Map<string, AHKSymbol>;
 
@@ -26,20 +21,21 @@ export class SymbolTable implements IScope {
 	private symbols: SymbolMap = new Map();
 	private labelSymbols: SymbolMap = new Map();
 	public readonly name: string;
-	private readonly builtinScope: SymbolMap = BuildinScope; 
+	private readonly builtinScope: SymbolMap; 
 	public readonly enclosingScope: Maybe<SymbolTable>;
 	public readonly dependcyScope: Set<IScope>;
 	private includeTable: Map<string, SymbolTable>;
 	public readonly scoopLevel: number;
 	public readonly uri: string;
 
-	constructor(uri: string, name: string, scoopLevel: number, enclosingScoop?: Maybe<SymbolTable>) {
+	constructor(uri: string, name: string, scoopLevel: number, builtinScope: SymbolMap, enclosingScoop?: Maybe<SymbolTable>) {
 		this.uri = uri;
 		this.name = name;
 		this.scoopLevel = scoopLevel;
 		this.enclosingScope = enclosingScoop;
 		this.dependcyScope = new Set();
 		this.includeTable = new Map();
+		this.builtinScope = builtinScope;
 		this.initTypeSystem();
 	}
 
@@ -156,42 +152,3 @@ export class SymbolTable implements IScope {
 		return lines.join('\n');
 	}
 }
-
-const BuildinScope = (function (): Map<string, AHKSymbol> {
-	const fakeRange: Range = {
-		start: Position.create(-1, -1),
-		end:   Position.create(-1, -1)
-	}
-	
-	// add built-in function
-	let b: Map<string, AHKSymbol> = new Map(buildBuiltinFunctionNode().map(f => {
-		const reqParam = f.params.filter(p => !(p.isOptional));
-		const optParam = f.params.filter(p => !!(p.isOptional));
-	
-		return [f.name.toLowerCase(), 
-			new AHKBuiltinMethodSymbol(
-				f.name, 
-				reqParam.map(p => new ParameterSymbol(
-					'__Builtin__', p.name, fakeRange, VarKind.parameter, false, false
-				)),
-				optParam.map(p => new ParameterSymbol(
-					'__Builtin__', p.name, fakeRange, VarKind.parameter, false, false
-				)),
-		)];
-	}));
-	// add built-in variable
-	const v = buildbuiltin_variable().map(
-		(v): [string, AHKSymbol] => [
-			v.label.toLowerCase(),
-			new BuiltinVaribelSymbol(
-				v.label,
-				VarKind.variable,
-				undefined
-			)
-		]
-	);
-	for (const [name, sym] of v)
-		b.set(name, sym);
-	
-	return b;
-})() 

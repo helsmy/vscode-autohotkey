@@ -16,7 +16,7 @@ import {
     buildbuiltin_variable, 
     buildKeyWordCompletions, 
     BuiltinFuncNode
- } from '../utilities/constants';
+ } from '../constants';
 import { DocInfo, IASTProvider } from './types';
 
 

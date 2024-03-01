@@ -7,7 +7,7 @@ import * as Expr from '../parser/models/expr';
 import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
 import { Atom, IScript } from '../types';
-import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VaribaleSymbol } from './models/symbol';
+import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VaribaleSymbol } from './models/symbol';
 import { IScope, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
@@ -26,10 +26,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	constructor(
 		public readonly script: IScript,
-		
+		private readonly builtinScope: Map<string, AHKSymbol>
 	) {
 		super();
-		this.table = new SymbolTable(script.uri, 'global', 1);
+		this.table = new SymbolTable(script.uri, 'global', 1, builtinScope);
 		this.stack = [this.table];
 		this.currentScoop = this.stack[this.stack.length-1];
 	}

@@ -34,7 +34,7 @@ import {
 	defaultSettings,
 	// serverName,
 	ServerName
-} from './utilities/constants'
+} from './constants'
 
 import { builtin_variable } from "./utilities/builtins";
 import { TreeManager } from './services/treeManager';

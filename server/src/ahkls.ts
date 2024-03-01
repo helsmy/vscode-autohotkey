@@ -26,7 +26,7 @@ import {
 import {
 	TextDocument
 } from 'vscode-languageserver-textdocument';
-import {buildKeyWordCompletions, ServerName} from './utilities/constants'
+import {buildKeyWordCompletions, ServerName} from './constants'
 import { threadId } from 'worker_threads';
 
 export class AHKLS {

@@ -138,6 +138,7 @@ export function syntaxGen() {
 	const syntax_index = JSON.parse(
 		data_index.slice(12, data_index.length - 1)
 	) as DataType[];
+	const methodinfos: MethodInfo[] = [];
 
 	for (const item of syntax_index) {
 		const item_name = item[0];
@@ -156,9 +157,25 @@ export function syntaxGen() {
 				g_knownVars.add(item_name);
 				continue;
 			case SyntaxType.BuiltinFunction:
+				const detail = getFunctionDetail(item_path, item_name);
+				if (detail) {
+					const info = detail[0];
+					if (info) {
+						if (info instanceof Array) {
+							if (typeof info[0] === 'object')
+								methodinfos.push(...(info as MethodInfo[]));
+							else
+								// if type is string[]
+								console.log(JSON.stringify(info));
+						}
+						else {
+							methodinfos.push(info);
+						}
+					}
+				}
 				g_knownFuncs.add([
 					item_name,
-					getFunctionDetail(item_path, item_name)
+					detail
 				]);
 				continue;
 			case SyntaxType.BuiltinClass:
@@ -199,6 +216,13 @@ g_operator
 ${createApiList(g_operator)}
 `;
 	writeSync(f, api);
+
+	const mi2str = (m: MethodInfo) => `${m.name}(${m.parameter?.map(p => {
+		return `${p.isRef ? '&' : ''}${p.name}${p.isOptional ? ' := ' + (p.defaultVal ? p.defaultVal : 'UnSet') : ''}`
+	}).join(',')}){}`;
+
+	const fdef = openSync(join(__dirname, 'funtions.d.ahk'), 'w');
+	writeSync(fdef, methodinfos.map(i => mi2str(i)).join('\n'));
 }
 
 function parseFunc(f: string): MethodInfo {
@@ -545,7 +569,7 @@ function getFunctionDetail(path: string, funcName: string) {
 			if (info.name === funcName)
 				infos.push(info);
 		}
-		return [...infos, params];
+		return [infos, params];
 	}
 	return [parseFunc(m), params];
 }

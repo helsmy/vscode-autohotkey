@@ -1,7 +1,7 @@
 import { CompletionItem, CompletionItemKind, Hover, MarkupContent, MarkupKind, ParameterInformation, Position, Range, SignatureInformation } from 'vscode-languageserver';
 import { AHKBuiltinMethodSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotStringSymbol, HotkeySymbol, VaribaleSymbol, isClassObject, isMethodObject } from '../../parser/newtry/analyzer/models/symbol';
 import { IScope, ISymbol, VarKind } from '../../parser/newtry/analyzer/types';
-import { BuiltinFuncNode } from '../../utilities/constants';
+import { BuiltinFuncNode } from '../../constants';
 import { Parameter } from '../../parser/newtry/parser/models/declaration';
 import { Factor } from '../../parser/newtry/parser/models/expr';
 import { resolveFactor } from './symbolResolver';

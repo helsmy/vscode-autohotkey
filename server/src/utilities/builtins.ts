@@ -1,4 +1,4 @@
-import { BuiltinFuncNode } from './constants'
+import { BuiltinFuncNode } from '../constants'
 
 // builtin_variable and its docs
 export const builtin_variable = [

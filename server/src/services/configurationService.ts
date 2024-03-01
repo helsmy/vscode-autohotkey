@@ -4,7 +4,7 @@ import {
     Connection 
 } from 'vscode-languageserver/node';
 import { AHKLSSettings, ServerConfiguration } from './config/serverConfiguration';
-import { ServerName } from '../utilities/constants';
+import { ServerName } from '../constants';
 
 type ConfigurationConnection = Pick<Connection, 'onDidChangeConfiguration'>;
 

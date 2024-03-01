@@ -19,7 +19,7 @@ function getAST(s: string) {
 }
 
 function builtTable(AST: IStmt[]): SymbolTable {
-    let table = new SymbolTable('', 'global', 1, undefined);
+    let table = new SymbolTable('', 'global', 1, new Map());
     for (const stmt of AST) {
         if (stmt instanceof Stmt.AssignStmt) {
             const atom = unpackExpr(stmt.expr);

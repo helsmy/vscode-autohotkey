@@ -3,7 +3,7 @@ import { Factor } from '../parser/newtry/parser/models/expr';
 import * as SuffixTerm from '../parser/newtry/parser/models/suffixterm';
 import { IScript } from '../parser/newtry/types';
 import { binarySearchIndex, binarySearchNode, ScriptASTFinder } from './scriptFinder';
-import { DocInfo } from './types';
+import { DocumentSyntaxInfo } from './types';
 
 export class ASTService {
 	private finder: ScriptASTFinder = new ScriptASTFinder()
@@ -12,7 +12,7 @@ export class ASTService {
 
 	}
 
-	public onSignatureHelp(position: Position, docInfo: DocInfo): Maybe<SignatureHelp> {
+	public onSignatureHelp(position: Position, docInfo: DocumentSyntaxInfo): Maybe<SignatureHelp> {
 		const find = this.finder.find(docInfo.AST.script.stmts, position, [SuffixTerm.Call]);
         if (!find || !(find.outterFactor) || !(find.nodeResult instanceof SuffixTerm.Call)) return undefined;
         const baseId = find.outterFactor

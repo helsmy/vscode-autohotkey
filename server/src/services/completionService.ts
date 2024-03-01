@@ -17,7 +17,7 @@ import {
     buildKeyWordCompletions, 
     BuiltinFuncNode
  } from '../constants';
-import { DocInfo, IASTProvider } from './types';
+import { DocumentSyntaxInfo, IASTProvider } from './types';
 
 
 
@@ -40,7 +40,7 @@ export class CompletionService {
         this.builtinCommand = this.buildinFunc2Completion(buildBuiltinCommandNode());
     }
 
-    private getGlobalCompletion(docinfo: DocInfo): CompletionItem[] {
+    private getGlobalCompletion(docinfo: DocumentSyntaxInfo): CompletionItem[] {
         const symbols = docinfo.table.allSymbols();
         let incCompletion: CompletionItem[] = [];
         const incSymbolInfo = docinfo.table.includeSymbols();

@@ -5,7 +5,6 @@
 
 import {
 	createConnection,
-	TextDocuments,
 	ProposedFeatures,
 	InitializeParams,
 	DidChangeConfigurationNotification,
@@ -28,9 +27,6 @@ import {
 } from 'vscode-languageserver/node';
 
 import {
-	TextDocument
-} from 'vscode-languageserver-textdocument';
-import {
 	defaultSettings,
 	// serverName,
 	ServerName
@@ -40,9 +36,7 @@ import { builtin_variable } from "./utilities/builtins";
 import { TreeManager } from './services/treeManager';
 import { Logger, LogLevel } from './utilities/logger';
 import { 
-	AHKLSSettings, 
 	docLangName,
-	ServerConfiguration
 } from './services/config/serverConfiguration';
 import { ConfigurationService } from './services/configurationService';
 import { IClientCapabilities } from './types';
@@ -52,20 +46,9 @@ import { IClientCapabilities } from './types';
 // Also include all preview / proposed LSP features.
 const connection = createConnection(ProposedFeatures.all);
 
-// Create a simple text document manager. 
-const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
-
 let hasConfigurationCapability: boolean = false;
 let hasWorkspaceFolderCapability: boolean = false;
 let hasDiagnosticRelatedInformationCapability: boolean = false;
-
-// The global settings, used when the `workspace/configuration` request is not supported by the client.
-// Please note that this is not the case when using this server with the client provided in this example
-// but could happen with other clients.
-let globalSettings: AHKLSSettings = defaultSettings;
-
-// Cache the settings of all open documents
-let documentSettings: Map<string, Thenable<AHKLSSettings>> = new Map();
 
 const configurationService = new ConfigurationService(
 	defaultSettings,
@@ -152,24 +135,6 @@ connection.onInitialized(() => {
 	}
 });
 
-/**
- * @param resource Document uri
- */
-function getDocumentSettings(resource: string): Thenable<AHKLSSettings> {
-	if (!hasConfigurationCapability) {
-		return Promise.resolve(globalSettings);
-	}
-	let result = documentSettings.get(resource);
-	if (!result) {
-		result = connection.workspace.getConfiguration({
-			scopeUri: resource,
-			section: ServerName
-		});
-		documentSettings.set(resource, result);
-	}
-	return result;
-}
-
 connection.onDocumentSymbol(
 	(params: DocumentSymbolParams): SymbolInformation[] => {
 
@@ -238,37 +203,6 @@ connection.onHover(
 // 		return undefined;
 // 	}
 // );
-
-// load opened document
-documents.onDidOpen(async e => {
-	// let lexer = new Lexer(e.document, logger);
-	// const docInfo = lexer.Parse();
-	DOCManager.initDocument(e.document.uri, e.document);
-});
-
-documents.onDidClose(e => {
-	//TODO: better sulotion about close document
-	DOCManager.deleteUnusedDocument(e.document.uri);
-});
-
-documents.onDidSave(e => {
-	DOCManager.updateLocalAST(e.document.uri);
-})
-
-// The content of a text document has changed. This event is emitted
-// when the text document first opened or when its content has changed.
-documents.onDidChangeContent(change => {
-	DOCManager.updateDocumentAST(change.document.uri, change.document);
-	// Refresh inlay hints each times 
-	// connection.languages.inlayHint.refresh();
-	validateTextDocument(change.document);
-});
-
-async function validateTextDocument(textDocument: TextDocument): Promise<void> {
-	// In this simple example we get the settings for every validate run.
-	let result = await getDocumentSettings(textDocument.uri);
-	// connection.console.log(JSON.stringify(result));
-}
 
 connection.onDidChangeWatchedFiles(_change => {
 	// Monitored files have change in VSCode
@@ -339,10 +273,7 @@ function onConfigChange(config: ConfigurationService) {
 
 configurationService.on('change', onConfigChange);
 
-// Make the text document manager listen on the connection
-// for open, change and close text document events
-documents.listen(connection);
-
+DOCManager.listen();
 // Listen on the connection
 connection.listen();
 connection.console.log('Starting AHK Server')

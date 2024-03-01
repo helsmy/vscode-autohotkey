@@ -26,7 +26,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	constructor(
 		public readonly script: IScript,
-		private readonly builtinScope: Map<string, AHKSymbol>
+		builtinScope: Map<string, AHKSymbol>
 	) {
 		super();
 		this.table = new SymbolTable(script.uri, 'global', 1, builtinScope);

@@ -84,7 +84,10 @@ connection.onInitialize((params: InitializeParams) => {
 
 	logger.info('initializing.');
 	// Update configuration of each service
-	configurationService.updateConfiguration({clientCapability: clientCapability});
+	configurationService.updateCapabilities({
+		hasConfiguration: hasConfigurationCapability,
+		hasWorkspaceFolder: hasWorkspaceFolderCapability
+	});
 
 	const result: InitializeResult = {
 		serverInfo: {

@@ -25,10 +25,6 @@ export const defaultSettings = new ServerConfiguration(
 	{
 		level: 'info'
 	},
-	{
-		hasConfiguration : false, 
-		hasWorkspaceFolder: false
-	},
 	false
 )
 

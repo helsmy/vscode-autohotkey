@@ -440,9 +440,9 @@ export class TreeManager
         // if is lib include, use lib dir
         if (p[0] === '<') {
             const np = normalize(p.slice(1));
-            const dir = normalize(docDir + '\\Lib\\' + np);
-            const ULibDir = normalize(this.documentService.ULibDir + '\\' + np);
-            const SLibDir = normalize(this.documentService.SLibDir + '\\' + np);
+            const dir = normalize(join(docDir, 'Lib', np));
+            const ULibDir = join(this.documentService.ULibDir, np);
+            const SLibDir = join(this.documentService.SLibDir, np);
             searchDir.push(dir, ULibDir, SLibDir);
         } 
         // absolute dirctory
@@ -451,7 +451,7 @@ export class TreeManager
         }
         // relative dirctory
         else {
-            const dir = normalize(docDir + '\\' + normalize(p));
+            const dir = normalize(join(docDir, normalize(p)));
             searchDir.push(dir);
         }
         let completions: IoEntity[] = []

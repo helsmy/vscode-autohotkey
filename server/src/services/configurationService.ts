@@ -5,6 +5,7 @@ import {
 } from 'vscode-languageserver/node';
 import { AHKLSSettings, ServerConfiguration } from './config/serverConfiguration';
 import { ServerName } from '../constants';
+import { IClientCapabilities } from '../types';
 
 type ConfigurationConnection = Pick<Connection, 'onDidChangeConfiguration'>;
 
@@ -34,6 +35,11 @@ export class ConfigurationService extends EventEmitter {
      */
     public defaultServerConfiguration: ServerConfiguration;
 
+    /**
+     * Configuration related client capabilities
+     */
+    private clientCapability: IClientCapabilities
+
     constructor(
         defaultServerConfiguration: ServerConfiguration,
         conn: Connection
@@ -41,6 +47,10 @@ export class ConfigurationService extends EventEmitter {
         super();
         this.serverConfiguration = defaultServerConfiguration;
         this.defaultServerConfiguration = defaultServerConfiguration;
+        this.clientCapability = {
+            hasConfiguration: false,
+            hasWorkspaceFolder: false
+        }
         this.listen(conn);
     }
 
@@ -53,10 +63,20 @@ export class ConfigurationService extends EventEmitter {
      * @param change changes that occurred to the server configuration
      */
     private onConfigurationChange(change: DidChangeConfigurationParams): void {
-        const clientCapability = this.serverConfiguration.clientCapability;
+        const clientCapability = this.clientCapability;
         if (clientCapability.hasConfiguration) {
             this.updateConfiguration(change.settings[ServerName]);
         }
+    }
+
+    public updateCapabilities(capabilities: IClientCapabilities) {
+        this.clientCapability.hasConfiguration = capabilities.hasConfiguration;
+        this.clientCapability.hasWorkspaceFolder = capabilities.hasWorkspaceFolder;
+
+        // If client has no configuration capabilities,
+        // told other service to use default configuration.
+        if (!capabilities.hasConfiguration)
+            this.emit('change', this);
     }
 
     /**
@@ -68,17 +88,8 @@ export class ConfigurationService extends EventEmitter {
 
         if (!this.serverConfiguration.equal(serverConfiguration)) {
             this.serverConfiguration = serverConfiguration;
-            // It is needless to notify clientCapbility, for now
-            // 现在LS的组件里没有需要clientCapbility的，
-            // treeManger的configuration done只要configuration更新一次就会完成
-            // 而实际需要的configuration则会在下次change事件才会得到
-            // 所以要暂时跳过clientCapbility改变的事件
-            // TODO: 发送变化的configuration给各个组件，方便各个组件判断
-            if (config.clientCapability && Object.keys(config).length === 1)
-                return;
             this.emit('change', this);
         }
-        
     }
 
     public getConfig<K extends keyof AHKLSSettings>(key: K): AHKLSSettings[K] {

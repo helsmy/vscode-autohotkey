@@ -58,7 +58,7 @@ export class DocumentService {
     /**
      * Builtin functions and varibles symbols
      */
-    private readonly builtinScope: IBuiltinScope;
+    public readonly builtinScope: IBuiltinScope;
 
     /**
      * server cached documnets

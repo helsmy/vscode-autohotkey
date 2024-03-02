@@ -62,3 +62,37 @@ export const rangeBefore = (range: Range, pos: Position): boolean => {
 
     return false;
 };
+
+export function binarySearchRange<T extends Range>(nodes: T[], pos: Position): Maybe<T> {
+    const index = binarySearchIndex(nodes, pos);
+    if (index !== undefined) return nodes[index];
+    return undefined;
+}
+
+export function binarySearchIndex<T extends Range>(nodes: T[], pos: Position): Maybe<number> {
+    let start = 0;
+    let end = nodes.length - 1;
+    while (start <= end) {
+        const mid = Math.floor((start + end) / 2);
+        const node = nodes[mid];
+        // start <= pos
+        const isAfterStart = node.start.line < pos.line ? true : 
+                                node.start.line === pos.line ? 
+                                    node.start.character <= pos.character ? true : 
+                                false : 
+                            false;
+        // end >= pos
+        const isBeforeEnd = node.end.line > pos.line ? true : 
+                                node.end.line === pos.line ? 
+                                    node.end.character >= pos.character ? true : 
+                                false : 
+                            false;
+        if (isAfterStart && isBeforeEnd)
+            return mid;
+        else if (!isBeforeEnd)
+            start = mid + 1;
+        else
+            end = mid - 1;
+    }
+    return undefined;
+}

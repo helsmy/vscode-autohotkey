@@ -7,7 +7,7 @@ import * as Expr from '../parser/newtry/parser/models/expr';
 import { IStmt, IStmtVisitor, RangeSequence, SuffixTermTrailer } from '../parser/newtry/types';
 import { DelimitedList } from '../parser/newtry/parser/models/delimtiedList';
 import * as SuffixTerm from '../parser/newtry/parser/models/suffixterm';
-import { posInRange } from '../utilities/positionUtils';
+import { binarySearchRange, posInRange } from '../utilities/positionUtils';
 import { TokenType } from '../parser/newtry/tokenizor/tokenTypes';
 import { Token } from '../parser/newtry/tokenizor/types';
 
@@ -381,7 +381,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         }
 
         if (factor.trailer && posInRange(factor.trailer, pos)) {
-            const match = binarySearchNode(factor.trailer.suffixTerm.getElements(), pos);
+            const match = binarySearchRange(factor.trailer.suffixTerm.getElements(), pos);
             if (match) {
                 return this.searchSuffixTerm(factor, match, pos, matchNodeType);
             } 
@@ -400,7 +400,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     }  
 
     private bracketsMatch(expr: Expr.Factor, brackets: SuffixTermTrailer[], pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
-        const bracketMatch = binarySearchNode(brackets, pos);
+        const bracketMatch = binarySearchRange(brackets, pos);
         if (!bracketMatch) return matchNodeTypes(expr, matchNodeType) ? createResult(expr) : undefined;
 
         const nextSearch = bracketMatch instanceof SuffixTerm.Call ? bracketMatch.args : bracketMatch.items;
@@ -420,7 +420,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     }
 
     private searchDelimitedList<T extends NodeBase|Token>(list: DelimitedList<T>, pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
-        const match = binarySearchNode(list.getElements(), pos);
+        const match = binarySearchRange(list.getElements(), pos);
         if (match === undefined || match instanceof Token) return undefined;
         // expressions must be unpacked manullay since they are not included in IStmtVisitor
         if (match instanceof Expr.Expr) return this.searchExpression(match, pos, matchNodeType);
@@ -435,7 +435,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     }
 
     public find(ast: IStmt[], pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
-        const match = binarySearchNode(ast, pos);
+        const match = binarySearchRange(ast, pos);
         if (!match) return undefined;
         const deepMatch = match.accept(this, [pos, matchNodeType]) as Maybe<IFindResult<NodeBase>> ; 
         if (deepMatch) return deepMatch;
@@ -478,40 +478,6 @@ function matchNodeTypes(node: RangeSequence, types: NodeConstructor[]): boolean 
         if (node instanceof t) return true;
     }
     return false;
-}
-
-export function binarySearchNode<T extends Range>(nodes: T[], pos: Position): Maybe<T> {
-    const index = binarySearchIndex(nodes, pos);
-    if (index !== undefined) return nodes[index];
-    return undefined;
-}
-
-export function binarySearchIndex<T extends Range>(nodes: T[], pos: Position): Maybe<number> {
-    let start = 0;
-    let end = nodes.length - 1;
-    while (start <= end) {
-        const mid = Math.floor((start + end) / 2);
-        const node = nodes[mid];
-        // start <= pos
-        const isAfterStart = node.start.line < pos.line ? true : 
-                                node.start.line === pos.line ? 
-                                    node.start.character <= pos.character ? true : 
-                                false : 
-                            false;
-        // end >= pos
-        const isBeforeEnd = node.end.line > pos.line ? true : 
-                                node.end.line === pos.line ? 
-                                    node.end.character >= pos.character ? true : 
-                                false : 
-                            false;
-        if (isAfterStart && isBeforeEnd)
-            return mid;
-        else if (!isBeforeEnd)
-            start = mid + 1;
-        else
-            end = mid - 1;
-    }
-    return undefined;
 }
 
 // let start = 0;

@@ -38,7 +38,7 @@ export class ConfigurationService extends EventEmitter {
     /**
      * Configuration related client capabilities
      */
-    private clientCapability: IClientCapabilities
+    public clientCapability: IClientCapabilities
 
     constructor(
         defaultServerConfiguration: ServerConfiguration,

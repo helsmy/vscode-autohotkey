@@ -16,7 +16,7 @@ import { homedir } from 'os';
 import { ConfigurationService } from './configurationService';
 import { Token } from '../parser/newtry/tokenizor/types';
 
-interface IBuiltinScope {
+export interface IBuiltinScope {
     v1: Map<string, AHKSymbol>
     v2: Map<string, AHKSymbol>
 }

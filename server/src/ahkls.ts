@@ -23,7 +23,12 @@ import {
     CancellationToken,
     DefinitionParams,
     HoverParams,
-    CompletionParams
+    CompletionParams,
+    SemanticTokenTypes,
+    SemanticTokenModifiers,
+    SemanticTokens,
+    SemanticTokensParams,
+    SemanticTokensBuilder
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
@@ -76,17 +81,12 @@ import { resolveCommandCall, resolveFactor, resolveSubclass, searchPerfixSymbol 
 import { Token } from './parser/newtry/tokenizor/types';
 import { ConfigurationService } from './services/configurationService';
 import { Notifier } from './services/utils/notifier';
-import { DocumentService } from './services/documentService';
+import { DocumentService, IBuiltinScope } from './services/documentService';
 import { IClientCapabilities } from './types';
 import { IAST } from './parser/newtry/types';
 import { docLangName } from './services/config/serverConfiguration';
 import { builtin_variable } from './utilities/builtins';
 import { SymbolTable } from './parser/newtry/analyzer/models/symbolTable';
-
-interface IBuiltinScope {
-    v1: Map<string, AHKSymbol>
-    v2: Map<string, AHKSymbol>
-}
 
 export class AHKLS
 {
@@ -147,6 +147,7 @@ export class AHKLS
         this.conn.onHover(this.onHover.bind(this));
         this.conn.onCompletion(this.onCompletion.bind(this));
         this.conn.onCompletionResolve(this.onCompletionResolve.bind(this));
+        // this.conn.languages.semanticTokens.on(this.onSemanticTokens.bind(this))
 
         this.documents.onDidOpen(e => this.initDocument(e.document.uri, e.document));
 
@@ -216,6 +217,13 @@ export class AHKLS
                 hoverProvider: true,
                 documentSymbolProvider: true,
                 definitionProvider: true,
+                // semanticTokensProvider: {
+                //     legend: {
+                //         tokenTypes: [SemanticTokenTypes.variable],
+                //         tokenModifiers: [SemanticTokenModifiers.static]
+                //     },
+                //     full: true
+                // },
                 // inlayHintProvider: true,
             }
         };
@@ -516,6 +524,22 @@ export class AHKLS
                 break;
         }
         return item;
+    }
+
+    private async onSemanticTokens(param: SemanticTokensParams, cancellation: CancellationToken): Promise<SemanticTokens>{
+        const { textDocument } = param;
+        this.logger.info('onSemanticTokens');
+        const doc = this.documentService.getDocumentInfo(textDocument.uri);
+        if (!doc) return {data: []};
+        const builder = new SemanticTokensBuilder();
+        const first = doc.syntax.AST.script.tokens[1];
+        builder.push(
+            first.start.line, 
+            first.start.character, 
+            first.content.length,
+            0, 0
+        );
+        return builder.build();
     }
     
     /**

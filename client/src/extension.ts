@@ -15,7 +15,7 @@ import {
 	LanguageClientOptions,
 	ServerOptions,
 	TransportKind
-} from 'vscode-languageclient';
+} from 'vscode-languageclient/node';
 import { CommandManger } from './commands/commandManger';
 import { AHKSS_CLIENT_NAME, AHKSS_EXTENSION_ID, AUTOHOTKEY_LANGUAGE } from './constants';
 import { DebugConfigSubstituter } from './debugConfig/debugConfigUtil';

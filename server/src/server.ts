@@ -5,6 +5,8 @@
 
 import {
 	createConnection,
+	InlayHint,
+	InlayHintParams,
 	ProposedFeatures,
 	// InlayHintParams,
 	// InlayHint,

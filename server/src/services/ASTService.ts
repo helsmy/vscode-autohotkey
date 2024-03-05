@@ -2,8 +2,9 @@ import { Position, SignatureHelp } from 'vscode-languageserver';
 import { Factor } from '../parser/newtry/parser/models/expr';
 import * as SuffixTerm from '../parser/newtry/parser/models/suffixterm';
 import { IScript } from '../parser/newtry/types';
-import { binarySearchIndex, binarySearchRange, ScriptASTFinder } from './scriptFinder';
+import { ScriptASTFinder } from './scriptFinder';
 import { DocumentSyntaxInfo } from './types';
+import { binarySearchIndex } from '../utilities/positionUtils';
 
 export class ASTService {
 	private finder: ScriptASTFinder = new ScriptASTFinder()

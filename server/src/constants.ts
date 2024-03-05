@@ -76,67 +76,50 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 	
 	let b: Map<string, AHKSymbol> = new Map()
 	// add built-in function
-	if (v2mode) {
-		const furi = URI.file(join(__dirname, '..', '..', 'syntaxes', 'builtin', 'v2','functions.d.ahk'));
-		// TODO: Hanlde file read failure
-		let docText = '';
-		try {
-			docText = readFileSync(furi.fsPath, {encoding: 'utf-8'});
-		}
-		catch (err) {
-			logger.error('Can not read builtin-function definition file. Builtin-function related features will not work.');
-		}
+	const version = v2mode ? 'v2' : 'v1'
+	const furi = URI.file(join(__dirname, '..', '..', 'syntaxes', 'builtin', version,'functions.d.ahk'));
+	// TODO: Hanlde file read failure
+	let docText = '';
+	try {
+		docText = readFileSync(furi.fsPath, {encoding: 'utf-8'});
+	}
+	catch (err) {
+		logger.error('Can not read builtin-function definition file. Builtin-function related features will not work.');
+	}
 
-		const p = new AHKParser(docText, furi.toString(), true)
-		const ast = p.parse();
-		const fuctions = ast.script.stmts.map(f => {
-			const fdef = f as FuncDef
-			return new AHKMethodSymbol(
-				'__Builtin__',
-				fdef.nameToken.content,
-				fakeRange,
-				fdef.params.requiredParameters.map(p =>
-					new ParameterSymbol(
-						furi.toString(),
-						p.identifier.content,
-						Range.create(p.start, p.end),
-						VarKind.parameter,
-						p.byref !== undefined,
-						false
-					)
-				),
-				fdef.params.optionalParameters.map(p =>
-					new ParameterSymbol(
-						furi.toString(),
-						p.identifier.content,
-						Range.create(p.start, p.end),
-						VarKind.parameter,
-						p.byref !== undefined,
-						p instanceof SpreadParameter
-					)
+	const p = new AHKParser(docText, furi.toString(), true)
+	const ast = p.parse();
+	const fuctions = ast.script.stmts.map(f => {
+		const fdef = f as FuncDef
+		return new AHKMethodSymbol(
+			'__Builtin__',
+			fdef.nameToken.content,
+			fakeRange,
+			fdef.params.requiredParameters.map(p =>
+				new ParameterSymbol(
+					furi.toString(),
+					p.identifier.content,
+					Range.create(p.start, p.end),
+					VarKind.parameter,
+					p.byref !== undefined,
+					false
+				)
+			),
+			fdef.params.optionalParameters.map(p =>
+				new ParameterSymbol(
+					furi.toString(),
+					p.identifier.content,
+					Range.create(p.start, p.end),
+					VarKind.parameter,
+					p.byref !== undefined,
+					p instanceof SpreadParameter
 				)
 			)
-		});
-		for (const m of fuctions) 
-			b.set(m.name.toLowerCase(), m);
-	}
-	else {
-		b = new Map(buildBuiltinFunctionNode().map(f => {
-			const reqParam = f.params.filter(p => !(p.isOptional));
-			const optParam = f.params.filter(p => !!(p.isOptional));
-		
-			return [f.name.toLowerCase(), 
-				new AHKBuiltinMethodSymbol(
-					f.name, 
-					reqParam.map(p => new ParameterSymbol(
-						'__Builtin__', p.name, fakeRange, VarKind.parameter, false, false
-					)),
-					optParam.map(p => new ParameterSymbol(
-						'__Builtin__', p.name, fakeRange, VarKind.parameter, false, false
-					)),
-			)];
-		}));
-	}
+		)
+	});
+	for (const m of fuctions) 
+		b.set(m.name.toLowerCase(), m);
+
 	
 	// add built-in variable
 	const v = buildbuiltin_variable().map(

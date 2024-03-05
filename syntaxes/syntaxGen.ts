@@ -55,7 +55,8 @@ class ParamInfo {
 	}
 }
 
-const rootPath = resolvePath('../..', 'ahkdoc/v2/docs');
+const v2 = false;
+const rootPath = resolvePath('../..', v2 ? 'ahkdoc/v2/docs' : 'ahkdoc/v1/docs');
 
 function resolvePath(...path: string[]) {
 	return join(__dirname, ...path);
@@ -181,7 +182,7 @@ export function syntaxGen() {
 			case SyntaxType.BuiltinClass:
 				g_knownClasses.add([
 					item_name,
-					getObjectDetail(item_path, item_name)
+					v2 ? getObjectDetail(item_path, item_name) : ''
 				]);
 				continue;
 			case SyntaxType.Operator:
@@ -221,7 +222,7 @@ ${createApiList(g_operator)}
 		return `${p.isRef ? '&' : ''}${p.name}${p.isOptional ? ' := ' + (p.defaultVal ? p.defaultVal : 'UnSet') : ''}`
 	}).join(',')}){}`;
 
-	const fdef = openSync(join(__dirname, 'funtions.d.ahk'), 'w');
+	const fdef = openSync(join(__dirname, 'functions.d.ahk'), 'w');
 	writeSync(fdef, methodinfos.map(i => mi2str(i)).join('\n'));
 }
 
@@ -530,9 +531,11 @@ function getObjectDetail(path: string, objName: string): ObjectInfo | undefined 
 }
 
 function getFunctionDetail(path: string, funcName: string) {
+	if (funcName.endsWith('()'))
+		funcName = funcName.slice(0, -2);
 	const libPath = path.split('#')[0];
 	const html = readFileSync(join(rootPath, libPath), { encoding: 'utf-8' });
-	const root = HTMLParser.parse(html);
+	const root = HTMLParser.parse(html, { fixNestedATags: true, parseNoneClosedTags: true });
 	// TODO: store parameter doc in params.
 	const params = getParams(root);
 
@@ -554,6 +557,11 @@ function getFunctionDetail(path: string, funcName: string) {
 		return [parseFunc(m.replace('RootDir\\Filename', '"RootDir\\Filename"')), params];
 	if (funcName === "StatusBarGetText" || funcName === "StatusBarWait")
 		return [parseFunc(m.replace('Part#', '"Part#"')), params];
+	if (funcName === 'Func' && !v2) 
+		return undefined;
+	if (funcName === 'Object' && !v2) 
+		return undefined;
+	
 
 	// Deal with overide
 	if (m.includes('\n') &&

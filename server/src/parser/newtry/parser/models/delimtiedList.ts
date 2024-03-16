@@ -45,7 +45,25 @@ export class DelimitedList<T extends NodeBase | Token> extends NodeBase {
 
     // TODO: implement
     public toLines(): string[] {
-        throw new Error('Method not implemented.');
+        let lines: string[] = [];
+        if (this.length === 0) return lines;
+        let oneline = '';
+        let prelement = this.childern[0];
+        for (const e of this.childern) {
+            const leadingSpace = prelement === e ? '' : ' '.repeat(e.start.character-prelement.end.character);
+            if (e.start.line !== prelement.start.line) {
+                lines.push(oneline);
+                oneline = '';
+            }
+            if (e instanceof Token) {
+                oneline += `${leadingSpace}${e.content}`;
+                continue;
+            }
+            const el = e.toLines();
+            el[0] = `${leadingSpace}${el[0]}`;
+            lines.push(...el);
+        } 
+        return lines;
     }
 
     // FIXME: 0 childern node fails

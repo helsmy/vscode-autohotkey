@@ -11,6 +11,7 @@ import { DelimitedList } from './delimtiedList';
 import { Expr } from './expr';
 import { NodeBase } from './nodeBase';
 import { Token } from '../../tokenizor/types';
+import { joinNodeTokenLines } from '../../formatter/joinNodeTokenLines';
 
 /**
  * Base class for all suffix terms
@@ -161,7 +162,10 @@ export class Call extends SuffixTermBase {
     }
 
     public toLines(): string[] {
-        return [this.open.content, ...this.args.toLines(), this.close.content];
+        const res = this.args.toLines();
+        if (res.length === 0)
+            return joinNodeTokenLines(this.open, this.close);
+        return joinNodeTokenLines(this.open, this.args, this.close);
     }
 }
 
@@ -228,6 +232,8 @@ export class Literal extends SuffixTermBase {
     }
 
     public toLines(): string[] {
+        if (this.token.type === TokenType.string)
+            return [`"${this.token.content}"`]
         return [`${this.token.content}`];
     }
 }

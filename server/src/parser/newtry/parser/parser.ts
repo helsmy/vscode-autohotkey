@@ -244,6 +244,16 @@ export class AHKParser {
                 this.jumpWhiteSpace();
                 continue;
             }
+            
+            // Error handle logic
+            // The current parse context does not know how to handle the current token,
+            // so check if the enclosing contexts know what to do. If so, we assume that
+            // the list has completed parsing, and return to the enclosing context.
+            // 
+            // For detail see: https://github.com/microsoft/tolerant-php-parser
+            if (this.isCurrentTokenValidInEnclosingContexts()) {
+                break;
+            }
 
             // Current token is invaild. Generate a skippedToken, 
             // and try to parse next one in current context
@@ -253,6 +263,8 @@ export class AHKParser {
             this.jumpWhiteSpace();
         }
 
+        this.currentParseContext = savedContext;
+        
         return stmts;
     }
 
@@ -269,6 +281,8 @@ export class AHKParser {
                 return this.classMemberElement.bind(this);
             case ParseContext.DynamicPropertyElemnets:
                 return this.dynamicPropertyMember.bind(this);
+            default:
+                throw new Error('Unrecognized parse context');
         }
     }
 
@@ -291,6 +305,8 @@ export class AHKParser {
                 return t === TokenType.case || 
                        this.isDefauleCase() ||
                        t === TokenType.closeBrace;
+            default:
+            throw new Error('Unrecognized parse context');
         }
     }
 
@@ -308,7 +324,28 @@ export class AHKParser {
                 return this.currentToken.type === TokenType.case || this.isDefauleCase();
             case ParseContext.DynamicPropertyElemnets:
                 return this.isDynamicPropertyStart();
+            default:
+                throw new Error('Unrecognized parse context');
         }
+    }
+
+    /**
+     * Aborts parsing list when one of the parent contexts understands something
+     * @return bool
+     */
+    private isCurrentTokenValidInEnclosingContexts(): boolean {
+        for (let contextKind = 0; contextKind < ParseContext.Count; contextKind++) {
+            if (this.isInParseContext(contextKind)) {
+                if (this.isValidListStart(contextKind) || this.isListTerminator(contextKind)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private isInParseContext(contextToCheck: number) {
+        return (this.currentParseContext & (1 << contextToCheck));
     }
 
     private isStatementStart(): boolean {
@@ -316,20 +353,61 @@ export class AHKParser {
             
         switch (t) {
             case TokenType.openBrace:
-            case TokenType.id:
             case TokenType.key:
             case TokenType.hotkeyModifer:
             case TokenType.hotstringOpen:
             case TokenType.drective:
             case TokenType.command:
+                return true;
+
+            // Control flows
+            case TokenType.if:
+            case TokenType.switch:
+            case TokenType.loop:
+            case TokenType.for:
+            case TokenType.while:
+                return true;
+            
+            // Jump Statements
+            case TokenType.break:
+            case TokenType.continue:
+            case TokenType.return:
+            case TokenType.throw:
+            case TokenType.gosub:
+            case TokenType.goto:
+                return true;
+            
+            // The try Statement
+            case TokenType.try:
+                return true;
+            
+            // Declaration Statements
+            case TokenType.global:
+            case TokenType.local:
+            case TokenType.static:
+                return true;
+
+            default:
+                return this.isAllowedExpressionStatementStart();
+        }
+    }
+
+    private isAllowedExpressionStatementStart(): boolean {
+        const t = this.currentToken.type;
+
+        switch (t) {
+            case TokenType.id:
+                return true;
+            // 有豁免检查 recognized action 能力的符号
             case TokenType.pplus:
             case TokenType.mminus:
             case TokenType.openParen:
             case TokenType.openBrace:
                 return true;
+        
             default:
-                // All keyword
-                return t >= TokenType.if && t <= TokenType.static;
+                // TODO: check if is assignment statement start
+                return isValidIdentifier(t);
         }
     }
 
@@ -382,15 +460,6 @@ export class AHKParser {
 
     private varDecl(): Decl.VarDecl {
         const scope = this.eat();
-
-        // if there are only declaration modifier
-        // `global` `Missing Variable` `\n`
-        if (this.atLineEnd()) {
-            this.terminal();
-            const assign = new DelimitedList<Expr.Expr>();
-            assign.addElement(new Expr.Invalid(scope.end, []));
-            return new Decl.VarDecl(scope, assign);
-        }
 
         const assign = this.delimitedList(
             TokenType.comma,

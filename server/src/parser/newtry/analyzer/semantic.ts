@@ -602,8 +602,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitFor(stmt: Stmt.ForStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		const id1 = stmt.iter1id.suffixTerm.atom;
-		const id2 = stmt.iter2id?.suffixTerm.atom;
+		const id1 = stmt.iter1id.suffixTerm;
+		const id2 = stmt.iter2id?.suffixTerm;
 		errors.push(...this.visitIterId(id1, stmt));
 		if (id2) 
 			errors.push(...this.visitIterId(id2, stmt));
@@ -611,17 +611,13 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		return errors.concat(stmt.body.accept(this, []));
 	}
 
-	private visitIterId(id1: Atom, stmt: Stmt.ForStmt): Diagnostics {
+	private visitIterId(oneId: SuffixTerm.SuffixTerm, stmt: Stmt.ForStmt): Diagnostics {
 		const errors: Diagnostics = [];
-		if (id1 instanceof SuffixTerm.Invalid) {
-			errors.push(this.error(
-				copyRange(id1),
-				'Expect an Identifier in for iter'
-			));
-		}
-		else {
-			// parser 已经确保 id1 一定为标识符
-			const id = id1 as SuffixTerm.Identifier;
+		errors.push(...this.processSuffixTerm(oneId));
+
+		if (errors.length === 0) {
+			// 如果没有错误发生, 则parser 已经确保 oneId 一定为标识符
+			const id = oneId.atom as SuffixTerm.Identifier;
 			// check if iter varible is defined, if not define them
 			if (!this.currentScoop.resolve(id.token.content)) {
 				const sym = new VaribaleSymbol(

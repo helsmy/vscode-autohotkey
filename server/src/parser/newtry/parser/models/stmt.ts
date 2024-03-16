@@ -201,7 +201,12 @@ export class CommandCall extends Stmt {
 	}
 
 	public toLines(): string[] {
-		return [this.command.content, ...this.args.toLines()];
+		const res = [this.command.content];
+		const argsLines = this.args.toLines();
+		if (argsLines.length === 0)
+			return res;
+		argsLines[0] = `${this.command.content}, ${argsLines[0]}`;
+		return argsLines;
 	}
 
 	public get start(): Position {
@@ -1013,13 +1018,13 @@ export class Drective extends Stmt {
 
 	public toLines(): string[] {
 		if (this.args.childern.length === 0) {
-			return [`${this.drective.content}`];
+			return [`#${this.drective.content}`];
 		}
 
 		const argsLines = this.args.toLines();
 		const argsResult = joinLines(', ', argsLines);
 
-		argsResult[0] = `${this.drective.content}${argsResult[0]}`;
+		argsResult[0] = `#${this.drective.content} ${argsResult[0]}`;
 		return argsResult;
 	}
 

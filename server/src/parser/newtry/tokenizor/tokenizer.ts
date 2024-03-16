@@ -486,6 +486,61 @@ export class Tokenizer {
         return this.CreateToken(TokenType.string, content, p, this.genPosition());
     }
 
+    private getCommandToken(): TokenResult {
+        while (true) {
+            const p = this.genPosition();
+            switch (this.currChar) {
+                case ' ':
+                case '\t':
+                case '\r':
+                    // skip
+                    this.SkipWhiteSpace();
+                    continue;
+                case '%':
+                    // If next character is a space, 
+                    if (this.Peek() === ' ') {
+                        this.isLiteralDeref = true;
+                        this.Advance();
+                        break;
+                    }
+                    this.Advance();
+                    // TODO: AHK allows number as identifier to be derefered
+                    // This is for get cli parameter
+                    let token = this.GetId(TokenType.precent);
+                    // FIXME: check close % of %% dereference
+                    this.Advance();
+                    return token;
+                case ',':
+                    // this.isLiteralDeref = false;
+                    this.Advance();
+                    return this.CreateToken(TokenType.comma, ',', p, this.genPosition());
+                case '\n':
+                    // `=` `\n` `(...)` multiline string
+                    if (this.BackPeek(1, true) === '=' && this.Peek(1, true) === '(') {
+                        return this.getLiteralString();
+                    }
+                    // Generate a empty string token
+                    // 给换行的字符串token产生一个空字符串
+                    // 为了`var=\n`产生空占位符
+                    this.isLiteralToken = false;
+                    this.AdvanceLine();
+                    return this.returnSkipEmptyLine(p);
+                // muiltline comment
+                case '/':
+                    if (this.Peek() === '*') 
+                        return this.BlockComment();
+                    return this.LiteralToken();
+                // line comment
+                case ';':
+                    if (this.isWhiteSpace(this.Peek()))
+                        return this.LineComment();
+                    this.LiteralToken();
+                default:
+                    return this.LiteralToken();
+            }
+        }
+    }
+
     public GetNextToken(preType: TokenType = TokenType.EOL): TokenResult {
         while (this.currChar !== "EOF") {
             let p = this.genPosition();
@@ -497,49 +552,10 @@ export class Tokenizer {
             }
             
             // For Command
-            if (this.isLiteralToken) {
-                switch (this.currChar) {
-                    case ' ':
-                    case '\t':
-                    case '\r':
-                        // skip
-                        this.SkipWhiteSpace();
-                        continue;
-                    case '%':
-                        // If next character is a space, 
-                        if (this.Peek() === ' ') {
-                            this.isLiteralDeref = true;
-                            this.Advance();
-                            break;
-                        }
-                        this.Advance();
-                        // TODO: AHK allows number as identifier to be derefered
-                        // This is for get cli parameter
-                        let token = this.GetId(TokenType.precent);
-                        // FIXME: check close % of %% dereference
-                        this.Advance();
-                        return token;
-                    case ',':
-                        // this.isLiteralDeref = false;
-                        this.Advance();
-                        return this.CreateToken(TokenType.comma, ',', p, this.genPosition());
-                    case '\n':
-                        // `=` `\n` `(...)` multiline string
-                        if (this.BackPeek(1, true) === '=' && this.Peek(1, true) === '(') {
-                            return this.getLiteralString();
-                        }
-                        // Generate a empty string token
-                        // 给换行的字符串token产生一个空字符串
-                        // 为了`var=\n`产生空占位符
-                        this.isLiteralToken = false;
-                        this.AdvanceLine();
-                        return this.returnSkipEmptyLine(p);
-                    default:
-                        // is deref 
-                        if (this.isLiteralDeref) break;
-                        return this.LiteralToken();
-
-                }
+            // If current is scanning command arguments and
+            // not effect by `% ` dereference
+            if (this.isLiteralToken && !this.isLiteralDeref) {
+                return this.getCommandToken();
             }
 
             if (this.ischars(this.currChar ,' ', '\t', '\r')) {

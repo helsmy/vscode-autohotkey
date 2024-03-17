@@ -38,8 +38,7 @@ function builtTable(AST: IStmt[]): SymbolTable {
                     '',
                     latom.token.content,
                     Range.create(stmt.start, stmt.end),
-                    VarKind.variable,
-                    symType
+                    VarKind.variable
                 );
                 table.define(sym);
             }

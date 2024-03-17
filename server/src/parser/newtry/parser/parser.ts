@@ -179,6 +179,14 @@ export class AHKParser {
         return list;
     }
 
+    private expressionList(): DelimitedList<Expr.Expr> {
+        return this.delimitedList(
+            TokenType.comma,
+            this.isExpressionStart,
+            () => this.expression()
+        );
+    }
+
     /**
      * Let tokenizer scan at Command mode. In other word,
      * generate string token for command
@@ -461,12 +469,7 @@ export class AHKParser {
     private varDecl(): Decl.VarDecl {
         const scope = this.eat();
 
-        const assign = this.delimitedList(
-            TokenType.comma,
-            // each declaration must start with identifier
-            token => isValidIdentifier(token.type),
-            () => this.expression(),
-        )
+        const assign = this.expressionList();
 
         this.terminal();
 
@@ -504,20 +507,21 @@ export class AHKParser {
     }
 
     private classMemberElement(): Stmt.Stmt {
+        // AHK only has one type of modifier in class, just match `static`.
+        const modifier = this.eatOptional(TokenType.static);
         const token = this.currentToken;
-        if (token.type === TokenType.static)
-            return this.varDecl();
+        // FIXME: Report error and recode modifier, when modifier does not needed.
         // If class keyword is not used as name of property or method
         if (token.type === TokenType.class && !(this.tokenizer.Peek() === '(')) 
             return this.classDefine()
         if (isValidIdentifier(this.currentToken.type))
-            return this.idLeadClassMember();
+            return this.idLeadClassMember(modifier);
         if (token.type === TokenType.drective)
             return this.drective();
         return this.assignStmt();
     }
 
-    private idLeadClassMember(): Stmt.Stmt {
+    private idLeadClassMember(modifier: Maybe<Token>): Stmt.Stmt {
         const p = this.peek();
         switch (p.type) {
             // function
@@ -528,8 +532,20 @@ export class AHKParser {
             case TokenType.openBrace:
                 return this.dynamicProperty();
             default:
-                return this.assignStmt();
+                return this.propertyOrAssignExpression(modifier);
         }
+    }
+
+    private propertyOrAssignExpression(modifier: Maybe<Token>): Stmt.Stmt {
+        // TODO: better handle error property
+        if (modifier)
+            return this.propertyDeclaration(modifier);
+        return this.assignStmt();
+    }
+
+    private propertyDeclaration(modifier: Token): Stmt.Stmt {
+        const expressions = this.expressionList();
+        return new Decl.VarDecl(modifier, expressions);
     }
 
     /**
@@ -794,11 +810,7 @@ export class AHKParser {
         if (caseToken.type === TokenType.case) {
             // FIXME: record comma
             this.eatOptional(TokenType.comma);
-            const conditions = this.delimitedList(
-                TokenType.comma,
-                this.isExpressionStart,
-                () => this.expression()
-            );
+            const conditions = this.expressionList();
             const colon = this.eatType(TokenType.colon);
             const stmts = this.parseList(ParseContext.CaseStatementElements);
             return new Stmt.CaseStmt(
@@ -850,11 +862,7 @@ export class AHKParser {
             loopmode === 'reg') 
             this.setCommandScanMode(true);
 
-        const param = this.delimitedList(
-            TokenType.comma,
-            this.isExpressionStart,
-            () => this.expression()
-        )
+        const param = this.expressionList();
         if (this.atLineEnd()) this.advance();
         const body = this.declaration();
         return new Stmt.Loop(loop, body, param);
@@ -1016,11 +1024,7 @@ export class AHKParser {
     }
 
     private tailorExpr(delimiter: Token): Stmt.TrailerExprList {
-        const exprList = this.delimitedList(
-            TokenType.comma,
-            this.isExpressionStart,
-            () => this.expression()
-        ); 
+        const exprList = this.expressionList();
         return new Stmt.TrailerExprList(
             delimiter,
             exprList
@@ -1326,13 +1330,7 @@ export class AHKParser {
 
     private arrayTerm(): SuffixTerm.ArrayTerm {
         const open = this.eat();
-        
-        const items = this.delimitedList(
-            TokenType.comma,
-            this.isExpressionStart,
-            () => this.expression()
-        )
-
+        const items = this.expressionList();
         const close = this.eatType(TokenType.closeBracket, true);
 
         return new SuffixTerm.ArrayTerm(open, close, items);

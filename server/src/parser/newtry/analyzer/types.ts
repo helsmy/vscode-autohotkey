@@ -60,3 +60,10 @@ export enum ScoopKind {
 	Global,
 	Local
 }
+
+export enum ModifierKind {
+	None,
+	Global,
+	Local,
+	Static
+}

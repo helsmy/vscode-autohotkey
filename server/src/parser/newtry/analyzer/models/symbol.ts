@@ -1,4 +1,4 @@
-import { IScope, ISymbol, ISymType, VarKind } from '../types';
+import { IScope, ISymbol, ISymType, ModifierKind, VarKind } from '../types';
 import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver/node';
 
 export type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
@@ -49,7 +49,8 @@ export class VaribaleSymbol extends AHKSymbol {
 		public readonly name: string,
 		public readonly range: Range,
 		public readonly tag: VarKind,
-		type: Maybe<ISymType>
+		public readonly modifier: ModifierKind = ModifierKind.None,
+		type?: Maybe<ISymType>
 	) {
 		super(name, type);
 	}
@@ -76,7 +77,7 @@ export class ParameterSymbol extends VaribaleSymbol {
 		public readonly isSpread: boolean, 
 		type?: ISymType
 	) {
-		super(uri, name, range, tag, type)
+		super(uri, name, range, tag, ModifierKind.None, type)
 	}
 }
 

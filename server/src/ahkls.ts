@@ -87,6 +87,7 @@ import { IAST } from './parser/newtry/types';
 import { docLangName } from './services/config/serverConfiguration';
 import { builtin_variable } from './utilities/builtins';
 import { SymbolTable } from './parser/newtry/analyzer/models/symbolTable';
+import { DocumentSyntaxInfo } from './services/types';
 
 export class AHKLS
 {
@@ -345,7 +346,7 @@ export class AHKLS
         const docinfo = this.documentService.getDocumentInfo(textDocument.uri);
         if (!docinfo) return undefined;
         
-        const symbol = this.getSymbolAtPosition(docinfo.syntax.AST, position, Expr.Factor, Call);
+        const symbol = this.getSymbolAtPosition(docinfo.syntax, position, Expr.Factor, Call);
         if (symbol === undefined) return undefined;
 
         let locations: Location[] = [];
@@ -700,7 +701,6 @@ export class AHKLS
     private getCurrentScope(pos: Position, table: IScope): IScope {
         const symbols = table instanceof AHKDynamicPropertySymbol? table.allSymbolsFull() : table.allSymbols();
         for (const sym of symbols) {
-            typeof sym
             if (sym instanceof AHKMethodSymbol || 
                 sym instanceof AHKObjectSymbol ||
                 sym instanceof AHKDynamicPropertySymbol) {
@@ -824,36 +824,6 @@ export class AHKLS
         }
         
         return lexems[0] !== undefined ? scope.resolve(lexems[0]) : undefined;
-    }
-
-
-    /**
-     * search at given tree to 
-     * find the deepest node that
-     * covers the given condition
-     *  
-     * @param pos position to search
-     * @param tree AST tree for search
-     * @param kind symbol kind of search item
-     */
-    public searchNodeAtPosition(pos: Position, tree: Array<ISymbolNode|IFuncNode>, kind?:SymbolKind): Maybe<ISymbolNode|IFuncNode> {
-        for (const node of tree) {
-            if (pos.line > node.range.start.line && pos.line < node.range.end.line) {
-                if (node.subnode) {
-                    if (kind && !(node.kind === kind)) {
-                       continue;
-                    }
-                    let subScopedNode = this.searchNodeAtPosition(pos, node.subnode, kind);
-                    if (subScopedNode) {
-                        return subScopedNode;
-                    } 
-                    else {
-                        return node;
-                    }
-                }
-            }
-        }
-        return undefined;
     }
 
     private getSignatureHelpOld(position: Position): Maybe<SignatureHelp> {
@@ -1100,14 +1070,10 @@ export class AHKLS
         return 0;
     }
 
-    private getSymbolAtPosition(docsAST: IAST, position: Position, ...matchNodeType: NodeConstructor[]): Maybe<ISymbol> {
-        let docinfo = this.documentService.getDocumentInfo(this.currentDocUri);
-        if (!docinfo) return undefined;
-
-        const AST = docsAST.script.stmts;
-        const find = this.finder.find(AST, position, matchNodeType);
+    private getSymbolAtPosition(docsInfo: DocumentSyntaxInfo, position: Position, ...matchNodeType: NodeConstructor[]): Maybe<ISymbol> {
+        const find = this.finder.find(docsInfo.AST.script.stmts, position, matchNodeType);
         if (find && find.nodeResult instanceof Expr.Factor) {
-            const scope = this.getCurrentScope(position, docinfo.syntax.table);
+            const scope = this.getCurrentScope(position, docsInfo.table);
             const symbol = resolveFactor(find.nodeResult, position, scope);
             // last symbol is the symbol on the position
             return symbol ? symbol[symbol.length - 1] : undefined;

@@ -648,23 +648,39 @@ export class Tokenizer {
 
     public *GenToken(): Generator<Exclude<TokenResult, TakeMultiToken>, never, unknown> {
         let preType = TokenType.EOL;
+        let preToken: Maybe<Token> = undefined;
         while (true) {
             const tokenResult = this.GetNextToken(preType);
             switch (tokenResult.kind) {
-                case TokenKind.Commnet:
                 case TokenKind.Diagnostic:
-                case TokenKind.Token:
                     yield tokenResult;
-                    if (tokenResult.kind === TokenKind.Token)
-                        preType = tokenResult.result.type
+                    preType = TokenType.unknown;
+                    break;
+                case TokenKind.Commnet:
+                    yield tokenResult;
+                    preToken = tokenResult.result;
+                    break;
+                case TokenKind.Token:
+                    // Record nearest comment(preivous line), for hovering the doc comment.
+                    const isCommentToken = preToken && (
+                        preToken.type === TokenType.lineComment || 
+                        preToken.type === TokenType.blockComment
+                    );
+                    if (isCommentToken) 
+                        tokenResult.result.comment = preToken;
+                    yield tokenResult;
+                    preType = tokenResult.result.type;
+                    preToken = tokenResult.result;
                     break;
                 case TokenKind.Multi:
+                    // FIXME: Record comment at first token result
                     for (const token of tokenResult.result) 
                         yield {
                             result: token,
                             kind: TokenKind.Token
                         };
                     preType = tokenResult.result[tokenResult.result.length - 1].type;
+                    preToken = tokenResult.result[tokenResult.result.length - 1];
                     break;
             }
         }

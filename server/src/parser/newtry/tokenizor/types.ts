@@ -58,6 +58,7 @@ export interface IToken {
 	content: string;
 	start: Position;
 	end: Position;
+	comment?: IToken;
 }
 
 export type ITokenMap = Map<string, TokenType>;
@@ -67,6 +68,7 @@ export class Token implements IToken {
 	public readonly content: string;
 	public readonly start: Position;
 	public readonly end: Position;
+	public comment?: IToken;
 	constructor(type: TokenType, content: string, start: Position, end: Position) {
 		this.type = type;
 		this.content = content;

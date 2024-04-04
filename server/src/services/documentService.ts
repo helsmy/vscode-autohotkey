@@ -11,7 +11,7 @@ import { PreProcesser } from '../parser/newtry/analyzer/semantic';
 import { Notifier } from './utils/notifier';
 import { AHKSymbol } from '../parser/newtry/analyzer/models/symbol';
 import { getBuiltinScope } from '../constants';
-import { IParseError } from '../parser/newtry/types';
+import { IAST, IParseError } from '../parser/newtry/types';
 import { homedir } from 'os';
 import { ConfigurationService } from './configurationService';
 import { Token } from '../parser/newtry/tokenizor/types';
@@ -165,9 +165,6 @@ export class DocumentService {
         const processResult = preprocesser.process();
         const docTable = processResult.table;
 
-        // updata AST first, then its includes
-        const oldInclude = this.docsAST.get(uri)?.AST.script.include;
-
         if (this.isSendError) {
             this.sendErrors(ast.sytanxErrors, uri);
             this.conn.sendDiagnostics({
@@ -186,6 +183,8 @@ export class DocumentService {
             });
         }
 
+        // updata AST first, then its includes
+        const oldInclude = this.filterLoadedInclude(this.docsAST.get(uri)?.AST);
         // Store AST first, before await document load
         // In case of other async function run ahead
         this.docsAST.set(uri, {
@@ -228,18 +227,33 @@ export class DocumentService {
         }
     }
 
+    /**
+     * Filter out already loaded included files 
+     */
+    private filterLoadedInclude(AST: Maybe<IAST>): Maybe<Set<string>> {
+        if (!AST) return undefined;
+        const oldInc: Set<string> = new Set();
+        const docDir = dirname(URI.parse(AST.script.uri).fsPath);
+        AST.script.include?.forEach(i => {
+            const p = this.include2Path(i, docDir);
+            if (p && this.localAST.has(URI.file(p).toString()))
+                oldInc.add(i);
+        })
+        return oldInc;
+    }
+
     private compareInclude(oldInc: Maybe<Set<string>>, newInc: Maybe<Set<string>>): [string[], string[]] {
         if (oldInc && newInc) {
             // useless need delete, useneed need to add
             // FIXME: delete useless include
             const [useless, useneed] = setDiffSet(oldInc, newInc);
-            this.logger.info(`Got ${newInc.size} include file. ${useneed.length} file to load.` )
-            return [useless, useneed]
+            this.logger.info(`Got ${newInc.size} include file. ${useneed.length} file to load.` );
+            return [useless, useneed];
         }
         else {
             const useneed = newInc ? [... newInc] : [];
-            this.logger.info(`Got ${useneed.length} include file to load.` )
-            return [[], useneed]
+            this.logger.info(`Got ${useneed.length} include file to load.` );
+            return [[], useneed];
         }
     }
 

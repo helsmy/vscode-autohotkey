@@ -4,7 +4,7 @@ import { TokenType } from './tokenTypes';
 /**
  * all result kind of a tokenizor
  */
-export enum TokenKind {
+export const enum TokenKind {
 	/**
 	 * tokenizor got a token
 	 */

@@ -53,7 +53,7 @@ export class VarDecl extends Decl {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-	  return visitor.visitDeclVariable(this, parameters);
+	  return visitor.visitDeclVariable(this, ...parameters);
 	}
 }
 
@@ -101,7 +101,7 @@ export class ClassDef extends Decl {
         visitor: IStmtVisitor<T>,
         parameters: Parameters<T>,
     ): ReturnType<T> {
-        return visitor.visitDeclClass(this, parameters);
+        return visitor.visitDeclClass(this, ...parameters);
     }
 }
 
@@ -155,7 +155,7 @@ export class  DynamicProperty extends Decl {
         visitor: IStmtVisitor<T>,
         parameters: Parameters<T>,
     ): ReturnType<T> {
-        return visitor.visitDynamicProperty(this, parameters);
+        return visitor.visitDynamicProperty(this, ...parameters);
     }
 
 }
@@ -191,7 +191,7 @@ export class Label extends Decl {
         visitor: IStmtVisitor<T>,
         parameters: Parameters<T>,
       ): ReturnType<T> {
-        return visitor.visitDeclLabel(this, parameters);
+        return visitor.visitDeclLabel(this, ...parameters);
       }
 }
 
@@ -243,7 +243,7 @@ export class Hotkey extends Decl {
         visitor: IStmtVisitor<T>,
         parameters: Parameters<T>,
     ): ReturnType<T> {
-        return visitor.visitDeclHotkey(this, parameters);
+        return visitor.visitDeclHotkey(this, ...parameters);
     }
 }
 
@@ -321,14 +321,14 @@ export class HotString extends Decl {
         visitor: IStmtVisitor<T>,
         parameters: Parameters<T>,
     ): ReturnType<T> {
-        return visitor.visitDeclHotString(this, parameters);
+        return visitor.visitDeclHotString(this, ...parameters);
     }
 }
 
 export class FuncDef extends Decl {
     /**
      * @param nameToken name of function
-     * @param params parameters of function
+     * @param params ...parameters of function
      * @param body body of function defination
      */
     constructor(
@@ -364,12 +364,12 @@ export class FuncDef extends Decl {
         visitor: IStmtVisitor<T>,
         parameters: Parameters<T>,
     ): ReturnType<T> {
-        return visitor.visitDeclFunction(this, parameters);
+        return visitor.visitDeclFunction(this, ...parameters);
     }
 }
 
 /**
- * Class contains all parameters of a function define
+ * Class contains all ...parameters of a function define
  */
 export class Param extends Decl {
 
@@ -426,12 +426,12 @@ export class Param extends Decl {
         visitor: IStmtVisitor<T>,
         parameters: Parameters<T>,
     ): ReturnType<T> {
-        return visitor.visitDeclParameter(this, parameters);
+        return visitor.visitDeclParameter(this, ...parameters);
     }
 }
 
 /**
- * Class contains all required parameters of a function define
+ * Class contains all required ...parameters of a function define
  */
 export class Parameter extends NodeBase {
     constructor(
@@ -467,7 +467,7 @@ export class Parameter extends NodeBase {
 }
 
 /**
- * Class contains all default parameters of a function define
+ * Class contains all default ...parameters of a function define
  */
 export class DefaultParam extends Parameter {
     constructor(
@@ -526,7 +526,7 @@ export class SpreadParameter extends Parameter {
 export class GetterSetter extends Decl {
     /**
      * @param nameToken name of function
-     * @param params parameters of function
+     * @param params ...parameters of function
      * @param body body of function defination
      */
     constructor(
@@ -559,6 +559,6 @@ export class GetterSetter extends Decl {
         visitor: IStmtVisitor<T>,
         parameters: Parameters<T>,
     ): ReturnType<T> {
-        return visitor.visitDeclGetterSetter(this, parameters);
+        return visitor.visitDeclGetterSetter(this, ...parameters);
     }
 }

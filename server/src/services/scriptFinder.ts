@@ -13,19 +13,19 @@ import { Token } from '../parser/newtry/tokenizor/types';
 
 export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: NodeConstructor[]) => Maybe<IFindResult<NodeBase>>> {
     constructor() {}
-    visitDeclVariable(decl: Decl.VarDecl, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDeclVariable(decl: Decl.VarDecl, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(decl.assigns, pos)) {
-            const deepMatch = this.searchDelimitedList(decl.assigns, ...parameters); 
+            const deepMatch = this.searchDelimitedList(decl.assigns, pos, matchType); 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
         return undefined;
     }
-    visitDeclClass(decl: Decl.ClassDef, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDeclClass(decl: Decl.ClassDef, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(decl.body, pos)) {
-            const deepMatch = decl.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = decl.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) {
                 const isNeedOutter = deepMatch.nodeResult instanceof Decl.FuncDef ||
                                      deepMatch.nodeResult instanceof Decl.ClassDef
@@ -38,227 +38,227 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
         return undefined;
     }
-    visitDynamicProperty(decl: Decl.DynamicProperty, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDynamicProperty(decl: Decl.DynamicProperty, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (decl.param && posInRange(decl.param, pos)) {
-            const deepMatch = decl.param.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = decl.param.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (posInRange(decl.body, pos)) {
-            const deepMatch = decl.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = decl.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
         return undefined;
     }
-    visitDeclHotkey(decl: Decl.Hotkey, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDeclHotkey(decl: Decl.Hotkey, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
     }
-    visitDeclHotString(decl: Decl.HotString, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDeclHotString(decl: Decl.HotString, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
     }
-    visitDeclFunction(decl: Decl.FuncDef, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDeclFunction(decl: Decl.FuncDef, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(decl.params, pos)) {
-            const paramMatch = decl.params.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const paramMatch = decl.params.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (paramMatch) {
                 (<IFindResult<Decl.Parameter>>paramMatch).outterFactor = createResult(decl);
                 return paramMatch;
             }
         }
         if (posInRange(decl.body, pos)) {
-            const deepMatch = decl.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = decl.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
         return undefined;
     }
-    visitDeclParameter(decl: Decl.Param, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDeclParameter(decl: Decl.Param, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(decl.ParamaterList, pos)) {
-            const deepMatch = this.searchDelimitedList(decl.ParamaterList, ...parameters); 
+            const deepMatch = this.searchDelimitedList(decl.ParamaterList, pos, matchType); 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
         return undefined;
     }
-    visitDeclGetterSetter(decl: Decl.GetterSetter, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDeclGetterSetter(decl: Decl.GetterSetter, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(decl.body, pos)) {
-            const deepMatch = decl.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = decl.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
         return undefined;
     }
-    visitDeclLabel(decl: Decl.Label, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDeclLabel(decl: Decl.Label, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
     }
-    visitStmtInvalid(stmt: Stmt.Invalid, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
+    visitStmtInvalid(stmt: Stmt.Invalid, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
         return;
     }
-    visitDrective(stmt: Stmt.Drective, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitDrective(stmt: Stmt.Drective, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.args, pos)) {
-            const deepMatch = this.searchDelimitedList(stmt.args, ...parameters); 
+            const deepMatch = this.searchDelimitedList(stmt.args, pos, matchType); 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitBlock(stmt: Stmt.Block, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitBlock(stmt: Stmt.Block, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         // block 如果不在范围内的话会被block的内部的语句返回undefined
         // 这里不用判断在不在范围内
-        const deepMatch = this.find(stmt.stmts, ...parameters); 
+        const deepMatch = this.find(stmt.stmts, pos, matchType); 
         if (deepMatch) return deepMatch;
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitExpr(stmt: Stmt.ExprStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitExpr(stmt: Stmt.ExprStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.expression, pos)) {
-            const exprMatch = this.searchExpression(stmt.expression, ...parameters); 
+            const exprMatch = this.searchExpression(stmt.expression, pos, matchType); 
             if (exprMatch) return exprMatch;
         }
         if (stmt.trailerExpr && posInRange(stmt.trailerExpr.exprList, pos)) {
-            const exprMatch = this.searchDelimitedList(stmt.trailerExpr.exprList, ...parameters); 
+            const exprMatch = this.searchDelimitedList(stmt.trailerExpr.exprList, pos, matchType); 
             if (exprMatch) return exprMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitCommandCall(stmt: Stmt.CommandCall, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitCommandCall(stmt: Stmt.CommandCall, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.args, pos)) {
-            const deepMatch = this.searchDelimitedList(stmt.args, ...parameters); 
+            const deepMatch = this.searchDelimitedList(stmt.args, pos, matchType); 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitAssign(stmt: Stmt.AssignStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitAssign(stmt: Stmt.AssignStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.left, pos)) {
-            const leftMatch = this.searchExpression(stmt.left, ...parameters); 
+            const leftMatch = this.searchExpression(stmt.left, pos, matchType); 
             if (leftMatch) return leftMatch;
         }
         if (posInRange(stmt.expr, pos)) {
-            const exprMatch = this.searchExpression(stmt.expr, ...parameters); 
+            const exprMatch = this.searchExpression(stmt.expr, pos, matchType); 
             if (exprMatch) return exprMatch;
         }
         if (stmt.trailerExpr && posInRange(stmt.trailerExpr.exprList, pos)) {
-            const exprMatch = this.searchDelimitedList(stmt.trailerExpr.exprList, ...parameters); 
+            const exprMatch = this.searchDelimitedList(stmt.trailerExpr.exprList, pos, matchType); 
             if (exprMatch) return exprMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitIf(stmt: Stmt.If, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitIf(stmt: Stmt.If, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.condition, pos)) {
-            const exprMatch = this.searchExpression(stmt.condition, ...parameters); 
+            const exprMatch = this.searchExpression(stmt.condition, pos, matchType); 
             if (exprMatch) return exprMatch;
         }
         if (posInRange(stmt.body, pos)) {
-            const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = stmt.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (stmt.elseStmt && posInRange(stmt.elseStmt, pos)) {
-            const elseMatch = stmt.elseStmt.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ;
+            const elseMatch = stmt.elseStmt.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ;
             if (elseMatch) return elseMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitElse(stmt: Stmt.Else, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitElse(stmt: Stmt.Else, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.body, pos)) {
-            const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = stmt.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitReturn(stmt: Stmt.Return, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitReturn(stmt: Stmt.Return, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         if (stmt.value && posInRange(stmt.value, pos)) {
-            const match = this.searchExpression(stmt.value, ...parameters);
+            const match = this.searchExpression(stmt.value, pos, matchType);
             return match ? match : undefined;
         };
     }
-    visitBreak(stmt: Stmt.Break, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitBreak(stmt: Stmt.Break, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
     }
-    visitContinue(stmt: Stmt.Continue, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitContinue(stmt: Stmt.Continue, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
     }
-    visitSwitch(stmt: Stmt.SwitchStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitSwitch(stmt: Stmt.SwitchStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.condition, pos)) {
-            const exprMatch = this.searchExpression(stmt.condition, ...parameters);; 
+            const exprMatch = this.searchExpression(stmt.condition, pos, matchType);; 
             if (exprMatch) return exprMatch;
         }
         // 基于和block同样的理由不做inRange判断
-        const deepMatch = this.find(stmt.cases, ...parameters);
+        const deepMatch = this.find(stmt.cases, pos, matchType);
         if (deepMatch) return deepMatch;
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitCase(stmt: Stmt.CaseStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitCase(stmt: Stmt.CaseStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.CaseNode, pos)) {
             if (stmt.CaseNode instanceof Stmt.CaseExpr) {
-                const exprMatch = this.searchDelimitedList(stmt.CaseNode.conditions, ...parameters);; 
+                const exprMatch = this.searchDelimitedList(stmt.CaseNode.conditions, pos, matchType);; 
                 if (exprMatch) return exprMatch;
             }
         }
         // 同block
-        const deepMatch = this.find(stmt.body, ...parameters);
+        const deepMatch = this.find(stmt.body, pos, matchType);
         if (deepMatch) return deepMatch;
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitLoop(stmt: Stmt.LoopStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitLoop(stmt: Stmt.LoopStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (stmt.condition && posInRange(stmt.condition, pos)) {
             if (stmt.condition instanceof Expr.Expr) {
-                const exprMatch = this.searchExpression(stmt.condition, ...parameters);; 
+                const exprMatch = this.searchExpression(stmt.condition, pos, matchType);; 
                 if (exprMatch) return exprMatch;
             }
             else {
-                const exprMatch = this.searchDelimitedList(stmt.condition, ...parameters);; 
+                const exprMatch = this.searchDelimitedList(stmt.condition, pos, matchType);; 
                 if (exprMatch) return exprMatch;
             }
         }
         if (posInRange(stmt.body, pos)) {
-            const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = stmt.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitWhile(stmt: Stmt.WhileStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitWhile(stmt: Stmt.WhileStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.condition, pos)) {
-            const exprMatch = this.searchExpression(stmt.condition, ...parameters);; 
+            const exprMatch = this.searchExpression(stmt.condition, pos, matchType);; 
             if (exprMatch) return exprMatch;
         }
         if (posInRange(stmt.body, pos)) {
-            const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = stmt.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitFor(stmt: Stmt.ForStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitFor(stmt: Stmt.ForStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.iter1id, pos) && matchNodeTypes(stmt.iter1id, matchType)) {
             return createResult(stmt.iter1id);
         }
@@ -266,59 +266,59 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
             return createResult(stmt.iter2id);
         }
         if (posInRange(stmt.iterable, pos)) {
-            const exprMatch = this.searchExpression(stmt.iterable, ...parameters);; 
+            const exprMatch = this.searchExpression(stmt.iterable, pos, matchType);; 
             if (exprMatch) return exprMatch;
         }
         if (posInRange(stmt.body, pos)) {
-            const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = stmt.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitTry(stmt: Stmt.TryStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitTry(stmt: Stmt.TryStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.body, pos)) {
-            const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = stmt.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (stmt.catchStmt && posInRange(stmt.catchStmt, pos)) {
-            const catchMatch = stmt.catchStmt.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ;
+            const catchMatch = stmt.catchStmt.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ;
             if (catchMatch) return catchMatch;
         }
         if (stmt.finallyStmt && posInRange(stmt.finallyStmt, pos)) {
-            const finallyMatch = stmt.finallyStmt.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ;
+            const finallyMatch = stmt.finallyStmt.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ;
             if (finallyMatch) return finallyMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitCatch(stmt: Stmt.CatchStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitCatch(stmt: Stmt.CatchStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.body, pos)) {
-            // const exprMatch = this.searchExpression(stmt.errors, ...parameters);
-            const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+            // const exprMatch = this.searchExpression(stmt.errors, pos, matchType);
+            const deepMatch = stmt.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitFinally(stmt: Stmt.FinallyStmt, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitFinally(stmt: Stmt.FinallyStmt, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (posInRange(stmt.body, pos)) {
             if (posInRange(stmt.body, pos)) {
-                const deepMatch = stmt.body.accept(this, parameters) as Maybe<IFindResult<NodeBase>> ; 
+                const deepMatch = stmt.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
                 if (deepMatch) return deepMatch;
             }
         }
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         return undefined;
     }
-    visitThrow(stmt: Stmt.Throw, parameters: [pos: Position, matchType: NodeConstructor[]]): Maybe<IFindResult<NodeBase>> {
-        const [pos, matchType] = parameters;
+    visitThrow(stmt: Stmt.Throw, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        
         if (matchNodeTypes(stmt, matchType)) return createResult(stmt);
         if (posInRange(stmt.expr, pos)) {
-            const match = this.searchExpression(stmt.expr, ...parameters);
+            const match = this.searchExpression(stmt.expr, pos, matchType);
             return match ? match : undefined;
         }
     }

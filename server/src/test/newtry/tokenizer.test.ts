@@ -77,7 +77,7 @@ suite('Basic Token Test', () => {
 		let actualTokens = getalltoken('^ >>= ||');
 		assert.strictEqual(actualTokens[0].type, TokenType.xor);
 		assert.strictEqual(actualTokens[1].type, TokenType.rshifteq);
-		assert.strictEqual(actualTokens[2].type, TokenType.logicor);
+		assert.strictEqual(actualTokens[2].type, TokenType.logicOr);
 	});
 });
 

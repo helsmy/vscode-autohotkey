@@ -3,9 +3,10 @@ import {
     ITokenMap,
 } from "./types";
 
-import { TokenType } from "./tokenTypes"
+import { TokenType, isValidIdentifier } from "./tokenTypes"
 import { Position, Range } from 'vscode-languageserver';
 import { TakeComment, TakeDiagnostic, TakeMultiToken, TakeToken, TokenKind, TokenResult } from './types';
+import { mockLogger } from '../../../utilities/logger';
 
 export class Tokenizer {
     /**
@@ -32,7 +33,8 @@ export class Tokenizer {
 
     constructor(
         document: string,
-        private readonly v2Mode: boolean = false
+        private readonly v2Mode: boolean = false,
+        private logger: ILoggerBase = mockLogger
     ) {
         this.document = document;
         this.currChar = document[this.pos];
@@ -186,14 +188,19 @@ export class Tokenizer {
     }
 
     /**
-     * If is a Escaped "
+     * If is a Escaped `"` or `'`.
+     * @param offset offset to current position
      */
-    private IsEscapeChar(): boolean {
-        if (this.Peek() === '"') {
-            this.Advance();
-            return true;
+    private IsQuoteEscapeSequence(offset: number): boolean {
+        const char = this.document[this.pos+offset];
+        if (char === undefined) return false;
+        if (this.v2Mode) {
+            if ((char === '"' || char === "'") && this.document[this.pos+offset-1] === '`')
+                return true;
         }
-        return false;
+        
+        // v1 ahk escape `"` by `"`
+        return char === '"' && this.document[this.pos+offset+1] === '"';
     }
 
     /**
@@ -213,26 +220,23 @@ export class Tokenizer {
         return this.currChar === 'EOF';
     }
 
-    private IsEndOfMutliString(): boolean {
-        if (this.currChar === ')' 
-            && this.Peek() === '"'
-            && this.Peek(2) !== '"') {
-            return true;
-        }
-        return false;
-    }
-
     private GetString(): TokenResult {
         let offset = this.pos;
         let p = this.genPosition();
-        this.Advance();
 
-        // Check if is multiline string
-        if (this.IsMultiString())
-            return this.GetMultiString(p, offset);
+        // First character is checked by GetNextToken.
+        // It must be `"` or `'`.
+        const strDelimitor = this.currChar;
+        this.Advance();
         
-        while (this.currChar !== '"' || this.IsEscapeChar()) {
-            if (this.currChar === 'EOF' || this.currChar === '\n' || this.currChar === '\r') {
+        while (this.currChar !== strDelimitor || this.IsQuoteEscapeSequence(0)) {
+            const eol = this.IsEOLAndLength();
+            // FIXME: Scan comment in continuation section
+            if (this.currChar === 'EOF' || eol) {
+                // If this is a continuation section
+                if (eol && this.Peek(eol+1, true) === '(') 
+                    return this.GetContinuationSection(strDelimitor, p, offset);
+
                 return this.CreateError(
                     this.document.slice(offset + 1, this.pos),
                     p, this.genPosition()
@@ -245,43 +249,16 @@ export class Tokenizer {
         return this.CreateToken(TokenType.string, str, p, this.genPosition());
     }
 
-    /**
-     * Return if current is start of multiline string. 
-     * Pattern `" EOL [\s\t]* (`
-     */
-    private IsMultiString(): boolean {
-        const EOLLength = this.IsEOLAndLength();
-        if (!EOLLength) return false;
-
-        const offset = this.pos;
-        const p = this.genPosition();
-        for (let i = 0; i < EOLLength; i++) {
-            this.Advance();
-        }
-        const peekChar = this.Peek(1, true);
-
-        if (peekChar === '(') {
-            // 为了多行的开始部分的换行
-            // 把行数加一
-            this.AdvanceLine();
-            return true;
-        }
-        // no match backwards
-        this.pos = offset;
-        this.currChar = this.document[offset];
-        this.line = p.line;
-        this.chr = p.character;
-        return false;
-    }
-
-    private GetMultiString(position: Position, offset: number): TokenResult {
-        // if we are counter a multiline string, 
-        // the start part is checked, just custom all them
+    private GetContinuationSection(strDelimitor:string, position: Position, offset: number): TokenResult {
         if (this.isWhiteSpace(this.currChar))
             this.SkipWhiteSpace();
         this.Advance();
         
-        while (!this.IsEndOfMutliString()) {
+        while (!(
+            this.currChar === ')' &&
+            this.Peek() === strDelimitor &&
+            !this.IsQuoteEscapeSequence(1)
+        )) {
             if (this.IsEOF()) {
                 return this.CreateError(
                     this.document.slice(offset + 1, this.pos),
@@ -341,7 +318,7 @@ export class Tokenizer {
             if (
                 mark.kind === TokenKind.Token && (
                     (mark.result.type >= TokenType.pluseq &&
-                    mark.result.type <= TokenType.lshifteq) ||
+                    mark.result.type <= TokenType.logicRshiftEq) ||
                     mark.result.type === TokenType.regeq ||
                     mark.result.type === TokenType.aassign ||
                     mark.result.type === TokenType.equal
@@ -395,6 +372,11 @@ export class Tokenizer {
         if (mark !== undefined) {
             // 3-char token
             this.Advance().Advance().Advance();
+            // only one 4-char token
+            if (p2 === '>>>' && this.Peek(3) === '=') {
+                this.Advance();
+                return this.CreateToken(TokenType.logicRshiftEq, '>>>=', p, this.genPosition());
+            }
             return this.CreateToken(mark, p2, p, this.genPosition());
         }
         mark = OTHER_MARK.get(p1);
@@ -606,11 +588,11 @@ export class Tokenizer {
             
             switch (this.currChar) {
                 case '.':
-                    if (this.isDigit(this.Peek())) {
+                    if (this.isDigit(this.Peek()) && !isValidIdentifier(preType)) {
                         return this.GetNumber();
                     }
                     else {
-                        if (this.isWhiteSpace(this.Peek()) && this.isWhiteSpace(this.BackPeek())) {
+                        if (this.isWhiteSpace(this.Peek(), true) && this.isWhiteSpace(this.BackPeek(), true)) {
                             this.Advance();
                             return this.CreateToken(TokenType.sconnect, " . ", p, this.genPosition());
                         }
@@ -630,12 +612,7 @@ export class Tokenizer {
                     if (this.Peek() === '*') {
                         return this.BlockComment();
                     }
-                    this.Advance();
-                    if (this.currChar === '/') {
-                        this.Advance();
-                        return this.CreateToken(TokenType.fdiv, '//', p, this.genPosition());
-                    }
-                    return this.CreateToken(TokenType.div, '/', p, this.genPosition());
+                    return this.GetMark();
                 case ';':
                     return this.LineComment();
                 case ':':
@@ -653,6 +630,13 @@ export class Tokenizer {
                     } 
                     this.Advance();
                     return this.CreateToken(TokenType.colon, ':', p, this.genPosition());
+                case "'":
+                    if (this.v2Mode)
+                        return this.GetString();
+                    // Fall through to default, if in v1 mode.
+                    // TODO: May it be better to scan a `'` string and report it
+                    // as an error in parser?
+                    // 这样可以正常的解析表达式，并且给出错误。解析器也可以更加有容忍度？
                 default:
                         // last check if current char is a mark,
                         // if not return a unknown token in the function
@@ -935,11 +919,23 @@ const RESERVED_KEYWORDS = (() => {
 	let keyword: ITokenMap = new Map();
 	for (let k = TokenType.if; k <= TokenType.byref; k++)
 		keyword.set(TokenType[k], k);
-    keyword.set("or", TokenType.keyor);
-    keyword.set("and", TokenType.keyand);
-    keyword.set("not", TokenType.keynot);
+    keyword.set("or", TokenType.orKeyword);
+    keyword.set("and", TokenType.andKeyword);
+    keyword.set("not", TokenType.notKeyword);
+    keyword.set("is", TokenType.isKeyword);
+    keyword.set("contains", TokenType.containsKeyword);
 	return keyword;
 })();
+// const RESERVED_KEYWORDS = new Map([
+//     ['if', TokenType.if],['else', TokenType.else],['switch', TokenType.switch],['case', TokenType.case],
+//     ['loop', TokenType.loop],['for', TokenType.for],['in', TokenType.in],['while', TokenType.while],
+//     ['until', TokenType.until],['break', TokenType.break],['continue', TokenType.continue],['try', TokenType.try],
+//     ['catch', TokenType.catch],['finally', TokenType.finally],['gosub', TokenType.gosub],['goto', TokenType.goto],
+//     ['return', TokenType.return],['global', TokenType.global],['local', TokenType.local],['throw', TokenType.throw],
+//     ['class', TokenType.class],['extends', TokenType.extends],['new', TokenType.new],['static', TokenType.static],
+//     ['byref', TokenType.byref],['or', TokenType.orKeyword],['and', TokenType.andKeyword],['not', TokenType.notKeyword],
+// ]);
+
 
 const OTHER_MARK: ITokenMap = new Map([
     ["{", TokenType.openBrace], ["}", TokenType.closeBrace],
@@ -948,21 +944,23 @@ const OTHER_MARK: ITokenMap = new Map([
     [";", TokenType.lineComment], ["=", TokenType.equal],
     ["#", TokenType.sharp], [",", TokenType.comma], [".", TokenType.dot], ["!", TokenType.not],
     ["&", TokenType.and], ["|", TokenType.or], ["^", TokenType.xor],
-    ["&&", TokenType.logicand], ["||", TokenType.logicor],
+    ["&&", TokenType.logicAnd], ["||", TokenType.logicOr],
     ["+", TokenType.plus], ["-", TokenType.minus], ["*", TokenType.multi],
     ["/", TokenType.div], ["//", TokenType.fdiv], ["**", TokenType.power], [">", TokenType.greater],
     ["<", TokenType.less], [">=", TokenType.greaterEqual], ["<=", TokenType.lessEqual],
     ["?", TokenType.question], [":", TokenType.colon], ["::", TokenType.hotkey],
     ["%", TokenType.precent], [">>", TokenType.rshift], ["<<", TokenType.lshift],
     ["++", TokenType.pplus], ["--", TokenType.mminus], ["~", TokenType.bnot],
-    ["$", TokenType.dollar],
+    ["$", TokenType.dollar], [">>>", TokenType.logicRshift], ["??", TokenType.dquestion],
     // equals
     [":=", TokenType.aassign], ["=", TokenType.equal], ["+=", TokenType.pluseq],
     ["-=", TokenType.minuseq], ["*=", TokenType.multieq], ["/=", TokenType.diveq],
     ["//=", TokenType.idiveq], [".=", TokenType.sconneq], ["|=", TokenType.oreq],
     ["&=", TokenType.andeq], ["^=", TokenType.xoreq], [">>=", TokenType.rshifteq],
     ["<<=", TokenType.lshifteq], ["~=", TokenType.regeq], ["==", TokenType.dequal],
-    ["<>", TokenType.glnequal], ["!=", TokenType.notEqual]
+    ["<>", TokenType.glNEqual], ["!=", TokenType.notEqual], ["!==", TokenType.dequal],
+    [">>>=", TokenType.logicRshiftEq],
+    ["=>", TokenType.fatArrow]
 ]);
 
 const DRECTIVE_TEST: Set<string> = new Set([
@@ -1001,5 +999,3 @@ const COMMAND_TEST: Set<string> = new Set([
     "winkill","winmaximize","winmenuselectitem","winminimize","winminimizeall","winminimizeallundo","winmove","winrestore",
     "winset","winsettitle","winshow","winwait","winwaitactive","winwaitclose","winwaitnotactive",    
 ])
-
-export const DOCUMENT_START_TOKEN = new Token(TokenType.EOL, '', Position.create(-1, -1), Position.create(-1, -1))

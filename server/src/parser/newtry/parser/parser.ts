@@ -1,5 +1,5 @@
-import { DOCUMENT_START_TOKEN, Tokenizer } from "../tokenizor/tokenizer";
-import { Atom, IAST, IExpr, SuffixTermTrailer } from "../types";
+import { Tokenizer } from "../tokenizor/tokenizer";
+import { Atom, IAST, SuffixTermTrailer } from "../types";
 import { isValidIdentifier, TokenType } from "../tokenizor/tokenTypes";
 import { IParseError } from "../types";
 import { ParseError } from './models/parseError';
@@ -11,7 +11,6 @@ import * as Decl from './models/declaration';
 import { IDiagnosticInfo, MissingToken, SkipedToken, Token, TokenKind } from '../tokenizor/types';
 import { mockLogger } from '../../../utilities/logger';
 import { Script } from '../models/script';
-import { Position } from 'vscode-languageserver-types';
 import { DelimitedList } from './models/delimtiedList';
 import { NodeBase } from './models/nodeBase';
 import { ParseContext } from './models/parseContext';
@@ -24,7 +23,6 @@ type ParseFn<T> = () => T;
 export class AHKParser {
     private tokenizer: Tokenizer;
     private tokenGetter;
-    private currentToken: Token;
     private pos: number = -1;
     private readonly uri: string;
 
@@ -43,14 +41,17 @@ export class AHKParser {
 
     constructor(document: string, uri: string, v2mode = false, logger: ILoggerBase = mockLogger) {
         this.v2mode = v2mode;
-        this.tokenizer = new Tokenizer(document);
+        this.tokenizer = new Tokenizer(document, v2mode, logger);
         this.tokenizer.isParseHotkey = true;
         this.tokenGetter = this.tokenizer.GenToken();
-        this.currentToken = DOCUMENT_START_TOKEN;
         this.advance();
         this.logger = logger;
         this.uri = uri;
         this.currentParseContext = 0;
+    }
+
+    private get currentToken(): Token {
+        return this.tokens[this.pos];
     }
 
     /**
@@ -78,32 +79,14 @@ export class AHKParser {
     private advance() {
         this.pos++;
         if (this.pos >= this.tokens.length) {
-            let token = this.nextToken();
+            const token = this.nextToken();
             // AHK connect next line to current line
             // when next line start with operators and ','
-            if (token.type === TokenType.EOL) {
-                const saveToken = token;
-                do {
-                    token = this.nextToken();
-                } while (token.type === TokenType.EOL)
-                    
-                // 下一行是运算符或者','时丢弃EOL, `++` 和 `--`除外
-                // discard EOL
-                if ((token.type >= TokenType.power &&
-                    token.type <= TokenType.comma) ||
-                    // `:` in ternay expression and associative array
-                    token.type === TokenType.colon) {
-                    this.tokens.push(token);
-                }
-                else {
-                    this.tokens.push(saveToken);
-                    this.tokens.push(token);
-                }
-            }
+            if (token.type === TokenType.EOL) 
+                this.skipEOLIfNeed(token);
             else
                 this.tokens.push(token);
         }
-        this.currentToken = this.tokens[this.pos];
         return this
     }
 
@@ -121,20 +104,33 @@ export class AHKParser {
         let token = this.nextToken();
 
         if (token.type === TokenType.EOL) {
-            const saveToken = token;
-            token = this.nextToken();
-
-            if (token.type >= TokenType.pplus &&
-                token.type <= TokenType.comma) {
-                this.tokens.push(token);
-                return token;
-            }
-            this.tokens.push(saveToken);
-            this.tokens.push(token);
-            return saveToken;
+            this.skipEOLIfNeed(token);
+            return this.tokens[this.pos+1];
         }
         this.tokens.push(token);
         return token;
+    }
+
+    private skipEOLIfNeed(token: Token) {
+        const saveToken = token;
+        do {
+            token = this.nextToken();
+        } while (token.type === TokenType.EOL);
+
+        // 下一行是运算符或者','时丢弃EOL, `++` 和 `--`除外
+        // discard EOL, 
+        // see: https://www.autohotkey.com/docs/v2/Scripts.htm#continuation
+        if ((this.isPossibleBinaryOperator(token.type)) ||
+            // `:` in ternay expression and associative array
+            token.type === TokenType.colon ||
+            token.type === TokenType.comma ||
+            token.type === TokenType.dot) {
+            this.tokens.push(token);
+        }
+        else {
+            this.tokens.push(saveToken);
+            this.tokens.push(token);
+        }
     }
 
     /**
@@ -657,6 +653,7 @@ export class AHKParser {
                 // 这里不可能发生，
                 // isStatementStart 里允许的可能
                 // 在这里已经枚举完
+                this.logger.error(`In statement, Unexpect token[${this.currentToken.start.line}:${this.currentToken.start.character}]: ${this.currentToken.content}|${this.currentToken.type}`);
                 return this.idLeadStatement();
         }
     }
@@ -987,13 +984,14 @@ export class AHKParser {
 
     // assignment statemnet
     private assignStmt(): Stmt.AssignStmt|Stmt.ExprStmt {
-        const isExprStart = this.isExpressionStart(this.currentToken);
+        // const isExprStart = this.isExpressionStart(this.currentToken);
         const left = this.factor();
 
         // `,`豁免检查是否是赋值表达式
         const delimiter = this.eatOptional(TokenType.comma);
         if (delimiter) {
             const trailer = this.tailorExpr(delimiter);
+            this.terminal();
             return new Stmt.ExprStmt(left, trailer);
         }
 
@@ -1019,8 +1017,8 @@ export class AHKParser {
             return new Stmt.AssignStmt(left, assign, expr);
         }
 
+        this.terminal();
         return new Stmt.ExprStmt(left);
-
     }
 
     private tailorExpr(delimiter: Token): Stmt.TrailerExprList {
@@ -1036,8 +1034,7 @@ export class AHKParser {
         this.tokens.pop();
         this.tokenizer.Reset();
         this.tokenizer.isParseHotkey = false;
-        this.currentToken = this.nextToken();
-        this.tokens.push(this.currentToken);
+        this.tokens.push(this.nextToken());
         return this.expression();
     }
 
@@ -1074,78 +1071,14 @@ export class AHKParser {
         // let tokenizer parse operators as normal
         // 让分词器不进行热键分词正常返回符号
         this.tokenizer.isParseHotkey = false;
-        let result: Expr.Expr;
-
-        do {
-            switch (this.currentToken.type) {
-                // all Unary operator
-                case TokenType.plus:
-                case TokenType.minus:
-                case TokenType.and:
-                case TokenType.multi:
-                case TokenType.not:
-                case TokenType.bnot:
-                case TokenType.pplus:
-                case TokenType.mminus:
-                case TokenType.new:
-                    const saveToken = this.currentToken;
-                    this.advance();
-                    const q = (saveToken.type >= TokenType.pplus &&
-                        saveToken.type <= TokenType.mminus) ?
-                        Precedences[TokenType.pplus] :
-                        UnaryPrecedence;
-                    const expr = this.expression(q);
-                    result = new Expr.Unary(saveToken, expr);
-                    break;
-                case TokenType.openParen:
-                    let OPar = this.eat();
-                    result = this.expression();
-                    let CPar = this.eatType(TokenType.closeParen);
-                    result = new Expr.ParenExpr(OPar, result, CPar);
-                    break;
-                case TokenType.number:
-                case TokenType.string:
-                case TokenType.openBrace:
-                case TokenType.openBracket:
-                case TokenType.id:
-                case TokenType.precent:
-                    // TODO: process array, dict, and precent expression
-                    result = this.factor();
-                    break;
-                case TokenType.EOL:
-                    // v2 allows skip all EOL in expression
-                    // v2 能够允许在表达式里面完全忽略换行
-                    // 允许在运算符后忽略换行
-                    if (this.v2mode) {
-                        const p = this.peek();
-                        if (this.matchTokens([
-                            TokenType.plus, TokenType.minus,TokenType.and,TokenType.multi,TokenType.not,TokenType.bnot,
-                            TokenType.pplus,TokenType.mminus,TokenType.new,TokenType.openParen,TokenType.number,
-                            TokenType.string,TokenType.openBrace,TokenType.openBracket,TokenType.id,TokenType.precent
-                        ])) {
-                            this.eatType(TokenType.EOL);
-                            continue;
-                        }
-                        // if nothing is matched, let it leak to default
-                    }
-                default:
-                    // TODO: Allow all keywords as identifier and warn this
-                    if (isValidIdentifier(this.currentToken.type)) {
-                        result = this.factor();
-                        break;
-                    }
-                    return new Expr.Invalid(this.currentToken.start, [this.currentToken]);
-            }
-            // 丐版 goto，有的时候 goto 是真的好用
-            break;
-        } while (true);
+        let result: Expr.Expr = this.UnaryExpressionOrHigher();
 
         // pratt parse
         while (true) {
             this.tokenizer.isParseHotkey = false;
             // infix left-associative 
             if ((this.currentToken.type >= TokenType.power &&
-                this.currentToken.type <= TokenType.logicor) &&
+                this.currentToken.type <= TokenType.logicOr) &&
                 Precedences[this.currentToken.type] >= p) {
                 const saveToken = this.currentToken;
                 this.advance();
@@ -1242,6 +1175,70 @@ export class AHKParser {
         }
         this.tokenizer.isParseHotkey = true;
         return result;
+    }
+
+    private UnaryExpressionOrHigher(): Expr.Expr {
+        do {
+            switch (this.currentToken.type) {
+                // all Unary operator
+                case TokenType.plus:
+                case TokenType.minus:
+                case TokenType.and:
+                case TokenType.multi:
+                case TokenType.not:
+                case TokenType.bnot:
+                case TokenType.pplus:
+                case TokenType.mminus:
+                case TokenType.new:
+                    const saveToken = this.currentToken;
+                    this.advance();
+                    const q = (saveToken.type >= TokenType.pplus &&
+                        saveToken.type <= TokenType.mminus) ?
+                        Precedences[TokenType.pplus] :
+                        UnaryPrecedence;
+                    const expr = this.expression(q);
+                    return new Expr.Unary(saveToken, expr);
+                case TokenType.openParen:
+                    let OPar = this.eat();
+                    const mid = this.expression();
+                    let CPar = this.eatType(TokenType.closeParen);
+                    return new Expr.ParenExpr(OPar, mid, CPar);
+                case TokenType.number:
+                case TokenType.string:
+                case TokenType.openBrace:
+                case TokenType.openBracket:
+                case TokenType.id:
+                case TokenType.precent:
+                    // TODO: process array, dict, and precent expression
+                    return this.factor();
+                case TokenType.EOL:
+                    // v2 allows skip all EOL in expression
+                    // v2 能够允许在表达式里面完全忽略换行
+                    // 允许在运算符后忽略换行
+                    if (this.v2mode && this.isPossibleBinaryOperator(this.peek().type)) {
+                        this.eatType(TokenType.EOL);
+                        continue;
+                        // if nothing is matched, let it leak to default
+                    }
+                default:
+                    // TODO: Allow all keywords as identifier and warn this
+                    if (isValidIdentifier(this.currentToken.type)) {
+                        return this.factor();
+                    }
+                    return new Expr.Invalid(this.currentToken.start, [this.currentToken]);
+            }
+        } while (true);
+    }
+
+    /**
+     * If token type is operator that can discard EOL.
+     * @param t tokentype
+     */
+    private isPossibleBinaryOperator(t: TokenType) {
+        // ++ and -- is pure unary operator in autohotkey,
+        // so EOL can not be discard for them.
+        return (TokenType.power <= t && t <= TokenType.isKeyword) ||
+               (TokenType.notKeyword <= t && t <= TokenType.logicRshiftEq);
     }
 
     private factor(): Expr.Factor {
@@ -1554,7 +1551,6 @@ export class AHKParser {
      */
     private backto(pos: number) {
         this.pos = pos;
-        this.currentToken = this.tokens[pos];
     }
 
     /**

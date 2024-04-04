@@ -79,7 +79,7 @@ export class Invalid extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	  ): ReturnType<T> {
-		return visitor.visitStmtInvalid(this, parameters);
+		return visitor.visitStmtInvalid(this, ...parameters);
 	}
 }
 
@@ -119,7 +119,7 @@ export class AssignStmt extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	  ): ReturnType<T> {
-		return visitor.visitAssign(this, parameters);
+		return visitor.visitAssign(this, ...parameters);
 	}
 }
 
@@ -158,7 +158,7 @@ export class ExprStmt extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitExpr(this, parameters);
+		return visitor.visitExpr(this, ...parameters);
 	}
 }
 
@@ -227,7 +227,7 @@ export class CommandCall extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitCommandCall(this, parameters);
+		return visitor.visitCommandCall(this, ...parameters);
 	}
 }
 
@@ -274,7 +274,7 @@ export class Block extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitBlock(this, parameters);
+		return visitor.visitBlock(this, ...parameters);
 	}
 }
 
@@ -325,7 +325,7 @@ export class If extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitIf(this, parameters);
+		return visitor.visitIf(this, ...parameters);
 	}
 }
 
@@ -361,7 +361,7 @@ export class Else extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitElse(this, parameters);
+		return visitor.visitElse(this, ...parameters);
 	}
 }
 
@@ -423,7 +423,7 @@ export class SwitchStmt extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitSwitch(this, parameters);
+		return visitor.visitSwitch(this, ...parameters);
 	}
 }
 
@@ -463,7 +463,7 @@ export class CaseStmt extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-	  return visitor.visitCase(this, parameters);
+	  return visitor.visitCase(this, ...parameters);
 	}
 }
 
@@ -501,7 +501,7 @@ export class CaseExpr extends NodeBase {
 	//   visitor: IStmtVisitor<T>,
 	//   parameters: Parameters<T>,
 	// ): ReturnType<T> {
-	//   return visitor.visitWhen(this, parameters);
+	//   return visitor.visitWhen(this, ...parameters);
 	// }
 }
 
@@ -532,7 +532,7 @@ export class DefaultCase extends NodeBase {
 	//   visitor: IStmtVisitor<T>,
 	//   parameters: Parameters<T>,
 	// ): ReturnType<T> {
-	//   return visitor.visitWhen(this, parameters);
+	//   return visitor.visitWhen(this, ...parameters);
 	// }
 }
 
@@ -576,7 +576,7 @@ export class Loop extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-	  return visitor.visitLoop(this, parameters);
+	  return visitor.visitLoop(this, ...parameters);
 	}
 }
 
@@ -617,7 +617,7 @@ export class UntilLoop extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-	  return visitor.visitLoop(this, parameters);
+	  return visitor.visitLoop(this, ...parameters);
 	}
 }
 
@@ -656,7 +656,7 @@ export class WhileStmt extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-	  return visitor.visitWhile(this, parameters);
+	  return visitor.visitWhile(this, ...parameters);
 	}
 }
 
@@ -699,7 +699,7 @@ export class ForStmt extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-	  return visitor.visitFor(this, parameters);
+	  return visitor.visitFor(this, ...parameters);
 	}
 }
 
@@ -738,7 +738,7 @@ export class Continue extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitContinue(this, parameters);
+		return visitor.visitContinue(this, ...parameters);
 	}
 }
 
@@ -777,7 +777,7 @@ export class Break extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitBreak(this, parameters);
+		return visitor.visitBreak(this, ...parameters);
 	}
 }
 
@@ -823,7 +823,7 @@ export class Return extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitReturn(this, parameters);
+		return visitor.visitReturn(this, ...parameters);
 	}
 }
 
@@ -880,7 +880,7 @@ export class TryStmt extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	): ReturnType<T> {
-		return visitor.visitTry(this, parameters);
+		return visitor.visitTry(this, ...parameters);
 	}
 }
 
@@ -917,7 +917,7 @@ export class CatchStmt extends Stmt {
 	  visitor: IStmtVisitor<T>,
 	  parameters: Parameters<T>,
 	): ReturnType<T> {
-	  return visitor.visitCatch(this, parameters);
+	  return visitor.visitCatch(this, ...parameters);
 	}
 }
 
@@ -954,7 +954,7 @@ export class FinallyStmt extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	  ): ReturnType<T> {
-		return visitor.visitFinally(this, parameters);
+		return visitor.visitFinally(this, ...parameters);
 	}
 }
 
@@ -990,7 +990,7 @@ export class Throw extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	  ): ReturnType<T> {
-		return visitor.visitThrow(this, parameters);
+		return visitor.visitThrow(this, ...parameters);
 	}
 }
 
@@ -1032,7 +1032,7 @@ export class Drective extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	  ): ReturnType<T> {
-		return visitor.visitDrective(this, parameters);
+		return visitor.visitDrective(this, ...parameters);
 	}
 }
 

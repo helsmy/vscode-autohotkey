@@ -35,7 +35,7 @@ suite('Should do definition', () => {
 		}]);
 	});
 
-	test('Find resolved varible suffix symbol', async () => {
+	test('Find resolved variable suffix symbol', async () => {
 		await testDefinition(docUri, new vscode.Position(42-1, 10), [{
 			range: new vscode.Range(
 				new vscode.Position(20, 1),

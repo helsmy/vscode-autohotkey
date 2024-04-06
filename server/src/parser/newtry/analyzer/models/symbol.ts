@@ -1,9 +1,9 @@
-import { IScope, ISymbol, ISymType, ModifierKind, VarKind } from '../types';
+import { IScope, ISymbol, ISymbolWithDocument, ISymType, ModifierKind, VarKind } from '../types';
 import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver/node';
 
 export type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
 export type AHKFunctionSymbol = AHKMethodSymbol | AHKBuiltinMethodSymbol;
-export type AHKBUiltinSymbol = AHKBuiltinObjectSymbol | AHKBuiltinMethodSymbol | BuiltinVaribelSymbol;
+export type AHKBUiltinSymbol = AHKBuiltinObjectSymbol | AHKBuiltinMethodSymbol | BuiltinVariableSymbol;
 
 export abstract class AHKSymbol implements ISymbol {
 	public readonly name: string;
@@ -14,7 +14,7 @@ export abstract class AHKSymbol implements ISymbol {
 	}
 }
 
-export class BuiltinVaribelSymbol extends AHKSymbol {
+export class BuiltinVariableSymbol extends AHKSymbol {
 	constructor(
 		public readonly name: string,
 		public readonly tag: VarKind,
@@ -30,7 +30,7 @@ export class BuiltinVaribelSymbol extends AHKSymbol {
 	}
 }
 
-export class VaribaleSymbol extends AHKSymbol {
+export class VariableSymbol extends AHKSymbol {
 
 	/**
 	 * Temporary type marking for current usage
@@ -70,7 +70,7 @@ export class VaribaleSymbol extends AHKSymbol {
 	}
 }
 
-export class ParameterSymbol extends VaribaleSymbol {
+export class ParameterSymbol extends VariableSymbol {
 	constructor(
 		uri: string, name: string, range: Range, tag: VarKind,
 		public readonly isByref: boolean,
@@ -171,7 +171,7 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScope {
 	public symbolInformations(): SymbolInformation[] {
 		const info: SymbolInformation[] = [];
 		for (const [name, sym] of this.symbols) {
-			if (sym instanceof VaribaleSymbol && sym.tag !== VarKind.parameter) {
+			if (sym instanceof VariableSymbol && sym.tag !== VarKind.parameter) {
 				const kind = sym.tag === VarKind.variable ? SymbolKind.Variable : SymbolKind.Property 
 				info.push(SymbolInformation.create(
 					sym.name,
@@ -259,7 +259,8 @@ export class AHKBuiltinObjectSymbol extends ScopedSymbol implements ISymType {
 	}
 }
 
-export class AHKMethodSymbol extends ScopedSymbol {
+export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument {
+	public document: string | undefined;
 	constructor(
 		uri: string,
 		name: string,
@@ -267,7 +268,7 @@ export class AHKMethodSymbol extends ScopedSymbol {
 		public readonly requiredParameters: ParameterSymbol[],
 		public readonly optionalParameters: ParameterSymbol[],
 		enclosingScoop?: IScope,
-		public readonly parentScoop?: AHKObjectSymbol
+		public readonly parentScope?: AHKObjectSymbol
 	) {
 		super(uri, name, enclosingScoop);
 		this.requiredParameters.forEach(v => this.define(v));
@@ -277,7 +278,7 @@ export class AHKMethodSymbol extends ScopedSymbol {
 	public resolve(name: string): Maybe<ISymbol> {
 		// find implicit this
 		if (name.toLowerCase() === 'this' && !this.symbols.has('this')) {
-			return this.parentScoop;
+			return this.parentScope;
 		}
 		return super.resolve(name);
 	}
@@ -344,7 +345,7 @@ export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 	}
 }
 
-export class AHKDynamicPropertySymbol extends VaribaleSymbol implements IScope {
+export class AHKDynamicPropertySymbol extends VariableSymbol implements IScope {
 	public readonly dependcyScope: Set<IScope> = new Set();
 	private symbols: Map<string, AHKGetterSetterSymbol> = new Map();
 	
@@ -414,7 +415,7 @@ export class AHKGetterSetterSymbol extends AHKMethodSymbol {
 		super(uri, name, range, [], [], enclosingScoop, parentScoop);
 		if (funcType === 'set')
 			this.define(
-				new BuiltinVaribelSymbol(
+				new BuiltinVariableSymbol(
 					'value',
 					VarKind.parameter,
 					undefined
@@ -426,7 +427,7 @@ export class AHKGetterSetterSymbol extends AHKMethodSymbol {
 export class AHKBaseObject extends AHKBuiltinObjectSymbol {
 	constructor() {
 		super('base', undefined);
-		this.define(new BuiltinVaribelSymbol('__Class', VarKind.property, undefined));
+		this.define(new BuiltinVariableSymbol('__Class', VarKind.property, undefined));
 		for (const name of ['__New', '__Delete', '__Init'])
 			this.define(new AHKBuiltinMethodSymbol(name, [], []));
 	}
@@ -443,5 +444,5 @@ export function isClassObject(obj: ISymbol): obj is AHKClassSymbol {
 export function isBuiltinSymbol(obj: ISymbol): obj is AHKBUiltinSymbol {
 	return obj instanceof AHKBuiltinMethodSymbol 
 		|| obj instanceof AHKBuiltinObjectSymbol
-		|| obj instanceof BuiltinVaribelSymbol
+		|| obj instanceof BuiltinVariableSymbol
 }

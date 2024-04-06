@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { Range } from 'vscode-languageserver-types';
-import { VaribaleSymbol } from '../../parser/newtry/analyzer/models/symbol';
+import { VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { SymbolTable } from '../../parser/newtry/analyzer/models/symbolTable';
 import { ISymType, VarKind } from '../../parser/newtry/analyzer/types';
 import { Label } from '../../parser/newtry/parser/models/declaration';
@@ -34,7 +34,7 @@ function builtTable(AST: IStmt[]): SymbolTable {
             if (symType === undefined) continue;
             const latom = stmt.left.suffixTerm.atom;
             if (latom instanceof Identifier) {
-                const sym = new VaribaleSymbol(
+                const sym = new VariableSymbol(
                     '',
                     latom.token.content,
                     Range.create(stmt.start, stmt.end),

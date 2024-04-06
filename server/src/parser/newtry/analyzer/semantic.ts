@@ -7,7 +7,7 @@ import * as Expr from '../parser/models/expr';
 import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
 import { Atom, IScript } from '../types';
-import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VaribaleSymbol } from './models/symbol';
+import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VariableSymbol } from './models/symbol';
 import { IScope, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
@@ -22,7 +22,7 @@ interface ProcessResult {
 export class PreProcesser extends TreeVisitor<Diagnostics> {
 	private table: SymbolTable;
 	private stack: IScope[];
-	private currentScoop: IScope;
+	private currentScope: IScope;
 
 	constructor(
 		public readonly script: IScript,
@@ -31,7 +31,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		super();
 		this.table = new SymbolTable(script.uri, 'global', 1, builtinScope);
 		this.stack = [this.table];
-		this.currentScoop = this.stack[this.stack.length-1];
+		this.currentScope = this.stack[this.stack.length-1];
 	}
 
 	public process(): ProcessResult {
@@ -52,8 +52,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const [e, vs] = this.createVarSym(decl.assigns);
 		errors.push(...e);
 		if (decl.scope.type === TokenType.static) {
-			if (!(this.currentScoop instanceof AHKObjectSymbol) &&
-				!(this.currentScoop instanceof AHKMethodSymbol)) {
+			if (!(this.currentScope instanceof AHKObjectSymbol) &&
+				!(this.currentScope instanceof AHKMethodSymbol)) {
 				errors.push(
 					this.error(
 						Range.create(decl.start, decl.end),
@@ -62,13 +62,13 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				);
 			}
 			// Define static property of class
-			vs.forEach(v => this.currentScoop.define(v));
+			vs.forEach(v => this.currentScope.define(v));
 			return errors;
 		}
 
 		// global and local declaration is not allowed in class
 		// report errors and return
-		if (this.currentScoop instanceof AHKObjectSymbol) {
+		if (this.currentScope instanceof AHKObjectSymbol) {
 			// TODO: 正确的local和global错误信息
 			errors.push(
 				this.error(
@@ -82,20 +82,20 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		// TODO: 变量在local和global上重复定义的问题
 		// Define global and local variable
 		if (decl.scope.type === TokenType.local) 
-			vs.forEach(v => this.currentScoop.define(v));
+			vs.forEach(v => this.currentScope.define(v));
 		else {
 			for (const sym of vs) {
 				// global declaration in global
-				if (this.currentScoop.name === 'global')
+				if (this.currentScope.name === 'global')
 					this.table.define(sym);
 				const globalSym = this.table.resolve(sym.name);
 				// if variable exists in global
 				// add it to local, make it visible in local
 				if (globalSym)
-					this.currentScoop.define(sym);
+					this.currentScope.define(sym);
 				// if not add to both
 				else {
-					this.currentScoop.define(sym);
+					this.currentScope.define(sym);
 					this.table.define(sym);
 				}
 			}
@@ -120,15 +120,17 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			reqParams,
 			dfltParams,
 			this.table,
-			this.currentScoop instanceof AHKObjectSymbol ?
-				this.currentScoop : undefined
+			this.currentScope instanceof AHKObjectSymbol ?
+				this.currentScope : undefined
 		);
+		if (decl.nameToken.comment)
+			sym.document = decl.nameToken.comment.content;
 		// this.supperGlobal.define(sym);
 		// this.supperGlobal.addScoop(sym);
 		// this.table.define(sym);
 		// this.table.addScoop(sym);
-		this.currentScoop.define(sym);
-		this.currentScoop.addScope(sym);
+		this.currentScope.define(sym);
+		this.currentScope.addScope(sym);
 
 		this.enterScoop(sym);
 		errors.push(...decl.body.accept(this, []));
@@ -160,10 +162,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			decl.name.content,
 			copyRange(decl),
 			parentScoop,
-			this.currentScoop
+			this.currentScope
 		);
 		
-		this.currentScoop.define(objTable);
+		this.currentScope.define(objTable);
 		this.enterScoop(objTable);
 		errors.push(... decl.body.accept(this, []));
 		this.leaveScoop();
@@ -172,14 +174,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitDynamicProperty(decl: Decl.DynamicProperty): Diagnostics {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
-		if (!(this.currentScoop instanceof AHKObjectSymbol)) return errors;
+		if (!(this.currentScope instanceof AHKObjectSymbol)) return errors;
 		const dynamicProperty = new AHKDynamicPropertySymbol(
 			this.script.uri,
 			decl.name.content,
 			copyRange(decl),
-			this.currentScoop
+			this.currentScope
 		);
-		this.currentScoop.define(dynamicProperty);
+		this.currentScope.define(dynamicProperty);
 		for (const getterSetter of decl.body.stmts) {
 			// 虽然基本不可能发生，动态属性里是固定的getter和setter
 			if (!(getterSetter instanceof Decl.GetterSetter)) {
@@ -193,7 +195,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				symName,
 				decl.name.content,
 				copyRange(getterSetter),
-				this.currentScoop,
+				this.currentScope,
 				this.table
 			)
 			dynamicProperty.define(sym);
@@ -306,9 +308,9 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				const atom = expr.suffixTerm.atom;
 				if (atom instanceof SuffixTerm.Identifier && 
 					expr.suffixTerm.brackets.length === 0) {
-					// Only check varible defination in first scanning
+					// Only check variable defination in first scanning
 					const idName = atom.token.content;
-					if (!this.currentScoop.resolve(idName)) { 
+					if (!this.currentScope.resolve(idName)) { 
 						errors.push(this.error(
 							copyRange(atom),
 							`Variable "${idName}" is used before defination`,
@@ -406,14 +408,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const errors = this.checkDiagnosticForNode(left);
 		const id1 = left.suffixTerm.atom;
 		if (id1 instanceof SuffixTerm.Identifier) {
-			// if only varible 标识符只有一个
+			// if only variable 标识符只有一个
 			// 就是变量赋值定义这个变量
 			if (left.trailer === undefined) {
 				const idName = id1.token.content;
-				if (!this.currentScoop.resolve(idName)) {
-					const kind = this.currentScoop instanceof AHKObjectSymbol ?
+				if (!this.currentScope.resolve(idName)) {
+					const kind = this.currentScope instanceof AHKObjectSymbol ?
 								 VarKind.property : VarKind.variable;
-					const sym = new VaribaleSymbol(
+					const sym = new VariableSymbol(
 						this.script.uri,
 						idName,
 						copyRange(left),
@@ -421,7 +423,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 						undefined
 					);
 					if (varType) sym.setType(varType);
-					this.currentScoop.define(sym);
+					this.currentScope.define(sym);
 				}
 				return errors;
 			}
@@ -430,8 +432,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			trailer.forEach(t => errors.push(...this.processSuffixTerm(t)))
 			// check if assign to a property
 			if (id1.token.content === 'this') {
-				if (!(this.currentScoop instanceof AHKMethodSymbol &&
-					  this.currentScoop.parentScoop instanceof AHKObjectSymbol)) {
+				if (!(this.currentScope instanceof AHKMethodSymbol &&
+					  this.currentScope.parentScope instanceof AHKObjectSymbol)) {
 					errors.push(Diagnostic.create(
 						copyRange(left),
 						'Assign a property out of class'
@@ -444,8 +446,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				if (trailer.length === 1) {
 					const prop = trailer[0];
 					if (prop.atom instanceof SuffixTerm.Identifier) {
-						if (!this.currentScoop.parentScoop.resolve(prop.atom.token.content)) {
-							const sym = new VaribaleSymbol(
+						if (!this.currentScope.parentScope.resolve(prop.atom.token.content)) {
+							const sym = new VariableSymbol(
 								this.script.uri,
 								prop.atom.token.content,
 								copyRange(fullRange),
@@ -453,7 +455,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 								undefined
 							);
 							if (varType) sym.setType(varType);
-							this.currentScoop.parentScoop.define(sym);
+							this.currentScope.parentScope.define(sym);
 						}
 					}
 					return errors;
@@ -618,16 +620,16 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		if (errors.length === 0) {
 			// 如果没有错误发生, 则parser 已经确保 oneId 一定为标识符
 			const id = oneId.atom as SuffixTerm.Identifier;
-			// check if iter varible is defined, if not define them
-			if (!this.currentScoop.resolve(id.token.content)) {
-				const sym = new VaribaleSymbol(
+			// check if iter variable is defined, if not define them
+			if (!this.currentScope.resolve(id.token.content)) {
+				const sym = new VariableSymbol(
 					this.script.uri,
 					id.token.content,
 					copyRange(stmt.iter1id),
 					VarKind.variable,
 					undefined
 				);
-				this.currentScoop.define(sym);
+				this.currentScope.define(sym);
 			}
 		}
 		return errors;
@@ -647,16 +649,16 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitCatch(stmt: Stmt.CatchStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		// check if output varible is defined, if not define it
-		if (!this.currentScoop.resolve(stmt.errors.content)) {
-			const sym = new VaribaleSymbol(
+		// check if output variable is defined, if not define it
+		if (!this.currentScope.resolve(stmt.errors.content)) {
+			const sym = new VariableSymbol(
 				this.script.uri,
 				stmt.errors.content,
 				copyRange(stmt.errors),
 				VarKind.variable,
 				undefined
 			);
-			this.currentScoop.define(sym);
+			this.currentScope.define(sym);
 		}
 		return errors.concat(stmt.body.accept(this, []));
 	}
@@ -673,29 +675,29 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	private enterScoop(scoop: IScope) {
 		this.stack.push(scoop);
-		this.currentScoop = scoop;
+		this.currentScope = scoop;
 	}
 
 	private leaveScoop() {
 		this.stack.pop();
-		this.currentScoop = this.stack[this.stack.length-1];
+		this.currentScope = this.stack[this.stack.length-1];
 	}
 
-	private createVarSym(assigns: Expr.ExpersionList): [Diagnostics, VaribaleSymbol[]] {
+	private createVarSym(assigns: Expr.ExpersionList): [Diagnostics, VariableSymbol[]] {
 		const errors: Diagnostics = [];
-		const varSym: VaribaleSymbol[] = [];
+		const varSym: VariableSymbol[] = [];
 		for (const assign of assigns.getElements()) {
 			errors.push(...this.checkDiagnosticForNode(assign));
-			const kind = this.currentScoop instanceof AHKObjectSymbol ?
+			const kind = this.currentScope instanceof AHKObjectSymbol ?
 							 VarKind.property : VarKind.variable;
 
-			// if there are any assign in varible declaration, 如果scoop声明里有赋值
+			// if there are any assign in variable declaration, 如果scoop声明里有赋值
 			if (assign instanceof Expr.Binary && 
 				assign.operator.type === TokenType.aassign &&
 				assign.left instanceof Expr.Factor &&
 				assign.left.suffixTerm.atom instanceof SuffixTerm.Identifier) {
 				const id = assign.left.suffixTerm.atom.token;
-				const sym = new VaribaleSymbol(
+				const sym = new VariableSymbol(
 					this.script.uri,
 					id.content,
 					copyRange(id),
@@ -706,12 +708,12 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				continue;
 			}
 			// If a variable is decleared
-			// `static` varible
+			// `static` variable
 			if (assign instanceof Expr.Factor && 
 				assign.suffixTerm.atom instanceof SuffixTerm.Identifier) {
 				const id = assign.suffixTerm.atom.token;
-				if (!this.currentScoop.resolve(id.content)) {
-					const sym = new VaribaleSymbol(
+				if (!this.currentScope.resolve(id.content)) {
+					const sym = new VariableSymbol(
 						this.script.uri,
 						id.content,
 						copyRange(id),

@@ -249,7 +249,7 @@ const defaultOption: FormatOptions = {
 // 				const atom = expr.suffixTerm.atom;
 // 				if (atom instanceof SuffixTerm.Identifier && 
 // 					expr.suffixTerm.brackets.length === 0) {
-// 					// Only check varible defination in first scanning
+// 					// Only check variable defination in first scanning
 // 					const idName = atom.token.content;
 // 					if (!this.currentScoop.resolve(idName)) { 
 // 						errors.push(this.error(
@@ -349,14 +349,14 @@ const defaultOption: FormatOptions = {
 // 		const errors = this.checkDiagnosticForNode(left);
 // 		const id1 = left.suffixTerm.atom;
 // 		if (id1 instanceof SuffixTerm.Identifier) {
-// 			// if only varible 标识符只有一个
+// 			// if only variable 标识符只有一个
 // 			// 就是变量赋值定义这个变量
 // 			if (left.trailer === undefined) {
 // 				const idName = id1.token.content;
 // 				if (!this.currentScoop.resolve(idName)) {
 // 					const kind = this.currentScoop instanceof AHKObjectSymbol ?
 // 								 VarKind.property : VarKind.variable;
-// 					const sym = new VaribaleSymbol(
+// 					const sym = new Variableymbol(
 // 						this.script.uri,
 // 						idName,
 // 						copyRange(left),
@@ -388,7 +388,7 @@ const defaultOption: FormatOptions = {
 // 					const prop = trailer[0];
 // 					if (prop.atom instanceof SuffixTerm.Identifier) {
 // 						if (!this.currentScoop.parentScoop.resolve(prop.atom.token.content)) {
-// 							const sym = new VaribaleSymbol(
+// 							const sym = new VariableSymbol(
 // 								this.script.uri,
 // 								prop.atom.token.content,
 // 								copyRange(fullRange),
@@ -565,9 +565,9 @@ const defaultOption: FormatOptions = {
 // 		else {
 // 			// parser 已经确保 id1 一定为标识符
 // 			const id = id1 as SuffixTerm.Identifier;
-// 			// check if iter varible is defined, if not define them
+// 			// check if iter variable is defined, if not define them
 // 			if (!this.currentScoop.resolve(id.token.content)) {
-// 				const sym = new VaribaleSymbol(
+// 				const sym = new variableSymbol(
 // 					this.script.uri,
 // 					id.token.content,
 // 					copyRange(stmt.iter1id),
@@ -594,9 +594,9 @@ const defaultOption: FormatOptions = {
 
 // 	public visitCatch(stmt: Stmt.CatchStmt): string[][] {
 // 		const errors = this.checkDiagnosticForNode(stmt);
-// 		// check if output varible is defined, if not define it
+// 		// check if output variable is defined, if not define it
 // 		if (!this.currentScoop.resolve(stmt.errors.content)) {
-// 			const sym = new VaribaleSymbol(
+// 			const sym = new VariableSymbol(
 // 				this.script.uri,
 // 				stmt.errors.content,
 // 				copyRange(stmt.errors),

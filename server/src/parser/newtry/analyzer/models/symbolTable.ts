@@ -3,7 +3,7 @@ import { IScope, ISymbol } from '../types';
 import {
 	BuiltinTypeSymbol, 
 	AHKSymbol, 
-	VaribaleSymbol, 
+	VariableSymbol, 
 	AHKMethodSymbol, 
 	AHKObjectSymbol, 
 	HotkeySymbol, 
@@ -102,7 +102,7 @@ export class SymbolTable implements IScope {
 	public symbolInformations(): SymbolInformation[] {
 		let info: SymbolInformation[] = [];
 		for (const [, sym] of this.symbols) {
-			if (sym instanceof VaribaleSymbol) {
+			if (sym instanceof VariableSymbol) {
 				info.push(SymbolInformation.create(
 					sym.name,
 					SymbolKind.Variable,

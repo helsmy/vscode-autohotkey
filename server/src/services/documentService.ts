@@ -56,7 +56,7 @@ class DocumentInfomation {
 
 export class DocumentService {
     /**
-     * Builtin functions and varibles symbols
+     * Builtin functions and variable symbols
      */
     public readonly builtinScope: IBuiltinScope;
 

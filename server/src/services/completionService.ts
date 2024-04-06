@@ -3,10 +3,10 @@ import { URI } from 'vscode-uri';
 import { 
     AHKMethodSymbol, 
     AHKObjectSymbol, 
-    BuiltinVaribelSymbol, 
+    BuiltinVariableSymbol, 
     HotkeySymbol, 
     HotStringSymbol, 
-    VaribaleSymbol
+    VariableSymbol
  } from '../parser/newtry/analyzer/models/symbol';
 import { IScope, ISymbol, VarKind } from '../parser/newtry/analyzer/types';
 import { IFuncNode } from '../parser/regParser/types';
@@ -24,8 +24,8 @@ import { DocumentSyntaxInfo, IASTProvider } from './types';
 export class CompletionService {
     /** Keyword Completions */
     private keywords: CompletionItem[];
-    /** Built-in varibles Completions */
-    private builtinVaribles: CompletionItem[];
+    /** Built-in variable Completions */
+    private builtinVariables: CompletionItem[];
     /** Built-in function Completions */
     private builtinFunction: CompletionItem[];
     /** Built-in command Completions */
@@ -35,7 +35,7 @@ export class CompletionService {
         private ASTProvider: IASTProvider
     ) { 
         this.keywords = buildKeyWordCompletions();
-        this.builtinVaribles = buildbuiltin_variable();
+        this.builtinVariables = buildbuiltin_variable();
         this.builtinFunction = this.buildinFunc2Completion(buildBuiltinFunctionNode());
         this.builtinCommand = this.buildinFunc2Completion(buildBuiltinCommandNode());
     }
@@ -72,13 +72,13 @@ export class CompletionService {
         }
         if (scoop.name === 'global') return this.getGlobalCompletion(docinfo)
                                     .concat(this.keywords)
-                                    .concat(this.builtinVaribles);
+                                    .concat(this.builtinVariables);
         // Now scoop is a method.
         const symbols = scoop.allSymbols();
         return symbols.map(sym => this.convertSymCompletion(sym))
                 .concat(this.getGlobalCompletion(docinfo))
                 .concat(this.keywords)
-                .concat(this.builtinVaribles);
+                .concat(this.builtinVariables);
     }
     searchPerfixSymbol(arg0: any, scoop: IScope): Maybe<AHKObjectSymbol> {
         throw new Error('Method not implemented.');
@@ -141,7 +141,7 @@ export class CompletionService {
             ci['kind'] = CompletionItemKind.Method;
             sym.requiredParameters
             ci.data = sym.toString();
-        } else if (sym instanceof VaribaleSymbol || sym instanceof BuiltinVaribelSymbol) {
+        } else if (sym instanceof VariableSymbol || sym instanceof BuiltinVariableSymbol) {
             ci.kind = sym.tag === VarKind.property ? 
                         CompletionItemKind.Property :
                         CompletionItemKind.Variable;

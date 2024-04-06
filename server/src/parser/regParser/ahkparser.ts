@@ -256,7 +256,7 @@ export class Lexer {
                 }
                 fNode.subnode = temp;
             }
-            // varible belongs to class is a property
+            // Variable belongs to class is a property
             // fix it here
             // else if (fNode.kind === SymbolKind.Variable)
             //     fNode.kind = SymbolKind.Property

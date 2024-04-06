@@ -1,7 +1,7 @@
 import { Position } from 'vscode-languageserver';
 import { Factor } from '../../parser/newtry/parser/models/expr';
 import { Identifier } from '../../parser/newtry/parser/models/suffixterm';
-import {AHKObjectSymbol, AHKSymbol, VaribaleSymbol } from '../../parser/newtry/analyzer/models/symbol';
+import {AHKObjectSymbol, AHKSymbol, VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { posInRange } from '../../utilities/positionUtils';
 import { IScope, ISymbol, VarKind } from '../../parser/newtry/analyzer/types';
 import { builtin_command } from '../../utilities/builtins';
@@ -19,7 +19,7 @@ export function resolveFactor(factor: Factor, postion: Position, table: IScope):
         if (symbol === undefined) return undefined;
         // If symbol is property decleration in class body
         // 如果是class内直接声明的属性，则将属性的所属class补充完整
-        if (symbol instanceof VaribaleSymbol && symbol.tag === VarKind.property) {
+        if (symbol instanceof VariableSymbol && symbol.tag === VarKind.property) {
             // Should not happen
             if (!(table instanceof AHKObjectSymbol)) return undefined;
     
@@ -99,7 +99,7 @@ export function resolveCommandCall(cmd: CommandCall): Maybe<string> {
 
 function resolveRelative(name: string, scope: IScope): Maybe<AHKSymbol> {
     const sym = scope.resolve(name);
-    if (sym instanceof VaribaleSymbol) {
+    if (sym instanceof VariableSymbol) {
         const varType = sym.getType();
         // not a instance of class
         if (varType.length === 0) return sym;
@@ -122,7 +122,7 @@ export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKO
         if (currentScope && currentScope instanceof AHKObjectSymbol) {
             nextScope = currentScope
         }
-        else if (currentScope instanceof VaribaleSymbol) {
+        else if (currentScope instanceof VariableSymbol) {
             const varType = currentScope.getType();
             // not a instance of class
             if (varType.length === 0) return undefined;

@@ -49,13 +49,20 @@ export interface ISymType {
 	readonly name: string;
 }
 
+export interface ISymbolWithDocument extends ISymbol {
+	/**
+	 * Document comment content of this symbol
+	 */
+	document?: string
+}
+
 export enum VarKind {
 	variable,
 	parameter,
 	property
 }
 
-export enum ScoopKind {
+export enum ScopeKind {
 	SupperGlobal,
 	Global,
 	Local

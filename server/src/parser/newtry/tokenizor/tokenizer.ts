@@ -661,16 +661,15 @@ export class Tokenizer {
                     preToken = tokenResult.result;
                     break;
                 case TokenKind.Token:
-                    // Record nearest comment(preivous line), for hovering the doc comment.
-                    const isCommentToken = preToken && (
-                        preToken.type === TokenType.lineComment || 
-                        preToken.type === TokenType.blockComment
-                    );
+                    // Record nearest comment, for hovering the doc comment.
+                    const isCommentToken = preToken && 
+                        preToken.type === TokenType.blockComment;
                     if (isCommentToken) 
                         tokenResult.result.comment = preToken;
                     yield tokenResult;
                     preType = tokenResult.result.type;
-                    preToken = tokenResult.result;
+                    if (preType !== TokenType.EOL)
+                        preToken = tokenResult.result;
                     break;
                 case TokenKind.Multi:
                     // FIXME: Record comment at first token result
@@ -812,15 +811,6 @@ export class Tokenizer {
         // skip whitespace at begin
         if (this.isWhiteSpace(this.currChar)) {
             this.SkipWhiteSpace();
-        }
-        // check if is drective
-        // if (this.currChar === '#') {
-        //     this.Advance();
-        //     return this.GetDrectivesOrSharp();
-        // }
-        if (this.currChar === '/' && this.Peek() === '*') {
-            this.BlockComment()
-            return t;
         }
         return t;
     }

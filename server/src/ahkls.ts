@@ -68,7 +68,7 @@ import {
 } from 'path';
 import { IoEntity, IoKind, IoService } from './services/ioService';
 import { IScope, ISymbol } from './parser/newtry/analyzer/types';
-import { AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, ScopedSymbol, VaribaleSymbol, isClassObject, isMethodObject } from './parser/newtry/analyzer/models/symbol';
+import { AHKDynamicPropertySymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, ScopedSymbol, VariableSymbol, isClassObject, isMethodObject } from './parser/newtry/analyzer/models/symbol';
 import { ScriptASTFinder } from './services/scriptFinder';
 import { ArrayTerm, Call, Identifier, Literal, PercentDereference, SuffixTerm } from './parser/newtry/parser/models/suffixterm';
 import * as Stmt from "./parser/newtry/parser/models/stmt";
@@ -350,7 +350,7 @@ export class AHKLS
         if (symbol === undefined) return undefined;
 
         let locations: Location[] = [];
-        if (symbol instanceof VaribaleSymbol ||
+        if (symbol instanceof VariableSymbol ||
             symbol instanceof AHKMethodSymbol ||
             symbol instanceof AHKObjectSymbol)
             locations.push(Location.create(
@@ -431,7 +431,7 @@ export class AHKLS
             const last = scope;
             let symbols: AHKSymbol[] = [last];
             // Find if function is belong to a class
-            const parent = last.parentScoop;
+            const parent = last.parentScope;
             if (parent === undefined)
                 return convertSymbolsHover([last], token);
 
@@ -616,7 +616,7 @@ export class AHKLS
         }
 
         let nextScope = this.resolveSuffixTermSymbol(node.suffixTerm, scope);
-        if (nextScope instanceof VaribaleSymbol) {
+        if (nextScope instanceof VariableSymbol) {
             const varType = nextScope.getType();
             // not a instance of class
             if (varType.length === 0) return undefined;
@@ -629,7 +629,7 @@ export class AHKLS
             if (currentScope && currentScope instanceof AHKObjectSymbol) {
                 nextScope = currentScope
             }
-            else if (currentScope instanceof VaribaleSymbol) {
+            else if (currentScope instanceof VariableSymbol) {
                 const varType = currentScope.getType();
                 // not a instance of class
                 if (varType.length === 0) return undefined;

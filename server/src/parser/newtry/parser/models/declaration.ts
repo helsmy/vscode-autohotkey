@@ -15,13 +15,13 @@ export abstract class Decl extends Stmt {
 }
 
 /**
- * Class contains all varible declaration
+ * Class contains all variable declaration
  */
 export class VarDecl extends Decl {
     /**
-     * varible declaration
-     * @param scope varibles' scope
-     * @param assigns varibles or assignment related to variables
+     * variable declaration
+     * @param scope Variable' scope
+     * @param assigns Variable or assignment related to variables
      */
     constructor(
         public readonly scope: Token,

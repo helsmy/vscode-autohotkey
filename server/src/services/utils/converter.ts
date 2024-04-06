@@ -1,5 +1,5 @@
 import { CompletionItem, CompletionItemKind, Hover, MarkupContent, MarkupKind, ParameterInformation, Position, Range, SignatureInformation } from 'vscode-languageserver';
-import { AHKBuiltinMethodSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVaribelSymbol, HotStringSymbol, HotkeySymbol, VaribaleSymbol, isClassObject, isMethodObject } from '../../parser/newtry/analyzer/models/symbol';
+import { AHKBuiltinMethodSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVariableSymbol, HotStringSymbol, HotkeySymbol, VariableSymbol, isClassObject, isMethodObject } from '../../parser/newtry/analyzer/models/symbol';
 import { IScope, ISymbol, VarKind } from '../../parser/newtry/analyzer/types';
 import { BuiltinFuncNode } from '../../constants';
 import { Parameter } from '../../parser/newtry/parser/models/declaration';
@@ -56,7 +56,7 @@ export function convertSymbolCompletion(sym: ISymbol): CompletionItem {
         ci['kind'] = CompletionItemKind.Method;
         sym.requiredParameters
         ci.data = sym.toString();
-    } else if (sym instanceof VaribaleSymbol || sym instanceof BuiltinVaribelSymbol) {
+    } else if (sym instanceof VariableSymbol || sym instanceof BuiltinVariableSymbol) {
         ci.kind = sym.tag === VarKind.property ? 
                   CompletionItemKind.Property :
                   CompletionItemKind.Variable;
@@ -81,41 +81,71 @@ export function convertSymbolCompletion(sym: ISymbol): CompletionItem {
 export function convertSymbolsHover(symbols: ISymbol[], range: Range): MarkdownHover {
     const last = symbols[symbols.length - 1];
     const prefix = hoverPrefixType(last);
+    const docComment = getDocComment(last);
 
     const hover = symbols.map(s => {
         if (s instanceof AHKMethodSymbol || s instanceof AHKBuiltinMethodSymbol)
             return s.toString();
         return s.name;
     }).join('.');
+    const value = `${AHKMDStart}${prefix}${hover}${AHKMDEnd}${docComment ? '\n\n-----\n'+docComment: ''}`;
     return {
         contents: {
             kind: MarkupKind.Markdown,
-            value: `${AHKMDStart}${prefix}${hover}${AHKMDEnd}`
+            value: value
         },
         range: range
     };
 }
 
 function hoverPrefixType(symbol: AHKSymbol): string {
-    if (symbol instanceof VaribaleSymbol) 
+    if (symbol instanceof VariableSymbol) 
         return`(${VarKind[symbol.tag]}) `;
 
     if (symbol instanceof Parameter)
         return '(parameter) '
 
     if (symbol instanceof AHKMethodSymbol)
-        return `(${symbol.parentScoop === undefined ? 'function' : 'method'}) `;
+        return `(${symbol.parentScope === undefined ? 'function' : 'method'}) `;
 
     if (symbol instanceof AHKObjectSymbol) 
         return '(class) ';
 
-    if (symbol instanceof BuiltinVaribelSymbol) 
+    if (symbol instanceof BuiltinVariableSymbol) 
         return '(variable) ';
 
     if (symbol instanceof AHKBuiltinMethodSymbol)
         return '(function) ';
 
     return '';
+}
+/**
+ * Get document comment of a symbol in markdown format.
+ */
+function getDocComment(symbol: AHKSymbol): Maybe<string> {
+    if (!(symbol instanceof AHKMethodSymbol)) return undefined;
+    if (!symbol.document) return undefined;
+
+    const docComment: string[] = [];
+    // Remove leading and ending character in block comment
+    for (const line of symbol.document.split('\n')) {
+        const trimedLine = line.trim();
+        if (trimedLine.startsWith('/**')) {
+            docComment.push(trimedLine.slice(3));
+            continue;
+        }
+        if (trimedLine.endsWith('*/')) {
+            docComment.push(trimedLine.slice(0, -2));
+            continue;
+        }
+        if (trimedLine.startsWith('*')) {
+            docComment.push(trimedLine.slice(1));
+            continue;
+        }
+        docComment.push(trimedLine);
+    }
+    // 加一个markdown的换行
+    return docComment.join('  \n');
 }
 
 export function convertFactorHover(node: Factor, position: Position, scope: IScope, range: Range, v2CompatibleMode: boolean): Maybe<MarkdownHover> {

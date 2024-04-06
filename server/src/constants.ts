@@ -7,7 +7,7 @@ import {
 	builtin_command
 } from "./utilities/builtins";
 import { ServerConfiguration, docLangName } from './services/config/serverConfiguration';
-import { AHKBuiltinMethodSymbol, AHKMethodSymbol, AHKSymbol, BuiltinVaribelSymbol, ParameterSymbol } from './parser/newtry/analyzer/models/symbol';
+import { AHKBuiltinMethodSymbol, AHKMethodSymbol, AHKSymbol, BuiltinVariableSymbol, ParameterSymbol } from './parser/newtry/analyzer/models/symbol';
 import { VarKind } from './parser/newtry/analyzer/types';
 import { AHKParser } from './parser/newtry/parser/parser';
 import { IoService } from './services/ioService';
@@ -125,7 +125,7 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 	const v = buildbuiltin_variable().map(
 		(v): [string, AHKSymbol] => [
 			v.label.toLowerCase(),
-			new BuiltinVaribelSymbol(
+			new BuiltinVariableSymbol(
 				v.label,
 				VarKind.variable,
 				undefined

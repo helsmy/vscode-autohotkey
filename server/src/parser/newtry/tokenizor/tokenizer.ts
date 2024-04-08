@@ -93,8 +93,8 @@ export class Tokenizer {
         let pos = this.pos - backstartlen;
         if (pos === 0) return "\n";
         if (skipWhite) {
-            let nwp = 1;
-            while (this.document[pos - nwp] && this.document[pos - nwp].trim().length === 0) {
+            let nwp = 0;
+            while (this.isWhiteSpace(this.document[pos - nwp])) {
                 ++nwp;
             }
             if (pos - nwp <= 0) {
@@ -220,6 +220,16 @@ export class Tokenizer {
         return this.currChar === 'EOF';
     }
 
+    private IsContinuationSection(pos: number): boolean {
+        if (this.document[pos] === '(') return true;
+        while (pos < this.document.length && this.isWhiteSpace(this.document[pos], true)) {
+            if (this.document[pos + 1] === '(')
+                return true;
+            pos += 1;
+        }
+        return false;
+    }
+
     private GetString(): TokenResult {
         let offset = this.pos;
         let p = this.genPosition();
@@ -233,9 +243,10 @@ export class Tokenizer {
             const eol = this.IsEOLAndLength();
             // FIXME: Scan comment in continuation section
             if (this.currChar === 'EOF' || eol) {
-                // If this is a continuation section
-                if (eol && this.Peek(eol+1, true) === '(') 
-                    return this.GetContinuationSection(strDelimitor, p, offset);
+                if (eol && this.IsContinuationSection(this.pos + eol)) {
+                    this.AdvanceContinuationSection(p, offset);
+                    continue;
+                }
 
                 return this.CreateError(
                     this.document.slice(offset + 1, this.pos),
@@ -244,36 +255,26 @@ export class Tokenizer {
             }
             this.Advance();
         }
-        const str = this.document.slice(offset + 1, this.pos);
         this.Advance();
+        const str = this.document.slice(offset, this.pos);
         return this.CreateToken(TokenType.string, str, p, this.genPosition());
     }
 
-    private GetContinuationSection(strDelimitor:string, position: Position, offset: number): TokenResult {
-        if (this.isWhiteSpace(this.currChar))
-            this.SkipWhiteSpace();
-        this.Advance();
-        
-        while (!(
-            this.currChar === ')' &&
-            this.Peek() === strDelimitor &&
-            !this.IsQuoteEscapeSequence(1)
-        )) {
+    private AdvanceContinuationSection(position: Position, offset: number) {
+        while (!(this.currChar === ')' && this.BackPeek(1, true) === '\n')) {
             if (this.IsEOF()) {
                 return this.CreateError(
-                    this.document.slice(offset + 1, this.pos),
+                    this.document.slice(offset, this.pos),
                     position, this.genPosition()
                 );
             }
             if (this.IsEOLAndLength()) {
                 this.AdvanceLine();
+                continue;
             }
             this.Advance();
         }
-
-        const str = this.document.slice(offset + 1, this.pos);
         this.Advance();
-        return this.CreateToken(TokenType.string, str, position, this.genPosition());
     }
 
     private GetId(preType: TokenType): TakeToken|TakeMultiToken {

@@ -44,20 +44,38 @@ suite('Basic Token Test', () => {
 
 	test('string', () => {
 		let actualTokens = getalltoken('"123" "AHK是世界第一的热键语言"');
-		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, '123', Position.create(0, 0),Position.create(0, 5)));
-		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.string, 'AHK是世界第一的热键语言', Position.create(0, 6),Position.create(0, 21)));
+		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, '"123"', Position.create(0, 0),Position.create(0, 5)));
+		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.string, '"AHK是世界第一的热键语言"', Position.create(0, 6),Position.create(0, 21)));
 	});
 
 	test('multistring', () => {
-		const actualTokens = getalltoken(`"
+		const actualTokens = getalltoken(
+		'"\n'  +
+		'(\n'  +
+		'123\n'+
+		')" "AHK是世界第一的热键语言"');
+		const expect = 		'"\n'  +
+		'(\n'  +
+		'123\n'+
+		')"';
+		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, expect, Position.create(0, 0),Position.create(3, 2)));
+	})
+
+	test('continuation section', () => {
+		const continuationSection = `"first
 		(
-		123
-		)" "AHK是世界第一的热键语言"`);
-		const expect = `
+			section 1
+			line 1
+		)second
+		
 		(
-		123
-		`;
-		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, expect, Position.create(0, 0),Position.create(3, 3)));
+			section 2
+			line 2
+		)"`;
+		const str2 = "AHK是世界第一的热键语言";
+		const actualTokens = getalltoken(`${continuationSection} ${str2}`);
+		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, continuationSection, Position.create(0, 0), Position.create(9, 4)));
+		// assert.deepStrictEqual(actualTokens[1], createToken(TokenType.string, 'AHK是世界第一的热键语言', 6, 21));
 	})
 
 	test('identifer', () => {

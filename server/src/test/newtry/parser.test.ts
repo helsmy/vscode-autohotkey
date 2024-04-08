@@ -113,8 +113,8 @@ suite('Syntax Parser Expresion Test', () => {
         const expects = [
             AtomTestItem('15', TokenType.number, '15'),
             AtomTestItem('1.234', TokenType.number, '1.234'),
-            AtomTestItem('"Test string"', TokenType.string, 'Test string'),
-            AtomTestItem('"true if until"', TokenType.string, 'true if until')
+            AtomTestItem('"Test string"', TokenType.string, '"Test string"'),
+            AtomTestItem('"true if until"', TokenType.string, '"true if until"')
         ];
         for (const expect of expects) {
             const actuals = getExpr(expect.source);
@@ -199,7 +199,7 @@ suite('Syntax Parser Expresion Test', () => {
         const expects = [
             AtomTestItem('1', TokenType.number, '1'),
             AtomTestItem('1.234', TokenType.number, '1.234'),
-            AtomTestItem('"AHKL"', TokenType.string, 'AHKL')
+            AtomTestItem('"AHKL"', TokenType.string, '"AHKL"')
         ];
         const actuals = getExpr('[1, 1.234, "AHKL"]');
         arrayUnpackTest(actuals, (item, index) => {
@@ -214,8 +214,8 @@ suite('Syntax Parser Expresion Test', () => {
     test('basic associative array', () => {
         const expects = [
             [
-                AtomTestItem('"key"', TokenType.string, 'key'),
-                AtomTestItem('"value"', TokenType.string, 'value')
+                AtomTestItem('"key"', TokenType.string, '"key"'),
+                AtomTestItem('"value"', TokenType.string, '"value"')
             ],
             [
                 AtomTestItem('123', TokenType.number, '123'),

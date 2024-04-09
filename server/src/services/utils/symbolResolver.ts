@@ -135,5 +135,3 @@ export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKO
     }
     return nextScope as AHKObjectSymbol;
 }
-
-const tridot = '```'

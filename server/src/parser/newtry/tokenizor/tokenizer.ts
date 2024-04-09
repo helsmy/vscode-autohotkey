@@ -244,7 +244,7 @@ export class Tokenizer {
             // FIXME: Scan comment in continuation section
             if (this.currChar === 'EOF' || eol) {
                 if (eol && this.IsContinuationSection(this.pos + eol)) {
-                    this.AdvanceContinuationSection(p, offset);
+                    this.AdvanceContinuationSection();
                     continue;
                 }
 
@@ -260,14 +260,10 @@ export class Tokenizer {
         return this.CreateToken(TokenType.string, str, p, this.genPosition());
     }
 
-    private AdvanceContinuationSection(position: Position, offset: number) {
+    private AdvanceContinuationSection() {
         while (!(this.currChar === ')' && this.BackPeek(1, true) === '\n')) {
-            if (this.IsEOF()) {
-                return this.CreateError(
-                    this.document.slice(offset, this.pos),
-                    position, this.genPosition()
-                );
-            }
+            if (this.IsEOF()) return;
+
             if (this.IsEOLAndLength()) {
                 this.AdvanceLine();
                 continue;

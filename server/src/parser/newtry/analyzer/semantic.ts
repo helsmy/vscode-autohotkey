@@ -182,6 +182,13 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			this.currentScope
 		);
 		this.currentScope.define(dynamicProperty);
+
+		// ShortDynamicProperty
+		if (decl.body instanceof Stmt.ExprStmt) {
+			errors.push(...this.checkDiagnosticForNode(decl.body));
+			return errors;
+		}
+
 		for (const getterSetter of decl.body.stmts) {
 			// 虽然基本不可能发生，动态属性里是固定的getter和setter
 			if (!(getterSetter instanceof Decl.GetterSetter)) {

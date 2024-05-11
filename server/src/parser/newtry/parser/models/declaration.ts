@@ -5,7 +5,7 @@ import { joinLines } from '../utils/stringUtils';
 import { DelimitedList } from './delimtiedList';
 import { ExpersionList, Expr, Factor } from './expr';
 import { NodeBase } from './nodeBase';
-import { Block, Stmt } from "./stmt";
+import { Block, ExprStmt, Stmt } from "./stmt";
 import { Token } from '../../tokenizor/types';
 
 export abstract class Decl extends Stmt {
@@ -131,7 +131,7 @@ export class ClassBaseClause extends NodeBase {
 export class  DynamicProperty extends Decl {
     constructor(
         public readonly name: Token,
-        public readonly body: Block,
+        public readonly body: Block | ExprStmt,
         public readonly param: Maybe<Param>
     ) {
         super();
@@ -531,7 +531,7 @@ export class GetterSetter extends Decl {
      */
     constructor(
         public readonly nameToken: Token,
-        public readonly body: Block
+        public readonly body: Block | ExprStmt
     ) {
         super();
     }

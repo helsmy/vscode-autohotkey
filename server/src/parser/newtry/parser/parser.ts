@@ -554,6 +554,16 @@ export class AHKParser {
         if (this.currentToken.type == TokenType.openBracket)
             parameter = this.parameters(TokenType.closeBracket);
     
+        // ShorterProperty[Parameters] '=>' expression
+        if (this.v2mode) {
+            const fatArrow = this.eatOptional(TokenType.fatArrow);
+            if (fatArrow) {
+                const expr = this.expression();
+                const stmt = new Stmt.ExprStmt(expr);
+                return new Decl.DynamicProperty(name, stmt, parameter);
+            }
+        }
+        
         this.jumpWhiteSpace();
         const open = this.eatType(TokenType.openBrace);
         const block = this.parseList(ParseContext.DynamicPropertyElemnets);
@@ -569,6 +579,17 @@ export class AHKParser {
     private dynamicPropertyMember(): Decl.GetterSetter {
         const name = this.eatType(TokenType.id);
         this.jumpWhiteSpace();
+
+        // ('get'| 'set') '=>' expression
+        if (this.v2mode) {
+            const fatArrow = this.eatOptional(TokenType.fatArrow);
+            if (fatArrow) {
+                const expr = this.expression();
+                const stmt = new Stmt.ExprStmt(expr);
+                return new Decl.GetterSetter(name, stmt);
+            }
+        }
+        
         const open = this.eatType(TokenType.openBrace);
         const block = this.parseList(ParseContext.BlockStatements);
         this.jumpWhiteSpace();

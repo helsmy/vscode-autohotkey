@@ -54,7 +54,7 @@
 6. fix bug that outline may not load 
 7. fix include load wrong and path compeltion for absolute path
 8. fix bugs on parsing `else if` statement
-9. fix bugs on drective
+9. fix bugs on directive
 10. update highlight
 11. add option for sending errors. update highlight (0.8.25)
 12. improve highlighting (0.8.26)

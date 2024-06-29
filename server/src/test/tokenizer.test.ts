@@ -33,10 +33,10 @@ suite('Basic Token Test', () => {
 		assert.deepStrictEqual(actualTokens[1], createToken(TokenType.id, 'DllCall', 12, 19));
 	})
 
-	test('drective', () => {
+	test('directive', () => {
 		let actualTokens = getalltoken('#IfWinActive WinTitle'); 
 		assert.strictEqual(actualTokens[0].content, 'IfWinActive');
-		assert.strictEqual(actualTokens[0].type, TokenType.drective);
+		assert.strictEqual(actualTokens[0].type, TokenType.directive);
 		assert.strictEqual(actualTokens[1].content, 'WinTitle');
 	})
 

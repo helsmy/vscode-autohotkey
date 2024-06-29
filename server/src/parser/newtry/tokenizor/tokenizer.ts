@@ -343,19 +343,19 @@ export class Tokenizer {
     }
 
     /**
-     * If # is a Drective return drective,
+     * If # is a directive return directive,
      * else return key token '#' 
      */
-    private GetDrectivesOrSharp(): TokenResult {
+    private GetDirectivesOrSharp(): TokenResult {
         const start = this.pos;
         const p = this.genPosition();
         const pospre = Position.create(this.line, this.chr - 1);
         while (this.isAscii(this.currChar) && this.currChar !== "EOF")
             this.Advance();
         const d = this.document.slice(start, this.pos);
-        if (DRECTIVE_TEST.has(d.toLowerCase()))
-            return this.CreateToken(TokenType.drective, d, p, this.genPosition());
-        // if not drective, store the id token for next
+        if (DIRECTIVE_TEST.has(d.toLowerCase()))
+            return this.CreateToken(TokenType.directive, d, p, this.genPosition());
+        // if not directive, store the id token for next
         this.BackTo(start + 1);
         return this.CreateError("#", pospre, p);
     }
@@ -604,7 +604,7 @@ export class Tokenizer {
                     return this.GetString();
                 case "#":
                     this.Advance();
-                    return this.GetDrectivesOrSharp();
+                    return this.GetDirectivesOrSharp();
                 case '/':
                     if (this.Peek() === '*') {
                         return this.BlockComment();
@@ -966,7 +966,7 @@ const OTHER_MARK: ITokenMap = new Map([
     ["=>", TokenType.fatArrow]
 ]);
 
-const DRECTIVE_TEST: Set<string> = new Set([
+const DIRECTIVE_TEST: Set<string> = new Set([
     "allowsamelinecomments", "clipboardtimeout", "commentflag", "errorstdout",
     "escapechar", "hotkeyinterval", "hotkeymodifiertimeout", "hotstring", "if",
     "iftimeout", "ifwinactive", "ifwinactiveclose", "ifwinexist", "ifwinexistclose",

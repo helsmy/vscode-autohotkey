@@ -128,7 +128,7 @@ export enum TokenType {
 
 
     command,
-    drective,
+    directive,
     // label,
     implconn,
 

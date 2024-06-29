@@ -258,7 +258,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		return stmt.tokens.flatMap(token => this.checkDiagnosticForUnexpectedToken(token) ?? []);
 	}
 
-	public visitDrective(stmt: Stmt.Drective): Diagnostics {
+	public visitDirective(stmt: Stmt.Directive): Diagnostics {
 		// Nothing to do in first scanning
 		return this.checkDiagnosticForNode(stmt);
 	}

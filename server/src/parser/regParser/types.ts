@@ -83,7 +83,7 @@ export enum TokenType{
     keyand, keyor, keynot,
 
     command,
-    drective,
+    directive,
     
     // file
     EOL, EOF,

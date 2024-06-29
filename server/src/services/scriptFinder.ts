@@ -100,7 +100,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     visitStmtInvalid(stmt: Stmt.Invalid, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
         return;
     }
-    visitDrective(stmt: Stmt.Drective, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+    visitDirective(stmt: Stmt.Directive, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
         
         if (posInRange(stmt.args, pos)) {
             const deepMatch = this.searchDelimitedList(stmt.args, pos, matchType); 

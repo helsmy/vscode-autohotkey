@@ -994,37 +994,37 @@ export class Throw extends Stmt {
 	}
 }
 
-export class Drective extends Stmt {
+export class Directive extends Stmt {
 	constructor(
-		public readonly drective: Token,
+		public readonly directive: Token,
 		public readonly args: DelimitedList<Expr.Expr>
 	) {
 		super();
 	}
 
 	public get start(): Position {
-		return this.drective.start;
+		return this.directive.start;
 	}
 
 	public get end(): Position {
 		return (this.args.length === 0) ?
-				this.drective.end :
+				this.directive.end :
 				this.args.end;
 	}
 
 	public get ranges(): Range[] {
-		return [this.drective, ...this.args.ranges];
+		return [this.directive, ...this.args.ranges];
 	}
 
 	public toLines(): string[] {
 		if (this.args.childern.length === 0) {
-			return [`#${this.drective.content}`];
+			return [`#${this.directive.content}`];
 		}
 
 		const argsLines = this.args.toLines();
 		const argsResult = joinLines(', ', argsLines);
 
-		argsResult[0] = `#${this.drective.content} ${argsResult[0]}`;
+		argsResult[0] = `#${this.directive.content} ${argsResult[0]}`;
 		return argsResult;
 	}
 
@@ -1032,7 +1032,7 @@ export class Drective extends Stmt {
 		visitor: IStmtVisitor<T>,
 		parameters: Parameters<T>,
 	  ): ReturnType<T> {
-		return visitor.visitDrective(this, ...parameters);
+		return visitor.visitDirective(this, ...parameters);
 	}
 }
 

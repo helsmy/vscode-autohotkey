@@ -134,17 +134,17 @@ export class Tokenizer {
     }
 
     /**
-     * If # is a Drective return drective,
+     * If # is a directive return directive,
      * else return # token 
      */
-    private GetDrectivesOrSharp(): Token {
+    private GetDirectivesOrSharp(): Token {
         const start = this.pos;
         while(this.isAscii(this.currChar) && this.currChar !== "EOF") 
             this.Advance();
         const d = this.document.slice(start, this.pos);
-        if (DRECTIVE_TEST.has(d.toLowerCase()))
-            return createToken(TokenType.drective, d, start-1, this.pos);
-        // if not drective, backwards
+        if (DIRECTIVE_TEST.has(d.toLowerCase()))
+            return createToken(TokenType.directive, d, start-1, this.pos);
+        // if not directive, backwards
         this.pos = start;
         return createToken(TokenType.sharp, "#", start-1, this.pos);
     }
@@ -251,7 +251,7 @@ export class Tokenizer {
                     return this.GetString();
                 case "#":
                     this.Advance();
-                    return this.GetDrectivesOrSharp();
+                    return this.GetDirectivesOrSharp();
                 default:
                     if (this.isDigit(this.currChar)) {
                         return this.GetNumber();
@@ -436,7 +436,7 @@ const OTHER_MARK: ITokenMap = new Map([
     ["<<=", TokenType.lshifteq], ["~=", TokenType.regeq]
 ]);
 
-const DRECTIVE_TEST: Set<string> = new Set([
+const DIRECTIVE_TEST: Set<string> = new Set([
     "allowsamelinecomments", "clipboardtimeout", "commentflag", "errorstdout", 
     "escapechar", "hotkeyinterval", "hotkeymodifiertimeout", "hotstring", "if", 
     "iftimeout", "ifwinactive", "ifwinactiveclose", "ifwinexist", "ifwinexistclose", 

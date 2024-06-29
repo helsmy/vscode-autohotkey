@@ -112,7 +112,7 @@ export interface IStmtVisitor<T extends (...args: any) => any> {
 		stmt: Stmt.Invalid,
 		...parameters: Parameters<T>
 	): ReturnType<T>;
-	visitDrective(stmt: Stmt.Drective, ...parameters: Parameters<T>): ReturnType<T>;
+	visitDirective(stmt: Stmt.Directive, ...parameters: Parameters<T>): ReturnType<T>;
 	visitBlock(stmt: Stmt.Block, ...parameters: Parameters<T>): ReturnType<T>;
 	visitExpr(stmt: Stmt.ExprStmt, ...parameters: Parameters<T>): ReturnType<T>;
 	visitCommandCall(stmt: Stmt.CommandCall, ...parameters: Parameters<T>): ReturnType<T>;

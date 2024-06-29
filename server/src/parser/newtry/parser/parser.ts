@@ -359,7 +359,7 @@ export class AHKParser {
             case TokenType.key:
             case TokenType.hotkeyModifer:
             case TokenType.hotstringOpen:
-            case TokenType.drective:
+            case TokenType.directive:
             case TokenType.command:
                 return true;
 
@@ -417,7 +417,7 @@ export class AHKParser {
     private isClassMemberDeclarationStart(): boolean {
         const t = this.currentToken.type;
         if (t >= TokenType.if && t <= TokenType.byref ||
-            t === TokenType.id || t === TokenType.drective ||
+            t === TokenType.id || t === TokenType.directive ||
             t === TokenType.class) 
             return true;
         return false;
@@ -511,8 +511,8 @@ export class AHKParser {
             return this.classDefine()
         if (isValidIdentifier(this.currentToken.type))
             return this.idLeadClassMember(modifier);
-        if (token.type === TokenType.drective)
-            return this.drective();
+        if (token.type === TokenType.directive)
+            return this.directive();
         return this.assignStmt();
     }
 
@@ -659,8 +659,8 @@ export class AHKParser {
                 return this.tryStmt();
             case TokenType.throw:
                 return this.throwStmt();
-            case TokenType.drective:
-                return this.drective();
+            case TokenType.directive:
+                return this.directive();
             case TokenType.command:
                 return this.command();
             // 有些符号有豁免检查 recognized action 的能力
@@ -955,40 +955,47 @@ export class AHKParser {
         return new Stmt.Throw(throwToken, expr);
     }
 
-    // TODO: Need Finish
-    private drective(): Stmt.Drective {
-        const drective = this.currentToken;
-        const drectiveName = drective.content.toLowerCase();
-        if (drectiveName === 'include' ||
-            drectiveName === 'includeagain') {
-            this.setCommandScanMode(true);
-            this.advance();
-            if (this.currentToken.type === TokenType.id) {
-                const v = this.currentToken.content.toLowerCase();
-                this.eat();
-                if (v === 'a_linefile') {
-                    const prefix = URI.parse(this.uri).fsPath
-                    const includePath = this.eatOptional(TokenType.string);
-                    if (includePath) this.includes.add(join(prefix, includePath.content));
-                }
-            }
-            else {
-                const includePath = this.eat();
-                this.includes.add(includePath.content);
-            }
+    private directive(): Stmt.Directive {
+        const directive = this.currentToken;
+        const directiveName = directive.content.toLowerCase();
+
+        // In v1 only '#IF' take expression arguments 
+        // In v2 only '#HOTIF'
+        if (directiveName === 'if' || directiveName === 'hotif') 
             this.setCommandScanMode(false);
-            this.terminal();
-            return new Stmt.Drective(drective, new DelimitedList)
-        }
+        else
+            this.setCommandScanMode(true);
         this.eat();
+
         const args = this.delimitedList(
             TokenType.comma,
             this.isExpressionStart,
-            () => this.expression(),
+            () => {
+                if (directiveName === 'include' ||
+                    directiveName === 'includeagain') {
+                    this.setCommandScanMode(true);
+                    this.advance();
+                    if (this.currentToken.type === TokenType.id) {
+                        const v = this.currentToken.content.toLowerCase();
+                        this.eat();
+                        if (v === 'a_linefile') {
+                            const prefix = URI.parse(this.uri).fsPath
+                            const includePath = this.eatOptional(TokenType.string);
+                            if (includePath) this.includes.add(join(prefix, includePath.content));
+                        }
+                    }
+                    else {
+                        const includePath = this.eat();
+                        this.includes.add(includePath.content);
+                    }
+                }
+                return this.expression();
+            },
             true
         );
+        this.setCommandScanMode(false);
         this.terminal();
-        return new Stmt.Drective(drective, args)
+        return new Stmt.Directive(directive, args)
     }
 
     private exprStmt(): Stmt.ExprStmt {

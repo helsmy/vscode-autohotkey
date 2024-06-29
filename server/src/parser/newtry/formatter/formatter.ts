@@ -190,7 +190,7 @@ const defaultOption: FormatOptions = {
 // 		return lines.lines;
 // 	}
 
-// 	public visitDrective(stmt: Stmt.Drective): string[][] {
+// 	public visitdirective(stmt: Stmt.directive): string[][] {
 // 		// Nothing to do in first scanning
 // 		return this.checkDiagnosticForNode(stmt);
 // 	}

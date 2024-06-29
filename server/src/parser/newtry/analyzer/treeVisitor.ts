@@ -44,7 +44,7 @@ export abstract class TreeVisitor<T> implements IStmtVisitor<() => T> {
 	): T {
 		throw new Error('Need Implentment');
 	}
-	visitDrective(stmt: Stmt.Drective): T {
+	visitDirective(stmt: Stmt.Directive): T {
 		throw new Error('Need Implentment');
 	}
 	visitBlock(stmt: Stmt.Block): T {

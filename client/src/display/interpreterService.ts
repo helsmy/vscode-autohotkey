@@ -163,21 +163,28 @@ export class InterpreterService {
      * Run a dectection script to get version of runtime
      * @param runtime Executable path of autohotkey runtime
      * @returns Version of runtime
+     * @todo Make a waiting UI, and wait until powershell finish execute. 
      */
     private async getVersion(runtime: string): Promise<string> {
         return new Promise((resolve, reject) => {
             // Use stdin as input file of runtime, 
             // so that no actually file on disk is needed.
-            const child = child_process.exec(
-            `powershell -NoProfile -Command "& {(Get-Command \\"${runtime}\\").FileVersionInfo.FileVersion} "`, (error, stdout, stderr) => {
+            // A faster version use WMIC, although it is deprecated. 
+            // However, it is so so so much faster than powershell version.
+            // const queryCommand = `powershell -Nologo -NoProfile -Command "& {(Get-Command \\"${runtime}\\").FileVersionInfo.FileVersion} "`
+            const queryCommand = `WMIC DATAFILE WHERE "name='${runtime.replace(/\\/g, '\\\\')}'" get Version`
+            const child = child_process.exec(queryCommand, (error, stdout, stderr) => {
                 if (error) {
                     reject(error);
                 }
                 resolve(stdout.trim());
             });
+	    
             // child.stdin.write('FileOpen("*", "w").Write(A_AhkVersion)');
             // child.stdin.end();
             // kill it if no respond after 1000ms
+            
+	    // powershell时不时能超1s，就那么一点命令也能超，也是真行
             setTimeout(() => child.kill(), 1000);
         });
     }

@@ -177,7 +177,9 @@ export class InterpreterService {
                 if (error) {
                     reject(error);
                 }
-                resolve(stdout.trim());
+                const matched = stdout.trim().match(/[0-9]+(\.[0-9]+(-?\w+)?){0,3}/);
+                // TODO: Check error of version query
+                matched ? resolve(matched[0]) : reject();
             });
 	    
             // child.stdin.write('FileOpen("*", "w").Write(A_AhkVersion)');

@@ -1134,6 +1134,7 @@ export class AHKParser {
 
             // Ternary expression
             if (saveToken.type === TokenType.question) {
+                this.advance();
                 // This expression has no relation 
                 // with next expressions. Thus, 0 precedence
                 const trueExpr = this.expression();
@@ -1147,6 +1148,7 @@ export class AHKParser {
                     colon,
                     falseExpr
                 );
+                return result;
             }
             
             this.advance();

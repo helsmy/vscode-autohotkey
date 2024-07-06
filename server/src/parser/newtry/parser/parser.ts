@@ -973,8 +973,6 @@ export class AHKParser {
             () => {
                 if (directiveName === 'include' ||
                     directiveName === 'includeagain') {
-                    this.setCommandScanMode(true);
-                    this.advance();
                     if (this.currentToken.type === TokenType.id) {
                         const v = this.currentToken.content.toLowerCase();
                         this.eat();

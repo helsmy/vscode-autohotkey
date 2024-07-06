@@ -973,9 +973,9 @@ export class AHKParser {
             () => {
                 if (directiveName === 'include' ||
                     directiveName === 'includeagain') {
-                    if (this.currentToken.type === TokenType.id) {
-                        const v = this.currentToken.content.toLowerCase();
-                        this.eat();
+                    const token = this.currentToken;
+                    if (token.type === TokenType.id) {
+                        const v = token.content.toLowerCase();
                         if (v === 'a_linefile') {
                             const prefix = URI.parse(this.uri).fsPath
                             const includePath = this.eatOptional(TokenType.string);
@@ -983,8 +983,7 @@ export class AHKParser {
                         }
                     }
                     else {
-                        const includePath = this.eat();
-                        this.includes.add(includePath.content);
+                        this.includes.add(token.content);
                     }
                 }
                 return this.expression();

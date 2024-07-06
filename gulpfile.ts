@@ -26,7 +26,8 @@ const clientDevOption: esbuild.BuildOptions = {
 const serverOption: esbuild.BuildOptions = {
 	...defaultOption,
 	entryPoints: ['./server/src/server.ts'],
-	outfile: './server/out/server.js',
+	outdir: './server/out',
+	sourcesContent: false,
 	bundle: true,
 	external: ['vscode'],
 	minify: true,

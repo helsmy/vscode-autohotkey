@@ -10,7 +10,7 @@ import { TakeToken, TokenKind, TokenResult } from '../server/src/parser/newtry/t
 import { TokenType, isValidIdentifier } from '../server/src/parser/newtry/tokenizor/tokenTypes';
 import { Token } from '../server/src/parser/newtry/tokenizor/types';
 
-enum SyntaxType {
+const enum SyntaxType {
 	Directive,
 	BuiltinVar,
 	BuiltinFunction,

@@ -20,4 +20,4 @@ interface ILoggerBase {
     warn(message: string): void;
     info(message: string): void;
     log(message: string): void;
-  }
+}

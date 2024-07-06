@@ -7,6 +7,8 @@ import { TokenType, isValidIdentifier } from "./tokenTypes"
 import { Position, Range } from 'vscode-languageserver';
 import { TakeComment, TakeDiagnostic, TakeMultiToken, TakeToken, TokenKind, TokenResult } from './types';
 import { mockLogger } from '../../../utilities/logger';
+// Make ts-node happy
+import "../../../utilities/types";
 
 export class Tokenizer {
     /**

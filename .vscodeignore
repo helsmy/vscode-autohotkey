@@ -19,4 +19,5 @@ pic
 scripts
 syntaxes/**
 !syntaxes/ahk.tmLanguage.json
+!syntaxes/**/*.ahk
 others

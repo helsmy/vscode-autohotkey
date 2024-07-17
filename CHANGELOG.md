@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.9.9
+
+1. support `=>` short dynamic property
+2. support v2 tokens
+3. support `static` modifier in class' method
+3. use wmic to query autohotkey version
+
+
 ## 0.9.8
 
 1. fix crash while hover on trailor expression.

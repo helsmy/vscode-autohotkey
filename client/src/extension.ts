@@ -8,7 +8,8 @@ import * as path from 'path';
 import { 
 	workspace, 
 	ExtensionContext,
-	debug
+	debug,
+	window
 } from 'vscode';
 import {
 	LanguageClient,
@@ -62,7 +63,8 @@ export async function activate(context: ExtensionContext) {
 		synchronize: {
 			// Notify the server about file changes to '.clientrc files contained in the workspace
 			fileEvents: workspace.createFileSystemWatcher('**/.clientrc')
-		}
+		},
+		outputChannel: window.createOutputChannel(AHKSS_CLIENT_NAME, {log: true})
 	};
 
 	// Create the language client and start the client.

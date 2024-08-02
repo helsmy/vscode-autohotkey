@@ -109,7 +109,7 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 		logger.error('Can not read builtin-class definition file. Builtin-class related features will not work.');
 	}
 	const p2 = new AHKParser(docText, fclassUri.toString(), true);
-	logger.info(docText);
+	// logger.info(docText);
 	const ast2 = p2.parse();
 	const objects = ast2.script.stmts.filter(s => s instanceof ClassDef).map(o => {
 		const odef = new AHKObjectSymbol(fclassUri.toString(), o.name.content, fakeRange);

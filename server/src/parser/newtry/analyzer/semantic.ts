@@ -376,39 +376,52 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 						   expr.operator.type === TokenType.new &&
 						   expr.factor instanceof Expr.Factor &&
 						   expr.factor.suffixTerm.atom instanceof SuffixTerm.Identifier;
-		if (isNewClass) {
-			let objectNames: string[] = [];
-			const brackets = expr.factor.suffixTerm.brackets;
-			const atom = expr.factor.suffixTerm.atom;
-			// no check calling more than one
+		// v2 syntax python like and `FileOpen()` in v1
+		// Case: `f := FileOpen()`
+		//        typeof(f) -> File 
+		// FIXME: Now only works on `FileOpen()`
+		if (expr instanceof Expr.Factor) {
+			const brackets = expr.suffixTerm.brackets;
+			const atom = expr.suffixTerm.atom;
+			if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
 			if (brackets.length > 1) return undefined;
-			// new Object()
-			if (brackets.length === 1) {
-				const trailer = brackets[0]
-				if (trailer instanceof SuffixTerm.Call && !expr.factor.trailer)
-					return [atom.token.content];
-				return undefined;
-			}
-			// new Object
-			if (brackets.length === 0) return [atom.token.content];
-			if (expr.factor.trailer) {
-				objectNames.push(atom.token.content);
-				for (const trailer of expr.factor.trailer.suffixTerm.getElements()) {
-					const atom = trailer.atom;
-					if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
-					if (trailer.brackets.length > 1) return undefined;
-					if (trailer.brackets.length === 1) {
-						const atomTrailer = trailer.brackets[0];
-						if (atomTrailer instanceof SuffixTerm.Call && !expr.factor.trailer)
-							return objectNames.concat(atom.token.content);
-						return undefined;
-					}
-					objectNames.push(atom.token.content);
-				}
-				return objectNames;
-			}
+			const trailer = brackets[0];
+			if (trailer instanceof SuffixTerm.Call && !expr.trailer)
+				return atom.token.content.toLowerCase() === 'fileopen' ? ['File'] : undefined;
 		}
-		return undefined;
+		if (!isNewClass) return undefined;
+		
+		let objectNames: string[] = [];
+		const brackets = expr.factor.suffixTerm.brackets;
+		const atom = expr.factor.suffixTerm.atom;
+		// does not check calling more than one
+		// Too complex for this simple type checker
+		if (brackets.length > 1) return undefined;
+		//  Case 1: `new Object()`
+		if (brackets.length === 1) {
+			const trailer = brackets[0]
+			if (trailer instanceof SuffixTerm.Call && !expr.factor.trailer)
+				return [atom.token.content];
+			return undefined;
+		}
+		// Case 2: `new Object`
+		if (brackets.length === 0) return [atom.token.content];
+		if (expr.factor.trailer) {
+			objectNames.push(atom.token.content);
+			for (const trailer of expr.factor.trailer.suffixTerm.getElements()) {
+				const atom = trailer.atom;
+				if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
+				if (trailer.brackets.length > 1) return undefined;
+				if (trailer.brackets.length === 1) {
+					const atomTrailer = trailer.brackets[0];
+					if (atomTrailer instanceof SuffixTerm.Call && !expr.factor.trailer)
+						return objectNames.concat(atom.token.content);
+					return undefined;
+				}
+				objectNames.push(atom.token.content);
+			}
+			return objectNames;
+		}
 	}
 
 	private processAssignVar(left: Expr.Factor, fullRange: Range, varType: Maybe<string[]>): Diagnostics {

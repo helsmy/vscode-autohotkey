@@ -9,6 +9,7 @@ import { DelimitedList } from './delimtiedList';
 import { NodeBase } from './nodeBase';
 import * as SuffixTerm from './suffixterm';
 import { Token } from '../../tokenizor/types';
+import { Param } from './declaration';
 
 export type ExpersionList = DelimitedList<Expr>;
 
@@ -279,6 +280,35 @@ export class Factor extends Expr {
         }
 
         return suffixTermLines;
+    }
+}
+
+/**
+ * Fat arrow function creation
+ */
+export class AnonymousFunctionCreation extends Expr {
+    constructor(
+        // TODO: Should this node have a name property or not? 
+        // public readonly nameToken: Token
+        public readonly open: Maybe<Token>,
+        public readonly param: Param,
+        public readonly close: Maybe<Token>,
+        public readonly fatArrow: Token,
+        public readonly body: ExpersionList,
+    ) {
+        super();
+    }
+    public get ranges(): Range[] {
+        throw new Error('Method not implemented.');
+    }
+    public toLines(): string[] {
+        throw new Error('Method not implemented.');
+    }
+    public get start(): Position {
+        return this.open ? this.open.start : this.param.start;
+    }
+    public get end(): Position {
+        return this.body.end;
     }
 }
 

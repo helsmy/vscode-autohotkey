@@ -106,10 +106,19 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	public visitDeclFunction(decl: Decl.FuncDef): Diagnostics {
 		const errors = this.checkDiagnosticForNode(decl);
 		const params = decl.params;
+		let isAlreadyVariadic = false;
 		for (const param of params.ParamaterList.getElements()) {
+			if (isAlreadyVariadic)
+				errors.push(this.error(
+					copyRange(param),
+					'Only last parameter can be variadic.',
+					DiagnosticSeverity.Error
+				));
 			errors.push(...this.checkDiagnosticForNode(param));
 			if (param instanceof Decl.DefaultParam)
-				errors.push(...this.processExpr(param.value))
+				errors.push(...this.processExpr(param.value));
+			if (param instanceof Decl.SpreadParameter)
+				isAlreadyVariadic = true;
 		}
 		const reqParams = this.paramAction(params.requiredParameters);
 		const dfltParams = this.paramAction(params.optionalParameters);
@@ -361,6 +370,9 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		}
 		else if (expr instanceof Expr.ParenExpr) {
 			errors.push(...this.processExpr(expr.expr));
+		}
+		else if (expr instanceof Expr.AnonymousFunctionCreation) {
+			
 		}
 		
 		return errors;

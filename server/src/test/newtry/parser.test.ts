@@ -8,8 +8,8 @@ import * as SuffixTerm from '../../parser/newtry/parser/models/suffixterm';
 import * as Decl from '../../parser/newtry/parser/models/declaration';
 import * as Stmt from '../../parser/newtry/parser/models/stmt';
 
-function getExpr(s: string) {
-    const p = new AHKParser(s, '');
+function getExpr(s: string, v2mode = false) {
+    const p = new AHKParser(s, '', v2mode);
     return p.testExpr();
 }
 
@@ -310,7 +310,7 @@ suite('Syntax Parser Expresion Test', () => {
         } 
     })
 
-    test('Basic validlabel test', () => {
+    test('Basic valid label test', () => {
         const p = new AHKParser('Abdc:\nccd:\ndefault:', '');
         const expect = ['Abdc', 'ccd', 'default'];
 		const actuals = p.parse();
@@ -322,6 +322,17 @@ suite('Syntax Parser Expresion Test', () => {
         })
 
 	})
+
+    test('Basic valid anonymous function test', () => {
+        const expr = getExpr('(b, c, d) => b+c+d', true);
+        const expect_param = ['b', 'c', 'd'];
+        assert.strictEqual(expr instanceof Expr.AnonymousFunctionCreation, true, 'Wrong class');
+        if (!(expr instanceof Expr.AnonymousFunctionCreation)) return;
+        expr.param.ParamaterList.getElements().forEach((p, i) => {
+            assert.strictEqual(p.identifier.content, expect_param[i], 'Wrong parameter');
+        });
+        assert.strictEqual(expr.body.getElements().length, 1, 'Wrong body');
+    })
 });
 
 function getStmt(s: string) {

@@ -549,9 +549,9 @@ export class AHKParser {
      */
     private dynamicProperty(): Decl.DynamicProperty {
         const name = this.eat();
-        let parameter: Maybe<Decl.Param>;
-        if (this.currentToken.type == TokenType.openBracket)
-            parameter = this.parameters(TokenType.closeBracket);
+        const openBracket = this.eatOptional(TokenType.openBracket);
+        const parameter = openBracket ? this.parameters() : undefined;
+        const closeBracket = openBracket ? this.eatType(TokenType.closeBracket) : undefined;
     
         // ShorterProperty[Parameters] '=>' expression
         if (this.v2mode) {
@@ -559,7 +559,7 @@ export class AHKParser {
             if (fatArrow) {
                 const expr = this.expression();
                 const stmt = new Stmt.ExprStmt(expr);
-                return new Decl.DynamicProperty(name, stmt, parameter);
+                return new Decl.DynamicProperty(name, stmt, openBracket, parameter, closeBracket, fatArrow);
             }
         }
         
@@ -571,7 +571,7 @@ export class AHKParser {
         const body = new Stmt.Block(open, block, close);
 
         return new Decl.DynamicProperty(
-            name, body, parameter
+            name, body, openBracket, parameter, closeBracket
         );
     }
 
@@ -1190,11 +1190,6 @@ export class AHKParser {
             case TokenType.pplus:
             case TokenType.mminus:
                     return this.prefixedUpdateExpression();
-            case TokenType.openParen:
-                let OPar = this.eat();
-                const mid = this.expression();
-                let CPar = this.eatType(TokenType.closeParen);
-                return new Expr.ParenExpr(OPar, mid, CPar);
             case TokenType.openBrace:
             case TokenType.openBracket:
             case TokenType.precent:
@@ -1255,15 +1250,21 @@ export class AHKParser {
     private primaryExpression(): Expr.Expr {
         switch (this.currentToken.type) {
             case TokenType.openParen:
-                let OPar = this.eat();
+                if (this.v2mode && this.matchTokenAfterParentGruop(TokenType.fatArrow))
+                    return this.anonymousFunction();
+                const OPar = this.eat();
                 const mid = this.expression();
-                let CPar = this.eatType(TokenType.closeParen);
+                const CPar = this.eatType(TokenType.closeParen);
                 return new Expr.ParenExpr(OPar, mid, CPar);
             case TokenType.number:
             case TokenType.string:
-            case TokenType.id:
-                // TODO: process array, dict, and precent expression
                 return this.factor();
+            case TokenType.id:
+                // case: param => param+1
+                if (this.v2mode && this.peek().type === TokenType.fatArrow)
+                    return this.anonymousFunction();
+                return this.factor();
+                // TODO: process array, dict, and precent expression
         }
         // TODO: Allow all keywords as identifier and warn this
         if (!this.v2mode && isValidIdentifier(this.currentToken.type)) {
@@ -1424,36 +1425,39 @@ export class AHKParser {
      * Parse all condition related to Function statements
      */
     private functionRelatedStatement(): Stmt.ExprStmt|Decl.FuncDef {
-        let token = this.eat();
-        const pos = this.pos;
-        let unclosed: number = 1;
-        while (unclosed > 0 && !this.atLineEnd()) {
-            let t = this.peek().type
-            if (t === TokenType.closeParen)
-                unclosed--;
-            if (t === TokenType.openParen) 
-                unclosed++;
-            this.advance();
-        }
+        const token = this.eat();
 
-        this.advance();
-        if (this.eatDiscardCR(TokenType.openBrace)) {
-            this.backto(pos);
+        if (this.matchTokenAfterParentGruop(TokenType.openBrace)) {
             return this.funcDefine(token);
         }
-
-        this.backto(pos);
         return this.funcCall(token);
     }
 
     private funcDefine(name: Token): Decl.FuncDef {
-        let parameters = this.parameters(TokenType.closeParen);
+        const open = this.eatType(TokenType.openParen);
+        let parameters = this.parameters();
+        const close = this.eatType(TokenType.closeParen);
         let block = this.block();
         return new Decl.FuncDef(
             name,
+            open,
             parameters,
+            close,
             block
         )
+    }
+
+    private anonymousFunction(): Expr.AnonymousFunctionCreation {
+        // 在调用这个函数的地方判断匿名函数是否是省略括号的形式
+        // 这里只需判断是那种形式的解析即可
+        // case 1: `param => expression`
+        // case 2: `(param1, param2) => expression`
+        const open = this.eatOptional(TokenType.openParen);
+        const parameter = this.parameters();
+        const close = open ? this.eatType(TokenType.closeParen) : undefined;
+        const fatArrow = this.eatType(TokenType.fatArrow);
+        const body = this.expressionList();
+        return new Expr.AnonymousFunctionCreation(open, parameter, close, fatArrow, body);
     }
 
     /**
@@ -1484,14 +1488,13 @@ export class AHKParser {
         return new Stmt.ExprStmt(callFactor);
     }
 
-    private parameters(closeTokenType: TokenType): Decl.Param {
-        const open = this.eat();
+    private parameters(): Decl.Param {
         const requiredParameters: Decl.Parameter[] = [];
         const optionalParameters: Array<Decl.DefaultParam|Decl.SpreadParameter> = [];
         let isDefaultParam = false;
         const allParameters = this.delimitedList(
             TokenType.comma,
-            token => isValidIdentifier(token.type) || token.type === TokenType.and,
+            token => isValidIdentifier(token.type) || token.type === TokenType.and || token.type === TokenType.multi,
             () => {
                 // v2 use `&` instead of `byref` keyword
                 const byref = this.eatOptional(this.v2mode ? TokenType.and : TokenType.byref);
@@ -1500,17 +1503,21 @@ export class AHKParser {
                     optionalParameters.push(param);
                     return param;
                 }
-                const p = this.peek();
-                // check if it is a default parameter
-                if (p.type === TokenType.aassign || p.type === TokenType.equal) {
+                // 忽略可变数量参数的语法
+                // case: (a, b, c, *) => a + b + c
+                if (this.currentToken.type === TokenType.multi) {
                     isDefaultParam = true;
-                    const param = this.optionalParameter(byref);
+                    // FIXME: 这样会导致 SpreadParameter.name 为 MissingToken.
+                    // 从而产生一个语法错误. 让 PreProcesser 作为例外忽略这个?
+                    const param = this.optionalParameter(byref, true);
                     optionalParameters.push(param);
                     return param;
                 }
-                if (p.type === TokenType.multi) {
+                const p = this.peek();
+                // check if it is a default parameter
+                if (p.type === TokenType.aassign || p.type === TokenType.equal || p.type === TokenType.multi) {
                     isDefaultParam = true;
-                    const param = this.optionalParameter(byref, true);
+                    const param = this.optionalParameter(byref, p.type === TokenType.multi);
                     optionalParameters.push(param);
                     return param;
                 }
@@ -1520,13 +1527,10 @@ export class AHKParser {
             }
         )
 
-        const close = this.eatType(closeTokenType, true);
         return new Decl.Param(
-            open,
             allParameters,
             requiredParameters,
             optionalParameters,
-            close
         );
     }
 
@@ -1712,6 +1716,23 @@ export class AHKParser {
                 return true;
         }
         return false;
+    }
+
+    private matchTokenAfterParentGruop(t: TokenType): boolean {
+        const pos = this.pos;
+        let unclosed: number = 1;
+        while (unclosed > 0 && !this.atLineEnd()) {
+            let t = this.peek().type
+            if (t === TokenType.closeParen)
+                unclosed--;
+            if (t === TokenType.openParen) 
+                unclosed++;
+            this.advance();
+        }
+        this.advance();
+        const isMatch =  !!this.eatDiscardCR(t);
+        this.backto(pos);
+        return isMatch;
     }
 
     private jumpWhiteSpace() {

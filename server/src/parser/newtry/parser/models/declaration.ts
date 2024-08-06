@@ -128,11 +128,14 @@ export class ClassBaseClause extends NodeBase {
     } 
 }
 
-export class  DynamicProperty extends Decl {
+export class DynamicProperty extends Decl {
     constructor(
         public readonly name: Token,
         public readonly body: Block | ExprStmt,
-        public readonly param: Maybe<Param>
+        public readonly open?: Maybe<Token>,
+        public readonly param?: Maybe<Param>,
+        public readonly close?: Maybe<Token>,
+        public readonly fatArrow?: Maybe<Token>,
     ) {
         super();
     }
@@ -333,8 +336,10 @@ export class FuncDef extends Decl {
      */
     constructor(
         public readonly nameToken: Token,
+        public readonly open: Token,
         public readonly params: Param,
-        public readonly body: Block
+        public readonly close: Token,
+        public readonly body: Block,
     ) {
         super();
     }
@@ -374,11 +379,9 @@ export class FuncDef extends Decl {
 export class Param extends Decl {
 
     constructor(
-        public readonly open: Token,
         public readonly ParamaterList: DelimitedList<Parameter>,
         public readonly requiredParameters: Parameter[],
         public readonly optionalParameters: Array<DefaultParam|SpreadParameter>,
-        public readonly close: Token
     ) {
         super();
     }
@@ -408,18 +411,15 @@ export class Param extends Decl {
     }
 
     public get start(): Position {
-        return this.open.start;
+        return this.ParamaterList.start;
     }
 
     public get end(): Position {
-        return this.close.end;
+        return this.ParamaterList.end;
     }
 
     public get ranges(): Range[] {
-        return [this.open as Range]
-               .concat(this.requiredParameters)
-               .concat(this.optionalParameters);
-            //    .concat([this.end as Range])
+        return this.ParamaterList.ranges;
     }
 
     public accept<T extends (...args: any) => any>(

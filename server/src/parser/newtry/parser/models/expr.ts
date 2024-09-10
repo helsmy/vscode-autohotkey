@@ -10,6 +10,7 @@ import { NodeBase } from './nodeBase';
 import * as SuffixTerm from './suffixterm';
 import { Token } from '../../tokenizor/types';
 import { Param } from './declaration';
+import { AHKMethodSymbol } from '../../analyzer/models/symbol';
 
 export type ExpersionList = DelimitedList<Expr>;
 
@@ -287,6 +288,7 @@ export class Factor extends Expr {
  * Fat arrow function creation
  */
 export class AnonymousFunctionCreation extends Expr {
+    public symbol: Maybe<AHKMethodSymbol>;
     constructor(
         // TODO: Should this node have a name property or not? 
         // public readonly nameToken: Token

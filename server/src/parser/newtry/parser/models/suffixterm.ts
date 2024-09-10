@@ -12,6 +12,7 @@ import { Expr } from './expr';
 import { NodeBase } from './nodeBase';
 import { Token } from '../../tokenizor/types';
 import { joinNodeTokenLines } from '../../formatter/joinNodeTokenLines';
+import { VariableSymbol } from '../../analyzer/models/symbol';
 
 /**
  * Base class for all suffix terms
@@ -319,6 +320,7 @@ export class ArrayTerm extends SuffixTermBase {
  * Class containing all valid identifiers
  */
 export class Identifier extends SuffixTermBase {
+    public symbol: Maybe<VariableSymbol>;
     /**
      * Constructor for suffix term identifiers
      * @param token identifier token

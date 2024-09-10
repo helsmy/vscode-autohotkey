@@ -1,7 +1,12 @@
 import { Location, Position, Range } from 'vscode-languageserver';
 import { RangeSequence } from "../../types";
+import { ISymbol } from '../../analyzer/types';
 
 export abstract class NodeBase implements RangeSequence {
+	/**
+	 * node相关的符号(如果有)
+	 */
+	public symbol: Maybe<ISymbol>;
 	/**
 	 * Array of all valid ranges in the syntax node
 	 */

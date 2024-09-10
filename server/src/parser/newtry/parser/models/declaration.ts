@@ -7,6 +7,7 @@ import { ExpersionList, Expr, Factor } from './expr';
 import { NodeBase } from './nodeBase';
 import { Block, ExprStmt, Stmt } from "./stmt";
 import { Token } from '../../tokenizor/types';
+import { AHKClassSymbol, AHKMethodSymbol } from '../../analyzer/models/symbol';
 
 export abstract class Decl extends Stmt {
     constructor() {
@@ -58,6 +59,7 @@ export class VarDecl extends Decl {
 }
 
 export class ClassDef extends Decl {
+    public symbol: Maybe<AHKClassSymbol>;
     /**
      * @param classToken class keyword
      * @param name class name
@@ -329,6 +331,7 @@ export class HotString extends Decl {
 }
 
 export class FuncDef extends Decl {
+    public symbol: Maybe<AHKMethodSymbol>;
     /**
      * @param nameToken name of function
      * @param params ...parameters of function

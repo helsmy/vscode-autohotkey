@@ -392,8 +392,10 @@ export class AHKDynamicPropertySymbol extends VariableSymbol implements IScope {
 		return [];
 	}
 	
-	// 返回所有的符号不管是不是getter和setter
-	// 用来查找所属的scope
+	/**
+	 * 返回所有的符号不管是不是getter和setter.  
+	 * 用来查找所属的scope 
+	 */
 	allSymbolsFull(): ISymbol[] {
 		const syms: ISymbol[] = [];
 		for (const [, sym] of this.symbols) 

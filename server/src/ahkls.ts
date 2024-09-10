@@ -444,6 +444,9 @@ export class AHKLS
             if (posInRange(block, position)) return undefined;
             // Should not happen
             if (!(scope instanceof AHKObjectSymbol)) return undefined;
+            // Hover on `extends` part
+            if (node.classBaseClause && posInRange(node.classBaseClause.baseClass, position))
+                return convertFactorHover(node.classBaseClause.baseClass, position, scope, token, this.v2CompatibleMode);
 
             // If hover on class decleration, 
             // current scope is the symbol of finding

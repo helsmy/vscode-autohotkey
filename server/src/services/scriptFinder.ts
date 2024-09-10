@@ -61,7 +61,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     }
     visitDeclFunction(decl: Decl.FuncDef, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
         
-        if (posInRange(decl.params, pos)) {
+        if (decl.params.ParamaterList.length >0 && posInRange(decl.params, pos)) {
             const paramMatch = decl.params.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
             if (paramMatch) {
                 (<IFindResult<Decl.Parameter>>paramMatch).outterFactor = createResult(decl);

@@ -2,6 +2,7 @@ import * as esbuild from 'esbuild';
 import * as gulp from 'gulp';
 import * as glob from 'glob';
 import { syntaxGen } from './syntaxes/syntaxGen';
+import { esbuildDecorators } from 'esbuild-decorators';
 
 const defaultOption: esbuild.BuildOptions = {
 	platform: 'node',
@@ -30,7 +31,7 @@ const serverOption: esbuild.BuildOptions = {
 	sourcesContent: false,
 	bundle: true,
 	external: ['vscode'],
-	minify: true,
+	minifyWhitespace: true,
 	treeShaking: true
 };
 
@@ -44,8 +45,17 @@ const clientOption: esbuild.BuildOptions = {
 	treeShaking: true
 };
 
+function OptionsWithDecorator(options: esbuild.BuildOptions): esbuild.BuildOptions {
+	return {
+		...options,
+		plugins: [
+			esbuildDecorators({force: true})
+		]
+	}
+}
+
 async function watchServer() {
-	const ctx = await esbuild.context(serverDevOption);
+	const ctx = await esbuild.context(OptionsWithDecorator(serverDevOption));
 	await ctx.watch();
 }
 
@@ -54,7 +64,7 @@ async function watchClient() {
 	await ctx.watch();
 }
 
-const buildServer = async () => await esbuild.build(serverOption);
+const buildServer = async () => await esbuild.build(OptionsWithDecorator(serverOption));
 const buildClient = async () => await esbuild.build(clientOption)
 
 export const watch = gulp.parallel(watchServer, watchClient);
@@ -65,7 +75,7 @@ export const build = gulp.series(
 
 gulp.task('buildAllWithMap', async (done) => {
 	try {
-		await esbuild.build(serverDevOption);
+		await esbuild.build(OptionsWithDecorator(serverDevOption));
 		await esbuild.build(clientDevOption);
 	} catch (error) {
 		done(error);

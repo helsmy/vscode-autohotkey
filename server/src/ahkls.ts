@@ -88,6 +88,7 @@ import { docLangName } from './services/config/serverConfiguration';
 import { builtin_variable } from './utilities/builtins';
 import { SymbolTable } from './parser/newtry/analyzer/models/symbolTable';
 import { DocumentSyntaxInfo } from './services/types';
+import { logException } from './utilities/decorator';
 
 export class AHKLS
 {
@@ -252,12 +253,14 @@ export class AHKLS
         }
     }
 
-    private onDocumentSymbol(params: DocumentSymbolParams): SymbolInformation[] {
+    @logException
+    private async onDocumentSymbol(params: DocumentSymbolParams): Promise<Maybe<SymbolInformation[]>> {
         const info = this.documentService.getDocumentInfo(params.textDocument.uri);
         if (!info) return [];
         return info.syntax.table.symbolInformations();
     }
 
+    @logException
     private async onSignatureHelp(positionParams: SignatureHelpParams, cancellation: CancellationToken): Promise<Maybe<SignatureHelp>> {
         const { position } = positionParams;
         const { uri } = positionParams.textDocument;
@@ -336,6 +339,7 @@ export class AHKLS
         };
     }
 
+    @logException
     private async onDefinition(params: DefinitionParams, cancellation: CancellationToken): Promise<Maybe<Definition>> {
         if (cancellation.isCancellationRequested) {
             return undefined;
@@ -360,6 +364,7 @@ export class AHKLS
         return locations;
     }
 
+    @logException
     private async onHover(params: HoverParams, cancellation: CancellationToken): Promise<Maybe<Hover>> {
         if (cancellation.isCancellationRequested) {
             return undefined;
@@ -454,6 +459,7 @@ export class AHKLS
         }
     }
 
+    @logException
     private async onCompletion(_compeltionParams: CompletionParams, cancellation: CancellationToken): Promise<Maybe<CompletionItem[]>> {
         if (cancellation.isCancellationRequested) {
             return undefined;
@@ -502,6 +508,7 @@ export class AHKLS
     /**
      * Resolve some additional information
      */
+    @logException
     private async onCompletionResolve(item: CompletionItem): Promise<CompletionItem> {
         switch (item.kind) {
             case CompletionItemKind.Function:

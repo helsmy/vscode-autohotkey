@@ -15,6 +15,7 @@ import { IAST, IParseError } from '../parser/newtry/types';
 import { homedir } from 'os';
 import { ConfigurationService } from './configurationService';
 import { Token } from '../parser/newtry/tokenizor/types';
+import { debounce } from '../utilities/decorator';
 
 export interface IBuiltinScope {
     v1: Map<string, AHKSymbol>
@@ -150,6 +151,7 @@ export class DocumentService {
      * @param docinfo AST of updated document
      * @param doc TextDocument of update documnet
      */
+    @debounce(100)
     private async updateDocumentAST(uri: string, doc: TextDocument) {
         // wait for configuation 1000ms, before start any parsing.
         await this._configurationDone.wait(1000);

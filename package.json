@@ -2,7 +2,7 @@
     "name": "ahk-simple-ls",
     "displayName": "AutoHotKey Simple Support",
     "description": "Simple ahkls with advanced features.",
-    "version": "0.9.8",
+    "version": "0.9.9",
     "author": "helsmy",
     "license": "LGPLv3.0",
     "repository": {

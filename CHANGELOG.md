@@ -5,7 +5,8 @@
 1. support `=>` short dynamic property
 2. support v2 tokens
 3. support `static` modifier in class' method
-3. use wmic to query autohotkey version
+4. use wmic to query autohotkey version
+5. fix crashing when hover on 0-parameter function 
 
 
 ## 0.9.8

@@ -62,7 +62,7 @@
         {
           "name": "comment.block.ahk",
           "begin": "^\\s*/\\*",
-          "end": "^\\s*\\*/",
+          "end": "\\s*\\*/",
           "patterns": [
             {
               "name": "storage.type.class.comdoc.ahk",

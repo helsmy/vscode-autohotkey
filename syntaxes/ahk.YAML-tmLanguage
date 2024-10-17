@@ -28,7 +28,7 @@ repository:
                       name: punctuation.definition.comment.ahk
             - name: comment.block.ahk
               begin: ^\s*/\*
-              end: ^\s*\*/
+              end: \s*\*/
               patterns:
                     # Basic jsdoc like comment-doc
                     # eg: 

@@ -1,5 +1,6 @@
 import { IScope, ISymbol, ISymbolWithDocument, ISymType, ModifierKind, VarKind } from '../types';
 import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver/node';
+import { symbolInformations } from './symbolInformationProvider';
 
 export type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
 export type AHKFunctionSymbol = AHKMethodSymbol | AHKBuiltinMethodSymbol;
@@ -169,48 +170,7 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScope {
 	}
 
 	public symbolInformations(): SymbolInformation[] {
-		const info: SymbolInformation[] = [];
-		for (const [name, sym] of this.symbols) {
-			if (sym instanceof VariableSymbol && sym.tag !== VarKind.parameter) {
-				const kind = sym.tag === VarKind.variable ? SymbolKind.Variable : SymbolKind.Property 
-				info.push(SymbolInformation.create(
-					sym.name,
-					kind,
-					sym.range,
-					this.uri
-				));
-			}
-			else if (sym instanceof AHKMethodSymbol) {
-				info.push(SymbolInformation.create(
-					sym.name,
-					SymbolKind.Method,
-					sym.range,
-					this.uri
-				));
-				info.push(...sym.symbolInformations());
-			}
-			else if (sym instanceof AHKObjectSymbol) {
-				info.push(SymbolInformation.create(
-					sym.name,
-					SymbolKind.Class,
-					sym.range,
-					this.uri
-				));
-				info.push(...sym.symbolInformations());
-			}
-			else if (sym instanceof HotkeySymbol || sym instanceof HotStringSymbol) {
-				info.push(SymbolInformation.create(
-					sym.name,
-					SymbolKind.Event,
-					sym.range,
-					this.uri
-				));
-			}
-			else
-				continue;
-		}
-
-		return info;
+		return symbolInformations(this.symbols, this.uri);
 	}
 }
 

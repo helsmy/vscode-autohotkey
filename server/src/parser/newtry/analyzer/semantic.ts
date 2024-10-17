@@ -115,7 +115,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 					DiagnosticSeverity.Error
 				));
 			errors.push(...this.checkDiagnosticForNode(param));
-			if (param instanceof Decl.DefaultParam)
+			if (param instanceof Decl.DefaultParam && param.value)
 				errors.push(...this.processExpr(param.value));
 			if (param instanceof Decl.SpreadParameter)
 				isAlreadyVariadic = true;
@@ -150,6 +150,9 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	private paramAction(params: Decl.Parameter[]): ParameterSymbol[] {
 		const syms: ParameterSymbol[] = [];
 		for(const param of params) {
+			// Skip single `*` parameter
+			if (param instanceof Decl.SpreadParameter && param.identifier instanceof MissingToken)
+				continue;
 			syms.push(new ParameterSymbol(
 				this.script.uri,
 				param.identifier.content,
@@ -682,7 +685,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	public visitCatch(stmt: Stmt.CatchStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
 		// check if output variable is defined, if not define it
-		if (!this.currentScope.resolve(stmt.errors.content)) {
+		if (stmt.errors && !this.currentScope.resolve(stmt.errors.content)) {
 			const sym = new VariableSymbol(
 				this.script.uri,
 				stmt.errors.content,

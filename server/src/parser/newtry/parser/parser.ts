@@ -527,6 +527,8 @@ export class AHKParser {
             case TokenType.openBrace:
                 return this.dynamicProperty();
             default:
+                if (this.v2mode && p.type === TokenType.fatArrow)
+                    return this.dynamicProperty();
                 return this.propertyOrAssignExpression(modifier);
         }
     }
@@ -931,7 +933,7 @@ export class AHKParser {
         this.jumpWhiteSpace();
         const catchToken = this.eatOptional(TokenType.catch);
         if (catchToken) {
-            const errorVar = this.eatId();
+            const errorVar = isValidIdentifier(this.currentToken.type) ? this.eat() : undefined;
             const body = this.declaration();
             catchStmt = new Stmt.CatchStmt(
                 catchToken, errorVar, body
@@ -1515,7 +1517,7 @@ export class AHKParser {
                 }
                 const p = this.peek();
                 // check if it is a default parameter
-                if (p.type === TokenType.aassign || p.type === TokenType.equal || p.type === TokenType.multi) {
+                if (p.type === TokenType.aassign || p.type === TokenType.equal || p.type === TokenType.multi || p.type === TokenType.question) {
                     isDefaultParam = true;
                     const param = this.optionalParameter(byref, p.type === TokenType.multi);
                     optionalParameters.push(param);
@@ -1552,12 +1554,15 @@ export class AHKParser {
             return new Decl.SpreadParameter(name, byref, star);
         }
 
-        const assign = this.eatTypes(
+        const operator = this.eatTypes(
             TokenType.aassign,
-            TokenType.equal
+            TokenType.equal,
+            TokenType.question
         );
+        if (operator.type === TokenType.question) 
+            return new Decl.DefaultParam(name, byref, operator);
         const dflt = this.expression();
-        return new Decl.DefaultParam(name, byref, assign, dflt);
+        return new Decl.DefaultParam(name, byref, operator, dflt);
     }
 
     private command(): Stmt.Stmt {

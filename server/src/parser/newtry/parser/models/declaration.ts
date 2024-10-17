@@ -476,24 +476,29 @@ export class DefaultParam extends Parameter {
     constructor(
         identifier: Token,
         byref: Maybe<Token>,
-        public readonly assign: Token,
-        public readonly value: Expr,
+        public readonly operator: Token,
+        public readonly value?: Maybe<Expr>,
     ) {
         super(identifier, byref);
     }
 
     public toLines(): string[] {
-        const lines = this.value.toLines();
-        lines[0] = `${this.identifier.content} ${this.assign.content} ${lines[0]}`;
-        return lines;
+        if (this.value) {
+            const lines = this.value.toLines();
+            lines[0] = `${this.identifier.content} ${this.operator.content} ${lines[0]}`;
+            return lines;
+        }
+        return [`${this.identifier.content} ${this.operator.content}`];
     }
 
     public get end(): Position {
-        return this.value.end;
+        return this.value ? this.value.end : this.operator.end;
     }
 
     public get ranges(): Range[] {
-        return super.ranges.concat([this.assign, this.value]);
+        if (this.value)
+            return super.ranges.concat([this.operator, this.value]);
+        return super.ranges.concat([this.operator]);
     }
 
     public get isKeyword(): boolean {

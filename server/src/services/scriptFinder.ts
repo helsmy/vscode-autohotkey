@@ -363,6 +363,21 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
             const deepMatch = this.searchExpression(expr.expr, pos, matchNodeType);
             return deepMatch ? deepMatch : matchNodeTypes(expr, matchNodeType) ? createResult(expr) : undefined;        
         }
+        else if (expr instanceof Expr.AnonymousFunctionCreation) {
+            if (expr.params.ParamaterList.length >0 && posInRange(expr.params, pos)) {
+                const paramMatch = expr.params.accept(this, [pos, matchNodeType]) as Maybe<IFindResult<NodeBase>> ; 
+                if (paramMatch) {
+                    paramMatch.outterFactor = createResult(expr) as any;
+                    return paramMatch;
+                }
+            }
+            if (posInRange(expr.body, pos)) {
+                const exprMatch = this.searchDelimitedList(expr.body, pos, matchNodeType); 
+                if (exprMatch) return exprMatch;
+            }
+            if (matchNodeTypes(expr, matchNodeType)) return createResult(expr);
+            return undefined;
+        }
     }
 
     private searchSuffixTerm(factor: Expr.Factor, term: SuffixTerm.SuffixTerm, pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {

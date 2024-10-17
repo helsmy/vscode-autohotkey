@@ -888,14 +888,14 @@ export class CatchStmt extends Stmt {
 
 	constructor(
 		public readonly catchToken: Token,
-		public readonly errors: Token,
+		public readonly errors: Maybe<Token>,
 		public readonly body: IStmt
 	) {
 		super();
 	}
 
 	public toLines(): string[] {
-		const conditionLines = `${this.catchToken.content} ${this.errors.content}`;
+		const conditionLines = this.catchToken.content + (this.errors ? this.errors?.content : '');
 		const bodyLines = this.body.toLines();
 
 		return joinLines(' ', [conditionLines], bodyLines);
@@ -910,7 +910,7 @@ export class CatchStmt extends Stmt {
 	}
 
 	public get ranges(): Range[] {
-		return [this.catchToken, this.errors, this.body];
+		return this.errors ? [this.catchToken, this.errors, this.body] : [this.catchToken, this.body];
 	}
 
 	public accept<T extends (...args: any) => any>(

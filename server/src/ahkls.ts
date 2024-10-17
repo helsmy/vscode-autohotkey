@@ -75,7 +75,7 @@ import * as Stmt from "./parser/newtry/parser/models/stmt";
 import * as Expr from "./parser/newtry/parser/models/expr";
 import { binarySearchIndex, binarySearchRange, posInRange, rangeBefore } from './utilities/positionUtils';
 import { NodeConstructor } from './parser/newtry/parser/models/parseError';
-import { ClassDef, FuncDef, Parameter } from './parser/newtry/parser/models/declaration';
+import { ClassDef, DynamicProperty, FuncDef, Parameter } from './parser/newtry/parser/models/declaration';
 import { convertSymbolsHover, convertSymbolCompletion, getFuncPrototype, convertBuiltin2Signature, convertFactorHover, convertNewClassHover } from './services/utils/converter';
 import { resolveCommandCall, resolveFactor, resolveSubclass, searchPerfixSymbol } from './services/utils/symbolResolver';
 import { Token } from './parser/newtry/tokenizor/types';
@@ -395,7 +395,9 @@ export class AHKLS
         if (token === undefined) return undefined;
 
         const AST = docinfo.syntax.AST.script.stmts;
-        const find = this.finder.find(AST, position, [Expr.Factor, Stmt.CommandCall, Parameter, FuncDef, ClassDef]);
+        const find = this.finder.find(AST, position, [
+            Expr.Factor, Stmt.CommandCall, Parameter, DynamicProperty, FuncDef, ClassDef
+        ]);
         if (find === undefined) return undefined;
         
         const node = find.nodeResult
@@ -423,6 +425,16 @@ export class AHKLS
         else if (node instanceof Parameter) {
             const symbol = scope.resolve(node.identifier.content);
             return symbol ? convertSymbolsHover([symbol], token) : undefined;
+        }
+        else if (node instanceof DynamicProperty) {
+            // Should not happen
+            // DynamicProperty is one type of variable symbol
+            if (!(scope instanceof VariableSymbol)) return undefined;
+            const parentClass = scope.enclosingScope;
+            // DynamicProperty must have a parent class
+            if (parentClass === undefined || !(parentClass instanceof AHKObjectSymbol)) return undefined;
+            // scope, a variable symbol, itself is the symbol of DynamicProperty
+            return convertSymbolsHover(resolveSubclass(parentClass).concat(scope), token);
         }
         else if (node instanceof FuncDef) {
             // Block hint in body content

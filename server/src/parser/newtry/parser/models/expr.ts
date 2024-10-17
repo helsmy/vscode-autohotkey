@@ -293,7 +293,7 @@ export class AnonymousFunctionCreation extends Expr {
         // TODO: Should this node have a name property or not? 
         // public readonly nameToken: Token
         public readonly open: Maybe<Token>,
-        public readonly param: Param,
+        public readonly params: Param,
         public readonly close: Maybe<Token>,
         public readonly fatArrow: Token,
         public readonly body: ExpersionList,
@@ -307,7 +307,7 @@ export class AnonymousFunctionCreation extends Expr {
         throw new Error('Method not implemented.');
     }
     public get start(): Position {
-        return this.open ? this.open.start : this.param.start;
+        return this.open ? this.open.start : this.params.start;
     }
     public get end(): Position {
         return this.body.end;

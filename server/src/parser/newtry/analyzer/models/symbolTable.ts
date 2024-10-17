@@ -10,6 +10,7 @@ import {
 	HotStringSymbol,
 	LabelSymbol,
 } from './symbol';
+import { symbolInformations } from './symbolInformationProvider';
 
 type SymbolMap = Map<string, AHKSymbol>;
 
@@ -100,46 +101,7 @@ export class SymbolTable implements IScope {
 	}
 
 	public symbolInformations(): SymbolInformation[] {
-		let info: SymbolInformation[] = [];
-		for (const [, sym] of this.symbols) {
-			if (sym instanceof VariableSymbol) {
-				info.push(SymbolInformation.create(
-					sym.name,
-					SymbolKind.Variable,
-					sym.range,
-					this.uri
-				));
-			}
-			else if (sym instanceof AHKMethodSymbol) {
-				info.push(SymbolInformation.create(
-					sym.name,
-					SymbolKind.Method,
-					sym.range,
-					this.uri
-				));
-				info.push(...sym.symbolInformations());
-			}
-			else if (sym instanceof AHKObjectSymbol) {
-				info.push(SymbolInformation.create(
-					sym.name,
-					SymbolKind.Class,
-					sym.range,
-					this.uri
-				));
-				info.push(...sym.symbolInformations());
-			}
-			else if (sym instanceof HotkeySymbol || sym instanceof HotStringSymbol) {
-				info.push(SymbolInformation.create(
-					sym.name,
-					SymbolKind.Event,
-					sym.range,
-					this.uri
-				));
-			}
-			else
-				continue;
-		}
-		return info;
+		return symbolInformations(this.symbols, this.uri);
 	}
 
 	public toString(): string {

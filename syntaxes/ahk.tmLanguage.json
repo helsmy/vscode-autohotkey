@@ -62,7 +62,17 @@
         {
           "name": "comment.block.ahk",
           "begin": "^\\s*/\\*",
-          "end": "^\\s*\\*/"
+          "end": "^\\s*\\*/",
+          "patterns": [
+            {
+              "name": "storage.type.class.comdoc.ahk",
+              "match": "(?<=^\\s*\\**\\s*)@[_$[:alpha:]][_$[:alnum:]]*"
+            },
+            {
+              "name": "variable.others.comdoc.ahk",
+              "match": "(?<=^\\s*\\**\\s*@param\\s*)[_$[:alpha:]][_$[:alnum:]]*"
+            }
+          ]
         }
       ]
     },

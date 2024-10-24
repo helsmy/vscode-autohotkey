@@ -384,7 +384,7 @@ export class Param extends Decl {
     constructor(
         public readonly ParamaterList: DelimitedList<Parameter>,
         public readonly requiredParameters: Parameter[],
-        public readonly optionalParameters: Array<DefaultParam|SpreadParameter>,
+        public readonly optionalParameters: Array<DefaultParameter|SpreadParameter>,
     ) {
         super();
     }
@@ -472,7 +472,7 @@ export class Parameter extends NodeBase {
 /**
  * Class contains all default ...parameters of a function define
  */
-export class DefaultParam extends Parameter {
+export class DefaultParameter extends Parameter {
     constructor(
         identifier: Token,
         byref: Maybe<Token>,
@@ -507,7 +507,10 @@ export class DefaultParam extends Parameter {
 }
 
 /**
- * class for spread parameter eg. parameter*
+ * class for spread parameter  
+ * FIXME: 临时方案：`*` 作为占位符时的可变数量参数的标识符就是 `*` 本身
+ * @example
+ *    eg. parameter*
  */
 export class SpreadParameter extends Parameter {
     constructor(

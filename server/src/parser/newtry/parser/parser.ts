@@ -1492,7 +1492,7 @@ export class AHKParser {
 
     private parameters(): Decl.Param {
         const requiredParameters: Decl.Parameter[] = [];
-        const optionalParameters: Array<Decl.DefaultParam|Decl.SpreadParameter> = [];
+        const optionalParameters: Array<Decl.DefaultParameter|Decl.SpreadParameter> = [];
         let isDefaultParam = false;
         const allParameters = this.delimitedList(
             TokenType.comma,
@@ -1545,7 +1545,7 @@ export class AHKParser {
      * Parse default parameter of function
      * @param isExtend if parameter is array extend parameter
      */
-    private optionalParameter(byref?: Token, isExtend: Boolean = false):  Decl.DefaultParam|Decl.SpreadParameter {
+    private optionalParameter(byref?: Token, isExtend: Boolean = false):  Decl.DefaultParameter|Decl.SpreadParameter {
         const name = this.eatType(TokenType.id);
 
         // if is parameter*
@@ -1560,9 +1560,9 @@ export class AHKParser {
             TokenType.question
         );
         if (operator.type === TokenType.question) 
-            return new Decl.DefaultParam(name, byref, operator);
+            return new Decl.DefaultParameter(name, byref, operator);
         const dflt = this.expression();
-        return new Decl.DefaultParam(name, byref, operator, dflt);
+        return new Decl.DefaultParameter(name, byref, operator, dflt);
     }
 
     private command(): Stmt.Stmt {

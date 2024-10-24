@@ -18,8 +18,8 @@ export class Logger implements ILoggerBase {
 	) { }
 
 	error(message: string) {
-		if (this.logLevel <= LogLevel.warn)
-			this.connection.warn(message);
+		if (this.logLevel <= LogLevel.error)
+			this.connection.error(message);
 	}
 
 	warn(message: string) {

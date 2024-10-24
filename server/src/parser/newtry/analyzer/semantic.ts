@@ -115,7 +115,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 					DiagnosticSeverity.Error
 				));
 			errors.push(...this.checkDiagnosticForNode(param));
-			if (param instanceof Decl.DefaultParam && param.value)
+			if (param instanceof Decl.DefaultParameter && param.value)
 				errors.push(...this.processExpr(param.value));
 			if (param instanceof Decl.SpreadParameter)
 				isAlreadyVariadic = true;
@@ -150,9 +150,6 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	private paramAction(params: Decl.Parameter[]): ParameterSymbol[] {
 		const syms: ParameterSymbol[] = [];
 		for(const param of params) {
-			// Skip single `*` parameter
-			if (param instanceof Decl.SpreadParameter && param.identifier instanceof MissingToken)
-				continue;
 			syms.push(new ParameterSymbol(
 				this.script.uri,
 				param.identifier.content,

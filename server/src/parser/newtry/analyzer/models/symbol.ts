@@ -1,6 +1,8 @@
 import { IScope, ISymbol, ISymbolWithDocument, ISymType, ModifierKind, VarKind } from '../types';
 import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver/node';
 import { symbolInformations } from './symbolInformationProvider';
+import { SpreadParameter } from '../../parser/models/declaration';
+import { TokenType } from '../../tokenizor/tokenTypes';
 
 export type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
 export type AHKFunctionSymbol = AHKMethodSymbol | AHKBuiltinMethodSymbol;
@@ -232,7 +234,11 @@ export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument
 	) {
 		super(uri, name, enclosingScoop);
 		this.requiredParameters.forEach(v => this.define(v));
-		this.optionalParameters.forEach(v => this.define(v));
+		this.optionalParameters.forEach(v => {
+			// 在可变参数时`*`占位符时不进行定义
+			if (!(v instanceof SpreadParameter && v.identifier.type == TokenType.multi))
+				this.define(v);
+		});
 	}
 
 	public resolve(name: string): Maybe<ISymbol> {
@@ -245,7 +251,10 @@ export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument
 
 	public toString(): string {
 		const reqParaStr = this.requiredParameters.map(param => `${param.isByref ? 'byref ' : ''}${param.name}`);
-		const optParaStr = this.optionalParameters.map(param => `${param.isByref ? 'byref ' : ''}${param.name}${param.isSpread? '*': '?'}`);
+		const optParaStr = this.optionalParameters.map(param => `${param.isByref ? 'byref ' : ''}${param.name}${
+			param.isSpread? 
+			param.name === '*' ? '' : '*'
+			: '?'}`);
 		return `${this.name}(${reqParaStr.concat(optParaStr).join(', ')})`
 	}
 }

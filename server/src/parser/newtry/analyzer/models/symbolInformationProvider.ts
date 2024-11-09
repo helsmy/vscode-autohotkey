@@ -1,10 +1,14 @@
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver';
 import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, VariableSymbol } from './symbol';
+import { VarKind } from '../types';
 
 export function symbolInformations(symbols: Map<string, AHKSymbol>, uri: string): SymbolInformation[] {
 	let info: SymbolInformation[] = [];
 	for (const [, sym] of symbols) {
 		if (sym instanceof VariableSymbol) {
+			// Do not show parameter in Outline
+			if (sym.tag === VarKind.parameter)
+				continue;
 			info.push(SymbolInformation.create(
 				sym.name,
 				SymbolKind.Variable,

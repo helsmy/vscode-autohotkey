@@ -98,9 +98,10 @@ export function convertSymbolsHover(symbols: ISymbol[], range: Range): MarkdownH
     };
 }
 
+const VarKind2String = ['variable', 'parameter', 'property'];
 function hoverPrefixType(symbol: AHKSymbol): string {
     if (symbol instanceof VariableSymbol) 
-        return`(${VarKind[symbol.tag]}) `;
+        return`(${VarKind2String[symbol.tag]}) `;
 
     if (symbol instanceof Parameter)
         return '(parameter) '

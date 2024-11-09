@@ -56,7 +56,7 @@ export interface ISymbolWithDocument extends ISymbol {
 	document?: string
 }
 
-export enum VarKind {
+export const enum VarKind {
 	variable,
 	parameter,
 	property
@@ -68,7 +68,7 @@ export enum ScopeKind {
 	Local
 }
 
-export enum ModifierKind {
+export const enum ModifierKind {
 	None,
 	Global,
 	Local,

@@ -360,7 +360,9 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
             return deepMatch ? deepMatch : matchNodeTypes(expr, matchNodeType) ? createResult(expr) : undefined;
         }
         else if (expr instanceof Expr.ParenExpr) {
-            const deepMatch = this.searchExpression(expr.expr, pos, matchNodeType);
+            const deepMatch = expr.expr instanceof Expr.Expr ?
+                this.searchExpression(expr.expr, pos, matchNodeType): 
+                this.searchDelimitedList(expr.expr, pos, matchNodeType);
             return deepMatch ? deepMatch : matchNodeTypes(expr, matchNodeType) ? createResult(expr) : undefined;        
         }
         else if (expr instanceof Expr.AnonymousFunctionCreation) {

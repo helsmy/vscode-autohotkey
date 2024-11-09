@@ -216,7 +216,7 @@ export class AHKParser {
             };
         }
         catch (error) {
-            this.logger.error(JSON.stringify(error));
+            this.logger.error((error as any).stack);
         }
 
         return {
@@ -744,7 +744,7 @@ export class AHKParser {
 
     private elseStmt(): Stmt.Else {
         const elsetoken = this.eat();
-        if (this.matchTokens([TokenType.if])) {
+        if (this.currentToken.type === TokenType.if) {
             const elif = this.ifStmt();
             return new Stmt.Else(
                 elsetoken,
@@ -851,7 +851,7 @@ export class AHKParser {
         const loop = this.eat();
 
         // if no expression follows, check if is until loop
-        if (this.matchTokens([
+        if (this.matchTokens(this.currentToken.type, [
             TokenType.EOL,
             TokenType.EOF,
             TokenType.openBrace
@@ -1028,7 +1028,7 @@ export class AHKParser {
         }
 
         if (this.checkFromTo(TokenType.aassign, TokenType.lshifteq) ||
-            this.matchTokens([TokenType.equal, TokenType.regeq])) {
+            this.matchTokens(this.currentToken.type, [TokenType.equal, TokenType.regeq])) {
             const assign = this.eat();
             const expr = this.expression();
 
@@ -1219,31 +1219,39 @@ export class AHKParser {
 
     private postfixExpressionRest(expression: Expr.Expr, allowUpdateExpression: boolean = true): Expr.Expr {
         const token = this.currentToken;
-
-        // '++a++' is invaild.
-        if (allowUpdateExpression && 
-            (token.type === TokenType.pplus || 
-             token.type === TokenType.mminus)) {
-            const factor = expression;
-            const operator = this.eatTypes(TokenType.pplus, TokenType.mminus);
-            // TODO: Expression class for postfix update expression.
-            return new Expr.Unary(operator, factor);
-        }
-
-        // array extend expression
-        // case: 'funcCall(arrayVariable*)'
-        if (token.type === TokenType.multi && !this.matchTokens([
-            TokenType.plus, TokenType.minus, TokenType.and,
-            TokenType.multi, TokenType.not, TokenType.bnot,
-            TokenType.pplus, TokenType.mminus, TokenType.new,
-            TokenType.openParen, TokenType.number, TokenType.string,
-            TokenType.openBrace, TokenType.openBracket, TokenType.id,
-            TokenType.precent
-        ])) {
-            return new Expr.Unary(
-                token,
-                expression
-            );
+        switch (token.type) {
+            case TokenType.pplus:
+            case TokenType.mminus:
+                // '++a++' is invaild.
+                if (allowUpdateExpression) {
+                    const factor = expression;
+                    const operator = this.eatTypes(TokenType.pplus, TokenType.mminus);
+                    // TODO: Expression class for postfix update expression.
+                    return new Expr.Unary(operator, factor);
+                }
+                break;
+            case TokenType.multi:
+                // array extend expression
+                // case: 'funcCall(arrayVariable*)'
+                if (!this.matchTokens(this.currentToken.type, [
+                    TokenType.plus, TokenType.minus, TokenType.and,
+                    TokenType.multi, TokenType.not, TokenType.bnot,
+                    TokenType.pplus, TokenType.mminus, TokenType.new,
+                    TokenType.openParen, TokenType.number, TokenType.string,
+                    TokenType.openBrace, TokenType.openBracket, TokenType.id,
+                    TokenType.precent
+                ])) {
+                    return new Expr.Unary(
+                        token,
+                        expression
+                    );
+                }
+                break;
+            case TokenType.dot:
+                expression = this.memberAccessExpression(expression);
+                return this.postfixExpressionRest(expression);
+            default:
+                break;
         }
         // TODO: 也许有些什么情况下需要，进一步分析可能的后缀
         return expression;
@@ -1255,7 +1263,7 @@ export class AHKParser {
                 if (this.v2mode && this.matchTokenAfterParentGruop(TokenType.fatArrow))
                     return this.anonymousFunction();
                 const OPar = this.eat();
-                const mid = this.expression();
+                const mid = this.expressionList();
                 const CPar = this.eatType(TokenType.closeParen);
                 return new Expr.ParenExpr(OPar, mid, CPar);
             case TokenType.number:
@@ -1274,6 +1282,15 @@ export class AHKParser {
         }
         // TODO: Put any helpful MissingToken in Invaild Expression
         return new Expr.Invalid(this.currentToken.start, [this.currentToken]);
+    }
+
+    private memberAccessExpression(expression: Expr.Expr): Expr.Expr {
+        const dereferencableExpression = expression;
+        const dot = this.eatType(TokenType.dot);
+        const memberName = isValidIdentifier(this.currentToken.type) ? 
+                            this.eat() : 
+                            new MissingToken(TokenType.id, this.currentToken.start);
+        return new Expr.MemberAccessExpression(dereferencableExpression, dot, memberName);
     }
 
     /**
@@ -1500,18 +1517,19 @@ export class AHKParser {
             () => {
                 // v2 use `&` instead of `byref` keyword
                 const byref = this.eatOptional(this.v2mode ? TokenType.and : TokenType.byref);
-                if (isDefaultParam) {
-                    const param = this.optionalParameter(byref);
-                    optionalParameters.push(param);
-                    return param;
-                }
                 // 忽略可变数量参数的语法
                 // case: (a, b, c, *) => a + b + c
                 if (this.currentToken.type === TokenType.multi) {
                     isDefaultParam = true;
+                    const spreadMark = this.eatType(TokenType.multi);
                     // FIXME: 这样会导致 SpreadParameter.name 为 MissingToken.
                     // 从而产生一个语法错误. 让 PreProcesser 作为例外忽略这个?
-                    const param = this.optionalParameter(byref, true);
+                    const param = new Decl.SpreadParameter(spreadMark, byref, spreadMark);
+                    optionalParameters.push(param);
+                    return param;
+                }
+                if (isDefaultParam) {
+                    const param = this.optionalParameter(byref);
                     optionalParameters.push(param);
                     return param;
                 }
@@ -1681,7 +1699,7 @@ export class AHKParser {
      * @returns Token
      */
     private eatTypes(...ts: TokenType[]): Token {
-        if (this.matchTokens(ts)) {
+        if (this.matchTokens(this.currentToken.type, ts)) {
             this.advance();
             return this.previous();
         }
@@ -1703,7 +1721,7 @@ export class AHKParser {
     }
 
     private eatOptionals(...ts: TokenType[]): Maybe<Token> {
-        if (this.matchTokens(ts)) {
+        if (this.matchTokens(this.currentToken.type, ts)) {
             this.advance();
             return this.previous();
         }
@@ -1712,12 +1730,13 @@ export class AHKParser {
 
     /**
      * check if current token matches a set of tokens
+     * @param t1 tokentype to be matched
      * @param ts match types array 
      */
-    private matchTokens(ts: TokenType[]): boolean {
-        if (this.currentToken.type === TokenType.EOF) return false;
+    private matchTokens(t1: TokenType, ts: TokenType[]): boolean {
+        if (t1 === TokenType.EOF) return false;
         for (const t of ts) {
-            if (t === this.currentToken.type)
+            if (t === t1)
                 return true;
         }
         return false;

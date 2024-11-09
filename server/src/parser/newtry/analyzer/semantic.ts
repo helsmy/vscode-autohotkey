@@ -369,7 +369,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			errors.push(...this.processExpr(expr.falseExpr));
 		}
 		else if (expr instanceof Expr.ParenExpr) {
-			errors.push(...this.processExpr(expr.expr));
+			if (expr.expr instanceof Expr.Expr)
+				errors.push(...this.processExpr(expr.expr));
+			else 
+				expr.expr.getElements().forEach(e => errors.push(...this.processExpr(e)));
 		}
 		else if (expr instanceof Expr.AnonymousFunctionCreation) {
 			

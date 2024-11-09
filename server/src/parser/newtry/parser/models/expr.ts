@@ -207,7 +207,7 @@ export class ParenExpr extends Expr {
     
     constructor(
         public readonly openParen: Token,
-        public readonly expr: Expr,
+        public readonly expr: Expr | ExpersionList,
         public readonly closeParen: Token
     ) {
         super();
@@ -281,6 +281,55 @@ export class Factor extends Expr {
         }
 
         return suffixTermLines;
+    }
+}
+
+export class MemberAccessExpression extends Expr {
+
+    constructor(
+        public readonly dereferencableExpression: Expr,
+        public readonly dot: Token,
+        public readonly memberName: Token
+    ) {
+        super();
+    }
+
+    public get ranges(): Range[] {
+        return [this.dereferencableExpression, this.dot, this.memberName];
+    }
+    public toLines(): string[] {
+        throw new Error('Method not implemented.');
+    }
+    public get start(): Position {
+        return this.dereferencableExpression.start;
+    }
+    public get end(): Position {
+        return this.memberName.end;
+    }
+}
+
+export class SubscriptExpression extends Expr {
+
+    constructor(
+        public readonly dereferencableExpression: Expr,
+        public readonly open: Token,
+        public readonly indexName: Token,
+        public readonly close: Token
+    ) {
+        super();
+    }
+
+    public get ranges(): Range[] {
+        return [this.dereferencableExpression, this.open, this.indexName, this.close];
+    }
+    public toLines(): string[] {
+        throw new Error('Method not implemented.');
+    }
+    public get start(): Position {
+        return this.dereferencableExpression.start;
+    }
+    public get end(): Position {
+        return this.close.end;
     }
 }
 

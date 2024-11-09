@@ -12,6 +12,11 @@ type Maybe<T> = T | undefined;
 type Constructor<T = {}> = new (...args: any[]) => T;
 
 /**
+ * Abstract constructor functions or classses
+ */
+type AbstractConstructor<T = {}> = abstract new (...args: any) => T;
+
+/**
  * Base logger interface, mirror vscodes logger
  * ref: vscode-kos-language-server
  */

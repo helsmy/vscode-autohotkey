@@ -191,18 +191,15 @@ export class Tokenizer {
 
     /**
      * If is a Escaped `"` or `'`.
-     * @param offset offset to current position
      */
-    private IsQuoteEscapeSequence(offset: number): boolean {
-        const char = this.document[this.pos+offset];
-        if (char === undefined) return false;
+    private IsV1DoulbeQuote(): boolean {
         if (this.v2Mode) {
-            if ((char === '"' || char === "'") && this.document[this.pos+offset-1] === '`')
-                return true;
+            return false;
         }
         
+        const peek = this.document[this.pos+1];
         // v1 ahk escape `"` by `"`
-        return char === '"' && this.document[this.pos+offset+1] === '"';
+        return this.currChar === '"' && peek === '"';
     }
 
     /**
@@ -241,7 +238,20 @@ export class Tokenizer {
         const strDelimitor = this.currChar;
         this.Advance();
         
-        while (this.currChar !== strDelimitor || this.IsQuoteEscapeSequence(0)) {
+        while (true) {
+            if (this.currChar === strDelimitor) {
+                // v1 escape `"`
+                if (this.IsV1DoulbeQuote()) {
+                    this.Advance().Advance();
+                    continue;
+                }
+                break;
+            }
+            // v2 escape `"`|`'`
+            if (this.v2Mode && this.currChar === '`' && this.Peek() === strDelimitor) {
+                this.Advance().Advance();
+                    continue;
+            }
             const eol = this.IsEOLAndLength();
             // FIXME: Scan comment in continuation section
             if (this.currChar === 'EOF' || eol) {

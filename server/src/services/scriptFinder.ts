@@ -374,7 +374,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
                 }
             }
             if (posInRange(expr.body, pos)) {
-                const exprMatch = this.searchDelimitedList(expr.body, pos, matchNodeType); 
+                const exprMatch = this.searchExpression(expr.body, pos, matchNodeType); 
                 if (exprMatch) return exprMatch;
             }
             if (matchNodeTypes(expr, matchNodeType)) return createResult(expr);

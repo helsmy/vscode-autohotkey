@@ -345,7 +345,7 @@ export class AnonymousFunctionCreation extends Expr {
         public readonly params: Param,
         public readonly close: Maybe<Token>,
         public readonly fatArrow: Token,
-        public readonly body: ExpersionList,
+        public readonly body: Expr,
     ) {
         super();
     }

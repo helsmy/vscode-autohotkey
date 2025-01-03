@@ -10,10 +10,15 @@ type Delimiter = TokenType.dot | TokenType.comma;
 export class DelimitedList<T extends NodeBase | Token> extends NodeBase {
     public readonly childern: Array<T | Token>;
     private readonly delimiter = [TokenType.dot, TokenType.comma];
+    private readonly _start: Position;
 
-    constructor() {
+    /**
+     * @param start Start position of DelimitedList
+     */
+    constructor(start: Position) {
         super();
         this.childern = [];
+        this._start = start;
     }
 
     public getElements(): T[] {
@@ -66,13 +71,12 @@ export class DelimitedList<T extends NodeBase | Token> extends NodeBase {
         return lines;
     }
 
-    // FIXME: 0 childern node fails
     public get start(): Position {
-        return this.childern[0].start;
+        return this.childern.length > 0 ? this.childern[0].start : this._start;
     }
 
     public get end(): Position {
-        return this.childern[this.childern.length - 1].end;
+        return this.childern.length > 0 ? this.childern[this.childern.length - 1].end : this._start;
     }
 
     /**

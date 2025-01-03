@@ -16,6 +16,7 @@ import { ParseContext } from './models/parseContext';
 import { URI } from 'vscode-uri';
 import { join } from 'path';
 import { idFactor } from './utils/nodeBuilder';
+import { Position } from 'vscode-languageserver';
 
 type IsStartFn = (t: Token) => boolean;
 type ParseFn<T> = () => T; 
@@ -149,9 +150,9 @@ export class AHKParser {
     }
 
     private delimitedList<T extends NodeBase | Token>(
-        delimiter: TokenType, isElementStartFn: IsStartFn, parseElementFn: ParseFn<T>, allowEmptyElement = false
+        start: Position, delimiter: TokenType, isElementStartFn: IsStartFn, parseElementFn: ParseFn<T>, allowEmptyElement = false
     ): DelimitedList<T> {
-        let list = new DelimitedList<T>();
+        let list = new DelimitedList<T>(start);
         while (true) {
             // v2 allow `,` on the end of line, 
             // so there will be EOL be element
@@ -174,8 +175,9 @@ export class AHKParser {
         return list;
     }
 
-    private expressionList(): DelimitedList<Expr.Expr> {
+    private expressionList(start: Position): DelimitedList<Expr.Expr> {
         return this.delimitedList(
+            start,
             TokenType.comma,
             this.isExpressionStart,
             () => this.expression()
@@ -464,7 +466,7 @@ export class AHKParser {
     private varDecl(): Decl.VarDecl {
         const scope = this.eat();
 
-        const assign = this.expressionList();
+        const assign = this.expressionList(this.currentToken.start);
 
         this.terminal();
 
@@ -541,7 +543,7 @@ export class AHKParser {
     }
 
     private propertyDeclaration(modifier: Token): Stmt.Stmt {
-        const expressions = this.expressionList();
+        const expressions = this.expressionList(this.currentToken.start);
         return new Decl.VarDecl(modifier, expressions);
     }
 
@@ -829,7 +831,7 @@ export class AHKParser {
         if (caseToken.type === TokenType.case) {
             // FIXME: record comma
             this.eatOptional(TokenType.comma);
-            const conditions = this.expressionList();
+            const conditions = this.expressionList(this.currentToken.start);
             const colon = this.eatType(TokenType.colon);
             const stmts = this.parseList(ParseContext.CaseStatementElements);
             return new Stmt.CaseStmt(
@@ -881,7 +883,7 @@ export class AHKParser {
             loopmode === 'reg') 
             this.setCommandScanMode(true);
 
-        const param = this.expressionList();
+        const param = this.expressionList(this.currentToken.start);
         if (this.atLineEnd()) this.advance();
         const body = this.declaration();
         return new Stmt.Loop(loop, body, param);
@@ -970,6 +972,7 @@ export class AHKParser {
         this.eat();
 
         const args = this.delimitedList(
+            this.currentToken.start,
             TokenType.comma,
             this.isExpressionStart,
             () => {
@@ -1048,7 +1051,7 @@ export class AHKParser {
     }
 
     private tailorExpr(delimiter: Token): Stmt.TrailerExprList {
-        const exprList = this.expressionList();
+        const exprList = this.expressionList(this.currentToken.start);
         return new Stmt.TrailerExprList(
             delimiter,
             exprList
@@ -1263,7 +1266,7 @@ export class AHKParser {
                 if (this.v2mode && this.matchTokenAfterParentGruop(TokenType.fatArrow))
                     return this.anonymousFunction();
                 const OPar = this.eat();
-                const mid = this.expressionList();
+                const mid = this.expressionList(this.currentToken.start);
                 const CPar = this.eatType(TokenType.closeParen);
                 return new Expr.ParenExpr(OPar, mid, CPar);
             case TokenType.number:
@@ -1312,8 +1315,9 @@ export class AHKParser {
         // if factor has a suffix
         if (dot) {
             const tailor = this.delimitedList(
+                this.currentToken.start,
                 TokenType.dot,
-                token => isValidIdentifier(token.type),
+                token => this.isVaildAtom(token),
                 () => this.suffixTerm(true)
             )
 
@@ -1355,6 +1359,21 @@ export class AHKParser {
         return trailers;
     }
 
+    private isVaildAtom(token: Token): boolean {
+        const t = token.type
+        switch (t) {
+            case TokenType.id:
+            case TokenType.number:
+            case TokenType.string:
+            case TokenType.precent:
+            case TokenType.openBracket:
+            case TokenType.openBrace:
+                return true;
+            default:
+                return isValidIdentifier(t);
+        }
+    }
+
     private atom(isTailor: boolean = false): Atom {
         switch (this.currentToken.type) {
             // TODO: All keywords is allowed in suffix.
@@ -1390,7 +1409,7 @@ export class AHKParser {
 
     private arrayTerm(): SuffixTerm.ArrayTerm {
         const open = this.eat();
-        const items = this.expressionList();
+        const items = this.expressionList(this.currentToken.start);
         const close = this.eatType(TokenType.closeBracket, true);
 
         return new SuffixTerm.ArrayTerm(open, close, items);
@@ -1399,6 +1418,7 @@ export class AHKParser {
     private associativeArray(): SuffixTerm.AssociativeArray {
         const open = this.eat();
         const pairs = this.delimitedList(
+            this.currentToken.start,
             TokenType.comma,
             this.isExpressionStart,
             () => this.pair()
@@ -1419,6 +1439,7 @@ export class AHKParser {
         const open = this.eat();
         // TODO: 想个更好的办法来处理空参数
         const args = this.delimitedList(
+            this.currentToken.start,
             TokenType.comma,
             this.isExpressionStart,
             () => this.expression(),
@@ -1475,7 +1496,7 @@ export class AHKParser {
         const parameter = this.parameters();
         const close = open ? this.eatType(TokenType.closeParen) : undefined;
         const fatArrow = this.eatType(TokenType.fatArrow);
-        const body = this.expressionList();
+        const body = this.expression();
         return new Expr.AnonymousFunctionCreation(open, parameter, close, fatArrow, body);
     }
 
@@ -1512,6 +1533,7 @@ export class AHKParser {
         const optionalParameters: Array<Decl.DefaultParameter|Decl.SpreadParameter> = [];
         let isDefaultParam = false;
         const allParameters = this.delimitedList(
+            this.currentToken.start,
             TokenType.comma,
             token => isValidIdentifier(token.type) || token.type === TokenType.and || token.type === TokenType.multi,
             () => {
@@ -1590,6 +1612,7 @@ export class AHKParser {
         const delimiter = this.eatOptional(TokenType.comma);
         
         const args = this.delimitedList(
+            this.currentToken.start,
             TokenType.comma,
             this.isExpressionStart,
             () => {

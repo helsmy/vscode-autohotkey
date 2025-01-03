@@ -331,7 +331,8 @@ suite('Syntax Parser Expresion Test', () => {
         expr.params.ParamaterList.getElements().forEach((p, i) => {
             assert.strictEqual(p.identifier.content, expect_param[i], 'Wrong parameter');
         });
-        assert.strictEqual(expr.body.getElements().length, 1, 'Wrong body');
+        
+        assert.strictEqual(expr.body.toString(), 'b + c + d', 'Wrong body');
     })
 });
 

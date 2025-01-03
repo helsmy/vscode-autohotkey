@@ -46,6 +46,8 @@ suite('Basic Token Test', () => {
 		let actualTokens = getalltoken('"123" "AHK是世界第一的热键语言"');
 		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, '"123"', Position.create(0, 0),Position.create(0, 5)));
 		assert.deepStrictEqual(actualTokens[1], new Token(TokenType.string, '"AHK是世界第一的热键语言"', Position.create(0, 6),Position.create(0, 21)));
+		actualTokens = getalltoken('"(?<=\\bide_key="").*?(?="")"')
+		assert.deepStrictEqual(actualTokens[0], new Token(TokenType.string, '"(?<=\\bide_key="").*?(?="")"', Position.create(0, 0),Position.create(0, 28)));
 	});
 
 	test('multistring', () => {

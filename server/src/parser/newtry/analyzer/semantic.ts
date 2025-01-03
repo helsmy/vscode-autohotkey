@@ -499,7 +499,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			return errors;
 		}
 
-		if (left instanceof SuffixTerm.PercentDereference) 
+		if (id1 instanceof SuffixTerm.PercentDereference) 
 			return errors;
 		errors.push(Diagnostic.create(
 			copyRange(left),
@@ -772,6 +772,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		}
 		return errors
 	}
+
+	/**
+	 * @todo 应该传个node进去，针对不同的语法节点给出不同的错误
+	 */
 	private checkDiagnosticForUnexpectedToken(token: Token): Maybe<Diagnostic> {
 		if (token instanceof MissingToken) 
 			return this.error(

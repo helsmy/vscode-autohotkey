@@ -38,6 +38,9 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
         return undefined;
     }
+    visitPropertyDeclaration(decl: Decl.PropertyDeclaration, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        throw new Error('Method not implemented.');
+    }
     visitDynamicProperty(decl: Decl.DynamicProperty, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
         
         if (decl.param && posInRange(decl.param, pos)) {
@@ -325,7 +328,7 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     
     private searchExpression(expr: Expr.Expr, pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
         if (expr instanceof Expr.Factor) {
-            return this.searchSuffixTerm(expr, expr.suffixTerm, pos, matchNodeType);
+            return this.searchFactor(expr, pos, matchNodeType);
         }
         else if (expr instanceof Expr.Unary) {
             let deepMatch: Maybe<IFindResult<NodeBase>>;
@@ -382,38 +385,24 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         }
     }
 
-    private searchSuffixTerm(factor: Expr.Factor, term: SuffixTerm.SuffixTerm, pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
-        if (posInRange(term, pos)) {
-            const atom = term.atom;
-            if (posInRange(atom, pos)) {
-                if (atom instanceof SuffixTerm.Invalid) return undefined;
-                if (atom instanceof SuffixTerm.ArrayTerm) 
-                    return this.searchDelimitedList(atom.items, pos, matchNodeType);
-                if (atom instanceof SuffixTerm.AssociativeArray)
-                    return this.searchDelimitedList(atom.pairs, pos, matchNodeType);
-                // others (Literal, PercentDereference, Identifier) do not need deep search
-                return matchNodeTypes(factor, matchNodeType) ? createResult(factor) : undefined;
-            }
-            return this.bracketsMatch(factor, term.brackets, pos, matchNodeType);
+    private searchFactor(factor: Expr.Factor, pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
+        const term = binarySearchRange(factor.suffixTerm.getElements(), pos);
+        if (!term) return matchNodeTypes(factor, matchNodeType) ? createResult(factor) : undefined;;
+        const atom = term.atom;
+        if (posInRange(atom, pos)) {
+            if (atom instanceof SuffixTerm.Invalid) return undefined;
+            if (atom instanceof SuffixTerm.ArrayTerm) 
+                return this.searchDelimitedList(atom.items, pos, matchNodeType);
+            if (atom instanceof SuffixTerm.AssociativeArray)
+                return this.searchDelimitedList(atom.pairs, pos, matchNodeType);
+            if (atom instanceof Expr.ParenExpr)
+                return this.searchExpression(atom, pos, matchNodeType);
+            if (atom instanceof SuffixTerm.PseudoArray)
+                
+            // others (Literal, PercentDereference, Identifier) do not need deep search
+            return matchNodeTypes(factor, matchNodeType) ? createResult(factor) : undefined;
         }
-
-        if (factor.trailer && posInRange(factor.trailer, pos)) {
-            const match = binarySearchRange(factor.trailer.suffixTerm.getElements(), pos);
-            if (match) {
-                return this.searchSuffixTerm(factor, match, pos, matchNodeType);
-            } 
-            // Temporary fixes on DelimitedList parsering
-            // 因为解析的时候会停止在 suffix 不能被继续解析的 delimiter 前
-            // check if `pos` is in the range of last delimiter
-            const termsList = factor.trailer.suffixTerm.childern;
-            // 如果 termList 的最后一项是 undefined 那么说明 termList 是个空列表
-            // 此时 最后一个 delimiter 是第一个 dot
-            const lastDelimiter = termsList[termsList.length - 1] ?? factor.trailer.dot;
-            if (lastDelimiter instanceof Token && posInRange(lastDelimiter, pos)) 
-                return matchNodeTypes(factor, matchNodeType) ? createResult(factor) : undefined;
-        }
-        return undefined;
-
+        return this.bracketsMatch(factor, term.brackets, pos, matchNodeType);
     }  
 
     private bracketsMatch(expr: Expr.Factor, brackets: SuffixTermTrailer[], pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {

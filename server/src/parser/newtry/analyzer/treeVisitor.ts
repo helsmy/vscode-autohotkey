@@ -7,6 +7,9 @@ import * as Decl from '../parser/models/declaration';
 export abstract class TreeVisitor<T> implements IStmtVisitor<() => T> {
 	constructor() {
 	}
+	visitPropertyDeclaration(decl: Decl.PropertyDeclaration): T {
+		throw new Error('Method not implemented.');
+	}
 	visitDynamicProperty(decl: Decl.DynamicProperty): T {
 		throw new Error('Method not implemented.');
 	}

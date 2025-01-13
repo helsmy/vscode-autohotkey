@@ -11,6 +11,8 @@ export type AHKBUiltinSymbol = AHKBuiltinObjectSymbol | AHKBuiltinMethodSymbol |
 export abstract class AHKSymbol implements ISymbol {
 	public readonly name: string;
 	public readonly type: Maybe<ISymType>;
+	public readonly parentScope?: IScope;
+	public readonly enclosingScope?: IScope;
 	constructor(name: string, type?: ISymType) {
 		this.name = name;
 		this.type = type;
@@ -53,6 +55,8 @@ export class VariableSymbol extends AHKSymbol {
 		public readonly range: Range,
 		public readonly tag: VarKind,
 		public readonly modifier: ModifierKind = ModifierKind.None,
+		public readonly parentScope?: IScope,
+		public readonly enclosingScope?: IScope,
 		type?: Maybe<ISymType>
 	) {
 		super(name, type);
@@ -78,9 +82,10 @@ export class ParameterSymbol extends VariableSymbol {
 		uri: string, name: string, range: Range, tag: VarKind,
 		public readonly isByref: boolean,
 		public readonly isSpread: boolean, 
+		enclosingScope?: IScope,
 		type?: ISymType
 	) {
-		super(uri, name, range, tag, ModifierKind.None, type)
+		super(uri, name, range, tag, ModifierKind.None, undefined, enclosingScope, type);
 	}
 }
 
@@ -142,10 +147,10 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScope {
 	public readonly dependcyScope: Set<IScope>;
 	public readonly uri: string;
 
-	constructor(uri:string, name: string, enclosingScoop?: IScope) {
+	constructor(uri:string, name: string, enclosingScope?: IScope) {
 		super(name);
 		this.uri = uri;
-		this.enclosingScope = enclosingScoop;
+		this.enclosingScope = enclosingScope;
 		this.dependcyScope = new Set();
 	}
 
@@ -160,8 +165,8 @@ export abstract class ScopedSymbol extends AHKSymbol implements IScope {
 		return this.enclosingScope?.resolve(searchName);
 	}
 
-	public addScope(scoop: IScope) {
-		this.dependcyScope.add(scoop);
+	public addScope(scope: IScope) {
+		this.dependcyScope.add(scope);
 	}
 
 	public allSymbols(): ISymbol[] {
@@ -181,9 +186,9 @@ export class AHKBuiltinMethodSymbol extends ScopedSymbol {
 		name: string,
 		public readonly requiredParameters: ParameterSymbol[],
 		public readonly optionalParameters: ParameterSymbol[],
-		enclosingScoop?: IScope
+		enclosingScope?: IScope
 	) {
-		super('__Builtin__', name, enclosingScoop);
+		super('__Builtin__', name, enclosingScope);
 		this.requiredParameters.forEach(v => this.define(v));
 		this.optionalParameters.forEach(v => this.define(v));
 	}
@@ -198,15 +203,15 @@ export class AHKBuiltinMethodSymbol extends ScopedSymbol {
 export class AHKBuiltinObjectSymbol extends ScopedSymbol implements ISymType {
 	/**
 	 * @param name Name of class symbol
-	 * @param parentScoop parent class
-	 * @param enclosingScoop parent scoop
+	 * @param parentScope parent class
+	 * @param enclosingScope parent scoop
 	 */
 	constructor(
 		name: string,
-		public readonly parentScoop: Maybe<AHKObjectSymbol>,
-		enclosingScoop?: IScope
+		public readonly parentScope: Maybe<AHKObjectSymbol>,
+		enclosingScope?: IScope
 	) {
-		super('__Builtin__', name, enclosingScoop);
+		super('__Builtin__', name, enclosingScope);
 	}
 
 	/**
@@ -217,7 +222,7 @@ export class AHKBuiltinObjectSymbol extends ScopedSymbol implements ISymType {
 		const searchName = name.toLocaleLowerCase();
 		if (this.symbols.has(searchName))
 			return this.symbols.get(searchName);
-		return this.parentScoop?.resolve(searchName);
+		return this.parentScope?.resolve(searchName);
 	}
 }
 

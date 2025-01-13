@@ -13,8 +13,8 @@ import { AHKParser } from './parser/newtry/parser/parser';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { URI } from 'vscode-uri';
-import { ClassDef, FuncDef, SpreadParameter } from './parser/newtry/parser/models/declaration';
-import { Factor } from './parser/newtry/parser/models/expr';
+import { ClassDef, FuncDef, PropertyDeclaration, SpreadParameter } from './parser/newtry/parser/models/declaration';
+import { Binary, Factor } from './parser/newtry/parser/models/expr';
 import { Identifier } from './parser/newtry/parser/models/suffixterm';
 import { AssignStmt } from './parser/newtry/parser/models/stmt';
 
@@ -87,8 +87,9 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 	const p = new AHKParser(docText, furi.toString(), true);
 	const ast = p.parse();
 	const fuctions = ast.script.stmts.map(f => {
-		const fdef = f as FuncDef
-		return convertStmt2MethodSymbol(fdef);
+		if (f instanceof FuncDef)
+			return convertStmt2MethodSymbol(f);
+		throw new Error('Need A function defination but got:\n' + JSON.stringify(f));
 	});
 	for (const m of fuctions) 
 		b.set(m.name.toLowerCase(), m);
@@ -114,16 +115,18 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 	const objects = ast2.script.stmts.filter(s => s instanceof ClassDef).map(o => {
 		const odef = new AHKObjectSymbol(fclassUri.toString(), o.name.content, fakeRange);
 		for (const stmt of o.body.stmts) {
-			if (stmt instanceof AssignStmt) {
-				const prop = stmt.left;
-				if (!(prop instanceof Factor && prop.suffixTerm.atom instanceof Identifier))
+			if (stmt instanceof PropertyDeclaration) {
+				const propElement = stmt.propertyElements.getElements()[0];
+				if (!(propElement instanceof Binary && propElement.left instanceof Factor))
 					continue;
+				const prop = propElement.left.suffixTerm.getElements()[0]
+				if (prop === undefined || !(prop.atom instanceof Identifier)) continue;
 				odef.define(new VariableSymbol(
 					fclassUri.toString(),
-					prop.suffixTerm.atom.token.content,
+					prop.atom.token.content,
 					fakeRange,
 					VarKind.property
-				))
+				));
 			}
 			if (stmt instanceof FuncDef) 
 				odef.define(convertStmt2MethodSymbol(stmt));

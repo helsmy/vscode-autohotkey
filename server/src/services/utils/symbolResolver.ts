@@ -8,38 +8,14 @@ import { builtin_command } from '../../utilities/builtins';
 import { CommandCall } from '../../parser/newtry/parser/models/stmt';
 
 export function resolveFactor(factor: Factor, postion: Position, table: IScope): Maybe<AHKSymbol[]> {
-    const first = factor.suffixTerm;
+    const first = factor.suffixTerm.getElements()[0];
     // TODO: Support fake base. eg "String".Method()
     if (!(first.atom instanceof Identifier))
         return undefined;
 
-    // If we are at the position of request position,
-    if (posInRange(first.atom, postion)) {
-        const symbol = table.resolve(first.atom.token.content);
-        if (symbol === undefined) return undefined;
-        // If symbol is property decleration in class body
-        // 如果是class内直接声明的属性，则将属性的所属class补充完整
-        if (symbol instanceof VariableSymbol && symbol.tag === VarKind.property) {
-            // Should not happen
-            if (!(table instanceof AHKObjectSymbol)) return undefined;
-    
-            const parents = resolveSubclass(table);
-            return parents.concat(symbol);
-        }
-
-        return [symbol];
-    }
-        
-    // this is our first candidate for resolve rest symbol
-    const scope = resolveRelative(first.atom.token.content, table);
-    if (scope === undefined) return undefined;
-
-    let symbols: AHKSymbol[] = [scope];
-    if (factor.trailer === undefined) return symbols;
-    if (!(scope instanceof AHKObjectSymbol)) return undefined;
-
-    const elements = factor.trailer.suffixTerm.getElements();
-    let currentScope = scope;
+    const elements = factor.suffixTerm.getElements();
+    let currentScope = table;
+    let symbols: AHKSymbol[] = [];
     for (let i = 0; i < elements.length; i += 1) {
         const suffix = elements[i];
         const isInRange = posInRange(suffix, postion);
@@ -49,7 +25,7 @@ export function resolveFactor(factor: Factor, postion: Position, table: IScope):
         if (suffix.brackets.length !== 0 && i < elements.length - 1 && !isInRange) return undefined;
         if (!(suffix.atom instanceof Identifier)) return undefined;
         const name = suffix.atom.token.content;
-        const symbol = suffix.brackets.length === 0 ?
+        const symbol = (suffix.brackets.length === 0 && currentScope instanceof AHKObjectSymbol) ?
                        currentScope.resolveProp(name) :
                        currentScope.resolve(name);
         if (symbol === undefined) return undefined;

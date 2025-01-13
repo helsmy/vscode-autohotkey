@@ -1,5 +1,5 @@
 import { Position, Range } from 'vscode-languageserver';
-import { IExpr, IStmt, IStmtVisitor, SyntaxKind } from '../../types';
+import { IExpr, IParseError, IStmt, IStmtVisitor, SyntaxKind } from '../../types';
 import { NodeBase } from './nodeBase';
 import * as Expr from './expr'
 import { joinLines } from '../utils/stringUtils';
@@ -36,7 +36,8 @@ export class Invalid extends Stmt {
 	 */
 	constructor(
 		public readonly pos: Position,
-		public readonly tokens: Token[]
+		public readonly tokens: Token[],
+		public readonly error?: IParseError
 	) {
 		super();
 	}

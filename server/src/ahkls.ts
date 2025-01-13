@@ -499,8 +499,10 @@ export class AHKLS
         if (!(found.nodeResult instanceof Expr.Factor)) return undefined;
 
         const node = found.nodeResult
+        if (node.termCount === 0) return undefined;
+
         // if we are in atom do scoped symbol completion
-        if (posInRange(node.suffixTerm.atom, position)) {
+        if (posInRange(node.suffixTerm.getElements()[0], position)) {
             return this.getSymbolCompletion(docinfo.syntax.table, scope);
         }
 
@@ -627,26 +629,13 @@ export class AHKLS
      * @param pos postion of the request
      */
     private getSuffixCompletion(node: Expr.Factor, scope: IScope, pos: Position): Maybe<CompletionItem[]> {
-        const suffix = node.trailer;
-        if (suffix === undefined) 
+        if (node.termCount === 0) 
             return undefined;
 
-        let allTerms = [];
-        for (const item of suffix.suffixTerm.getElements()) {
-            if (posInRange(item, pos) || rangeBefore(item, pos)) 
-                allTerms.push(item);
-        }
-
-        let nextScope = this.resolveSuffixTermSymbol(node.suffixTerm, scope);
-        if (nextScope instanceof VariableSymbol) {
-            const varType = nextScope.getType();
-            // not a instance of class
-            if (varType.length === 0) return undefined;
-            nextScope = searchPerfixSymbol(varType, scope);
-        }
-        if (!(nextScope && nextScope instanceof AHKObjectSymbol)) return undefined;
+        let allTerms = node.suffixTerm.getElements().filter(item => posInRange(item, pos) || rangeBefore(item, pos));
+        let nextScope = scope;
         for (const lexem of allTerms) {
-            const currentScope = this.resolveSuffixTermSymbol(lexem, nextScope as AHKObjectSymbol, true);
+            const currentScope = this.resolveSuffixTermSymbol(lexem, nextScope);
             // if (currentScope === undefined) return undefined;
             if (currentScope && currentScope instanceof AHKObjectSymbol) {
                 nextScope = currentScope
@@ -655,7 +644,7 @@ export class AHKLS
                 const varType = currentScope.getType();
                 // not a instance of class
                 if (varType.length === 0) return undefined;
-                const referenceScope = searchPerfixSymbol(varType, nextScope as AHKObjectSymbol);
+                const referenceScope = searchPerfixSymbol(varType, nextScope);
                 if (referenceScope === undefined) return undefined;
                 nextScope = referenceScope
             }
@@ -673,7 +662,7 @@ export class AHKLS
      * @param scope current type symbol
      * @param alwaysResolveProp does always take scope as class 
      */
-    private resolveSuffixTermSymbol(suffix: SuffixTerm, scope: IScope, alwaysResolveProp?: boolean): Maybe<ISymbol> {
+    private resolveSuffixTermSymbol(suffix: SuffixTerm, scope: IScope): Maybe<ISymbol> {
         const { atom, brackets } = suffix;
 
         // TODO: no type casting on function call for now
@@ -684,29 +673,26 @@ export class AHKLS
         if (atom instanceof Identifier) {
             // factor的第一个符号的类型需要从当前作用域找到
             // 之后的符号的都是类的属性需要用resolveProp
-            const sym = alwaysResolveProp ? 
+            const sym = scope instanceof AHKObjectSymbol ? 
                         // 懒得写根据参数的类型了就类型断言解决了
-                        (<AHKObjectSymbol>scope).resolveProp(atom.token.content):
+                        scope.resolveProp(atom.token.content):
                         scope.resolve(atom.token.content);
             // no more index need to be resolve here
             if (brackets.length === 0) return sym;
             if (!(sym instanceof AHKObjectSymbol)) return undefined
             // resolve rest index
-            let nextScope = sym;
-            for (const bracket of brackets) {
-                // FIXME: indexs may be empty string
-                const { items } = (<ArrayTerm>bracket);
-                // no type casting on complex indexing
-                if (items.length !== 1) return undefined;
-                const first = items.childern[0]
-                if (first instanceof Expr.Factor && first.suffixTerm.atom instanceof Literal) {
-                    const current = nextScope.resolveProp(first.suffixTerm.atom.token.content);
-                    if (!(current instanceof AHKObjectSymbol)) return undefined;
-                    nextScope = current;
-                    continue;
-                }
-                
-            }
+            const bracket = brackets[0];
+            // no type casting on complex indexing
+            // string index property type finding
+            // case: object["property"]
+            const { items } = (<ArrayTerm>bracket);
+            const firstIndex = items.getElements()[0]
+            if (!(firstIndex instanceof Expr.Factor)) return undefined;
+            if (firstIndex.termCount !== 1) return undefined;
+            const firstFactor = firstIndex.suffixTerm.getElements()[0]
+            // Only try first string of number
+            if (!(firstFactor instanceof Literal)) return undefined;
+            return sym.resolveProp(firstFactor.token.content)
         }
         // 不管动态特性
         if (atom instanceof PercentDereference) return undefined;
@@ -927,30 +913,30 @@ export class AHKLS
      * @param pos    given position
      * @returns list of class(function) name
      */
-    private getAllName(factor: Expr.Factor, pos: Position): string[] {
-        let names: string[] = []
-        // TODO: Support fake base. eg "String".Method()
-        if (!(factor.suffixTerm.atom instanceof Identifier))
-            return names;
-        names.push(factor.suffixTerm.atom.token.content);
-        if (factor.trailer === undefined) return names;
-        if (posInRange(factor.suffixTerm.atom, pos)) return names;
-        const elements = factor.trailer.suffixTerm.getElements();
-        for (let i = 0; i < elements.length; i += 1) {
-            const suffix = elements[i];
-            const isInRange = posInRange(suffix, pos)
-            // TODO: 复杂的索引查找，估计不会搞这个，
-            // 动态语言的类型推断不会，必不可能搞
-            // 条件：任何的一种括号，并且这个括号不是最后一个，以防是在请求括号前的所有标识符
-            if (suffix.brackets && i < elements.length - 1 && !isInRange) return [];
-            if (!(suffix.atom instanceof Identifier)) return [];
-            names.push(suffix.atom.token.content);
-            // If we are at the position of request position,
-            // rest name is needless.
-            if (isInRange) return names;
-        }
-        return names;
-    }
+    // private getAllName(factor: Expr.Factor, pos: Position): string[] {
+    //     let names: string[] = []
+    //     // TODO: Support fake base. eg "String".Method()
+    //     if (!(factor.suffixTerm.atom instanceof Identifier))
+    //         return names;
+    //     names.push(factor.suffixTerm.atom.token.content);
+    //     if (factor.trailer === undefined) return names;
+    //     if (posInRange(factor.suffixTerm.atom, pos)) return names;
+    //     const elements = factor.trailer.suffixTerm.getElements();
+    //     for (let i = 0; i < elements.length; i += 1) {
+    //         const suffix = elements[i];
+    //         const isInRange = posInRange(suffix, pos)
+    //         // TODO: 复杂的索引查找，估计不会搞这个，
+    //         // 动态语言的类型推断不会，必不可能搞
+    //         // 条件：任何的一种括号，并且这个括号不是最后一个，以防是在请求括号前的所有标识符
+    //         if (suffix.brackets && i < elements.length - 1 && !isInRange) return [];
+    //         if (!(suffix.atom instanceof Identifier)) return [];
+    //         names.push(suffix.atom.token.content);
+    //         // If we are at the position of request position,
+    //         // rest name is needless.
+    //         if (isInRange) return names;
+    //     }
+    //     return names;
+    // }
 
     private findCommandSignature(name: string, index: Maybe<number>): Maybe<SignatureHelp> {
         const bfind = this.builtinCommand.filter(item => item.name.toLowerCase() === name.toLowerCase());
@@ -976,7 +962,7 @@ export class AHKLS
                 if (i === 0) {
                     actualParams.push(Range.create(
                         node instanceof Call ?
-                            node.open.end:
+                            node.open?.end ?? node.start:
                             node.command.end,
                         arg.start
                     ));
@@ -992,7 +978,7 @@ export class AHKLS
                     actualParams.push(Range.create(
                         arg.end, 
                         node instanceof Call ?
-                            node.close.start :
+                            node.close?.start ?? node.end :
                             node.end
                     ));
                 } 

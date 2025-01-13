@@ -11,7 +11,7 @@ export function symbolInformations(symbols: Map<string, AHKSymbol>, uri: string)
 				continue;
 			info.push(SymbolInformation.create(
 				sym.name,
-				SymbolKind.Variable,
+				sym.tag === VarKind.variable ? SymbolKind.Variable : SymbolKind.Property,
 				sym.range,
 				uri
 			));

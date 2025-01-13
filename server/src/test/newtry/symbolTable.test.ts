@@ -32,7 +32,7 @@ function builtTable(AST: IStmt[]): SymbolTable {
                 symType = table.resolve('number');
             }
             if (symType === undefined) continue;
-            const latom = stmt.left.suffixTerm.atom;
+            const latom = stmt.left.suffixTerm;
             if (latom instanceof Identifier) {
                 const sym = new VariableSymbol(
                     '',
@@ -49,7 +49,7 @@ function builtTable(AST: IStmt[]): SymbolTable {
 
 function unpackExpr(expr: IExpr): Maybe<Token> {
     if (expr instanceof Factor) {
-        const atom = expr.suffixTerm.atom
+        const atom = expr.suffixTerm
         if (atom instanceof Literal) {
             return atom.token;
         }

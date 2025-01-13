@@ -156,7 +156,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				copyRange(param),
 				VarKind.parameter,
 				param.byref !== undefined,
-				param instanceof Decl.SpreadParameter
+				param instanceof Decl.SpreadParameter,
+				this.currentScope
 			));
 		}
 		return syms;
@@ -178,6 +179,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		this.enterScoop(objTable);
 		errors.push(... decl.body.accept(this, []));
 		this.leaveScoop();
+		return errors;
+	}
+
+	public visitPropertyDeclaration(decl: Decl.PropertyDeclaration): Diagnostics {
+		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
+		for (const e of decl.propertyElements.getElements()) {
+			this.processExpr(e);
+		}
 		return errors;
 	}
 
@@ -264,7 +273,14 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitStmtInvalid(stmt: Stmt.Invalid): Diagnostics {
-		return stmt.tokens.flatMap(token => this.checkDiagnosticForUnexpectedToken(token) ?? []);
+		if (!stmt.error)
+			return stmt.tokens.flatMap(token => this.checkDiagnosticForUnexpectedToken(token) ?? []);
+		const error: Diagnostic = {
+			range: copyRange(stmt.error),
+			message: stmt.error.message,
+			severity: DiagnosticSeverity.Error
+		};
+		return [error];
 	}
 
 	public visitDirective(stmt: Stmt.Directive): Diagnostics {
@@ -320,33 +336,9 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	private processExpr(expr: Expr.Expr): Diagnostics {
 		const errors = this.checkDiagnosticForNode(expr);
 		if (expr instanceof Expr.Factor) {
-			if (!expr.trailer) {
-				const atom = expr.suffixTerm.atom;
-				if (atom instanceof SuffixTerm.Identifier && 
-					expr.suffixTerm.brackets.length === 0) {
-					// Only check variable defination in first scanning
-					const idName = atom.token.content;
-					if (!this.currentScope.resolve(idName)) { 
-						errors.push(this.error(
-							copyRange(atom),
-							`Variable "${idName}" is used before defination`,
-							DiagnosticSeverity.Warning
-						));
-					}
-				}
-				for (const bracket of expr.suffixTerm.brackets) {
-					errors.push(...this.checkDiagnosticForNode(bracket))
-					if (bracket instanceof SuffixTerm.Call) 
-						bracket.args.getElements().forEach(
-							arg => errors.push(...this.processExpr(arg))
-						);
-					else 
-						bracket.items.getElements().forEach(
-							index => errors.push(...this.processExpr(index))
-						);
-				}
-			}
-			// TODO: Call and backet identifer check
+			const atom = expr.suffixTerm;
+			for (const term of atom.getElements())
+				errors.push(...this.processSuffixTerm(term))
 		}
 		else if (expr instanceof Expr.Unary) {
 			errors.push(...this.processExpr(expr.factor));
@@ -390,66 +382,69 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const isNewClass = expr instanceof Expr.Unary && 
 						   expr.operator.type === TokenType.new &&
 						   expr.factor instanceof Expr.Factor &&
-						   expr.factor.suffixTerm.atom instanceof SuffixTerm.Identifier;
+						   expr.factor.termCount >= 1;
 		// v2 syntax python like and `FileOpen()` in v1
 		// Case: `f := FileOpen()`
 		//        typeof(f) -> File 
 		// FIXME: Now only works on `FileOpen()`
-		if (expr instanceof Expr.Factor) {
-			const brackets = expr.suffixTerm.brackets;
-			const atom = expr.suffixTerm.atom;
+		if (expr instanceof Expr.Factor && expr.termCount === 1) {
+			const firstTerm = expr.suffixTerm.getElements()[0];
+			const brackets = firstTerm.brackets;
+			const atom = firstTerm.atom;
 			if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
 			if (brackets.length > 1) return undefined;
 			const trailer = brackets[0];
-			if (trailer instanceof SuffixTerm.Call && !expr.trailer)
+			if (trailer instanceof SuffixTerm.Call)
 				return atom.token.content.toLowerCase() === 'fileopen' ? ['File'] : undefined;
 		}
 		if (!isNewClass) return undefined;
 		
 		let objectNames: string[] = [];
-		const brackets = expr.factor.suffixTerm.brackets;
-		const atom = expr.factor.suffixTerm.atom;
+		const factor = expr.factor;
+		const terms = factor.suffixTerm.getElements();
+		for (const term of terms.slice(0, -1)) {
+			const atom = term.atom;
+			if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
+			if (term.brackets.length > 0) return undefined;
+			objectNames.push(atom.token.content);
+		}
+
 		// does not check calling more than one
 		// Too complex for this simple type checker
-		if (brackets.length > 1) return undefined;
+		const lastTerm = terms[terms.length - 1];
+		if (!(lastTerm.atom instanceof SuffixTerm.Identifier)) return undefined;
+		const brackets = lastTerm.brackets;
 		//  Case 1: `new Object()`
 		if (brackets.length === 1) {
 			const trailer = brackets[0]
-			if (trailer instanceof SuffixTerm.Call && !expr.factor.trailer)
-				return [atom.token.content];
+			if (trailer instanceof SuffixTerm.Call)
+				return objectNames.concat(lastTerm.atom.token.content);
 			return undefined;
 		}
 		// Case 2: `new Object`
-		if (brackets.length === 0) return [atom.token.content];
-		if (expr.factor.trailer) {
-			objectNames.push(atom.token.content);
-			for (const trailer of expr.factor.trailer.suffixTerm.getElements()) {
-				const atom = trailer.atom;
-				if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
-				if (trailer.brackets.length > 1) return undefined;
-				if (trailer.brackets.length === 1) {
-					const atomTrailer = trailer.brackets[0];
-					if (atomTrailer instanceof SuffixTerm.Call && !expr.factor.trailer)
-						return objectNames.concat(atom.token.content);
-					return undefined;
-				}
-				objectNames.push(atom.token.content);
-			}
-			return objectNames;
-		}
+		if (brackets.length === 0) 
+			return objectNames.concat(lastTerm.atom.token.content);
+		return objectNames;
 	}
 
 	private processAssignVar(left: Expr.Factor, fullRange: Range, varType: Maybe<string[]>): Diagnostics {
 		const errors = this.checkDiagnosticForNode(left);
-		const id1 = left.suffixTerm.atom;
-		if (id1 instanceof SuffixTerm.Identifier) {
-			// if only variable 标识符只有一个
-			// 就是变量赋值定义这个变量
-			if (left.trailer === undefined) {
-				const idName = id1.token.content;
+
+		switch (left.termCount) {
+			// Assign to variable
+			// case: variable := value
+			case 1:{
+				const firstTerm = left.suffixTerm.getElements()[0];
+				if (!(firstTerm.atom instanceof SuffixTerm.Identifier))
+					return errors;
+				// if only variable 标识符只有一个
+				// 就是变量赋值定义这个变量
+				if (firstTerm.brackets.length !== 0) 
+					return errors;
+				const idName = firstTerm.atom.token.content;
 				if (!this.currentScope.resolve(idName)) {
 					const kind = this.currentScope instanceof AHKObjectSymbol ?
-								 VarKind.property : VarKind.variable;
+								VarKind.property : VarKind.variable;
 					const sym = new VariableSymbol(
 						this.script.uri,
 						idName,
@@ -462,49 +457,42 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				}
 				return errors;
 			}
-			
-			const trailer = left.trailer.suffixTerm.getElements();
-			trailer.forEach(t => errors.push(...this.processSuffixTerm(t)))
-			// check if assign to a property
-			if (id1.token.content === 'this') {
+			// Assign to property
+			// case: this.property := value
+			case 2:{
+				const firstTerm = left.suffixTerm.getElements()[0];
+				if (!(firstTerm.atom instanceof SuffixTerm.Identifier))
+					return errors;
+				if (firstTerm.brackets.length !== 0) 
+					return errors;
+				if (firstTerm.atom.token.content.toLowerCase() !== 'this')
+					return errors;
 				if (!(this.currentScope instanceof AHKMethodSymbol &&
-					  this.currentScope.parentScope instanceof AHKObjectSymbol)) {
+					this.currentScope.parentScope instanceof AHKObjectSymbol)) {
 					errors.push(Diagnostic.create(
 						copyRange(left),
 						'Assign a property out of class'
 					));
 					return errors;
 				}
-				// if only one property behind this
-				// 就一个属性的时候, 是给这个属性赋值
-				
-				if (trailer.length === 1) {
-					const prop = trailer[0];
-					if (prop.atom instanceof SuffixTerm.Identifier) {
-						if (!this.currentScope.parentScope.resolve(prop.atom.token.content)) {
-							const sym = new VariableSymbol(
-								this.script.uri,
-								prop.atom.token.content,
-								copyRange(fullRange),
-								VarKind.property,
-								undefined
-							);
-							if (varType) sym.setType(varType);
-							this.currentScope.parentScope.define(sym);
-						}
-					}
+				const propertyTerm = left.suffixTerm.getElements()[1];
+				if (!(propertyTerm.atom instanceof SuffixTerm.Identifier))
 					return errors;
-				}
+				if (propertyTerm.brackets.length !== 0) 
+					return errors;
+				if (this.currentScope.parentScope.resolve(propertyTerm.atom.token.content)) 
+					return errors;
+				const sym = new VariableSymbol(
+					this.script.uri,
+					propertyTerm.atom.token.content,
+					copyRange(fullRange),
+					VarKind.property,
+					undefined
+				);
+				if (varType) sym.setType(varType);
+				this.currentScope.parentScope.define(sym);
 			}
-			return errors;
 		}
-
-		if (id1 instanceof SuffixTerm.PercentDereference) 
-			return errors;
-		errors.push(Diagnostic.create(
-			copyRange(left),
-			'The left-hand side of an assignment expression must be a variable or a property access.'
-		))
 		return errors;
 	}
 
@@ -529,19 +517,31 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				errors.push(...this.processExpr(pair.value));
 			}
 		}
-
-		// trailers
-		for (const trailer of term.brackets) {
-			errors.push(...this.checkDiagnosticForNode(trailer));
-			if (trailer instanceof SuffixTerm.Call) 
-				trailer.args.getElements().forEach(
-					arg => errors.push(...this.processExpr(arg))
-				);
-			else 
-				trailer.items.getElements().forEach(
-					index => errors.push(...this.processExpr(index))
-				);
+		else if (atom instanceof SuffixTerm.Call) {
+			for (const arg of atom.args.getElements()) {
+				errors.push(...this.processExpr(arg));
+			}
 		}
+		else if (atom instanceof SuffixTerm.Identifier || atom instanceof SuffixTerm.PercentDereference || atom instanceof SuffixTerm.PseudoArray) {
+			const idName = atom instanceof SuffixTerm.Identifier ? atom.token : atom.dereferencable;
+			if (!this.currentScope.resolve(idName.content)) { 
+				errors.push(this.error(
+					copyRange(atom),
+					`Variable "${idName}" is used before defination`,
+					DiagnosticSeverity.Warning
+				));
+			}
+		}
+		else if (atom instanceof Expr.ParenExpr) {
+			if (atom.expr instanceof Expr.Expr)
+				errors.push(...this.processExpr(atom.expr))
+			else
+				for (const e of atom.expr.getElements())
+					errors.push(...this.processExpr(e))
+		}
+		else 
+			atom;
+
 		return errors;
 	}
 
@@ -639,8 +639,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitFor(stmt: Stmt.ForStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		const id1 = stmt.iter1id.suffixTerm;
-		const id2 = stmt.iter2id?.suffixTerm;
+		const id1 = stmt.iter1id.suffixTerm.getElements()[0];
+		const id2 = stmt.iter2id?.suffixTerm.getElements()[0];
 		errors.push(...this.visitIterId(id1, stmt));
 		if (id2) 
 			errors.push(...this.visitIterId(id2, stmt));
@@ -730,8 +730,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			if (assign instanceof Expr.Binary && 
 				assign.operator.type === TokenType.aassign &&
 				assign.left instanceof Expr.Factor &&
-				assign.left.suffixTerm.atom instanceof SuffixTerm.Identifier) {
-				const id = assign.left.suffixTerm.atom.token;
+				assign.left.suffixTerm instanceof SuffixTerm.Identifier) {
+				const id = assign.left.suffixTerm.token;
 				const sym = new VariableSymbol(
 					this.script.uri,
 					id.content,
@@ -745,8 +745,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			// If a variable is decleared
 			// `static` variable
 			if (assign instanceof Expr.Factor && 
-				assign.suffixTerm.atom instanceof SuffixTerm.Identifier) {
-				const id = assign.suffixTerm.atom.token;
+				assign.suffixTerm instanceof SuffixTerm.Identifier) {
+				const id = assign.suffixTerm.token;
 				if (!this.currentScope.resolve(id.content)) {
 					const sym = new VariableSymbol(
 						this.script.uri,

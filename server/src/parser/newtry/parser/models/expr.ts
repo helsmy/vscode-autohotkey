@@ -2,6 +2,7 @@ import { type } from 'os';
 import { Position, Range } from 'vscode-languageserver';
 import { TokenType } from '../../tokenizor/tokenTypes';
 import {
+    Atom,
     IExpr,
     SyntaxKind,
 } from '../../types';
@@ -11,6 +12,7 @@ import * as SuffixTerm from './suffixterm';
 import { Token } from '../../tokenizor/types';
 import { Param } from './declaration';
 import { AHKMethodSymbol } from '../../analyzer/models/symbol';
+import { ParseError } from './parseError';
 
 export type ExpersionList = DelimitedList<Expr>;
 
@@ -37,7 +39,8 @@ export class Invalid extends Expr {
      */
     constructor(
         public readonly pos: Position,
-        public readonly tokens: Token[]
+        public readonly tokens: Token[],
+        public readonly error: ParseError
     ) {
         super();
     }
@@ -236,12 +239,10 @@ export class ParenExpr extends Expr {
 export class Factor extends Expr {
     /**
      * Factor constructor
-     * @param suffixTerm base suffix term
-     * @param trailer optional suffix trailer. (`.` atom)+
+     * @param suffixTerm  suffix terms
      */
     constructor(
-        public readonly suffixTerm: SuffixTerm.SuffixTerm,
-        public readonly trailer?: SuffixTerm.SuffixTrailer,
+        public readonly suffixTerm: DelimitedList<SuffixTerm.SuffixTerm>
     ) {
         super();
     }
@@ -251,15 +252,11 @@ export class Factor extends Expr {
     }
 
     public get end(): Position {
-        return this.trailer === undefined ? this.suffixTerm.end : this.trailer.end;
+        return this.suffixTerm.end;
     }
 
     public get ranges(): Range[] {
-        if (!(this.trailer === undefined)) {
-            return [this.suffixTerm, this.trailer];
-        }
-
-        return [this.suffixTerm];
+        return [...this.suffixTerm.ranges];
     }
 
     /**
@@ -267,71 +264,93 @@ export class Factor extends Expr {
      * Including the first term
      */
     public get termCount(): number {
-        if (this.trailer)
-            return 1 + this.trailer.suffixTerm.length;
-        return 1;
+        return this.suffixTerm.getElements().length;
     }
 
     public toLines(): string[] {
-        const suffixTermLines = this.suffixTerm.toLines();
-
-        if (!(this.trailer === undefined)) {
-            const trailerLines = this.trailer.toLines();
-            return [...suffixTermLines,...trailerLines];
-        }
-
-        return suffixTermLines;
+        return this.suffixTerm.toLines();
     }
 }
 
-export class MemberAccessExpression extends Expr {
+// export class MemberAccessExpression extends Expr {
 
-    constructor(
-        public readonly dereferencableExpression: Expr,
-        public readonly dot: Token,
-        public readonly memberName: Token
-    ) {
-        super();
-    }
+//     constructor(
+//         public readonly dereferencableExpression: Expr,
+//         public readonly dot: Token,
+//         public readonly memberName: Token
+//     ) {
+//         super();
+//     }
 
-    public get ranges(): Range[] {
-        return [this.dereferencableExpression, this.dot, this.memberName];
-    }
-    public toLines(): string[] {
-        throw new Error('Method not implemented.');
-    }
-    public get start(): Position {
-        return this.dereferencableExpression.start;
-    }
-    public get end(): Position {
-        return this.memberName.end;
-    }
-}
+//     public get ranges(): Range[] {
+//         return [...this.dereferencableExpression.ranges, this.dot, this.memberName];
+//     }
+//     public toLines(): string[] {
+//         throw new Error('Method not implemented.');
+//     }
+//     public get start(): Position {
+//         return this.dereferencableExpression.start;
+//     }
+//     public get end(): Position {
+//         return this.memberName.end;
+//     }
+// }
 
-export class SubscriptExpression extends Expr {
+// export class SubscriptExpression extends Expr {
+//     /**
+//      * 
+//      * @param dereferencableExpression 
+//      * @param open `[`
+//      * @param indexName  subscript key etc.
+//      * @param close `]`
+//      */
+//     constructor(
+//         public readonly dereferencableExpression: Expr,
+//         public readonly open: Token,
+//         public readonly indexName: Expr,
+//         public readonly close: Token
+//     ) {
+//         super();
+//     }
 
-    constructor(
-        public readonly dereferencableExpression: Expr,
-        public readonly open: Token,
-        public readonly indexName: Token,
-        public readonly close: Token
-    ) {
-        super();
-    }
+//     public get ranges(): Range[] {
+//         return [...this.dereferencableExpression.ranges, this.open, ...this.indexName.ranges, this.close];
+//     }
+//     public toLines(): string[] {
+//         throw new Error('Method not implemented.');
+//     }
+//     public get start(): Position {
+//         return this.dereferencableExpression.start;
+//     }
+//     public get end(): Position {
+//         return this.close.end;
+//     }
+// }
 
-    public get ranges(): Range[] {
-        return [this.dereferencableExpression, this.open, this.indexName, this.close];
-    }
-    public toLines(): string[] {
-        throw new Error('Method not implemented.');
-    }
-    public get start(): Position {
-        return this.dereferencableExpression.start;
-    }
-    public get end(): Position {
-        return this.close.end;
-    }
-}
+// /**
+//  * Autohotkey function/method call
+//  */
+// export class CallExpression extends Expr {
+//     constructor(
+//         public readonly callee: Expr,
+//         public readonly args: SuffixTerm.Call
+//     ) {
+//         super();
+//     }
+//     public get ranges(): Range[] {
+//         return [this.callee, this.args];
+//     }
+//     public toLines(): string[] {
+//         return [...this.callee.toLines(), ...this.args.toLines()]
+//     }
+//     public get start(): Position {
+//         return this.callee.start;
+//     }
+//     public get end(): Position {
+//         throw this.args.end;
+//     }
+    
+// }
 
 /**
  * Fat arrow function creation

@@ -161,7 +161,8 @@ export function convertFactorHover(node: Factor, position: Position, scope: ISco
         return convertSymbolsHover(symbols, range);
     // if is v2 python like class new
     // case: some_instance_prop := class1().prop1
-    if (node.suffixTerm.brackets.length && node.suffixTerm.brackets[0] instanceof Call) {
+    const firstTerm = node.suffixTerm.getElements()[0];
+    if (firstTerm.brackets.length && firstTerm.brackets[0] instanceof Call) {
         const constructor = lastSymbol.resolveProp('__new');
         if (constructor && isMethodObject(constructor)) 
             return convertSymbolsHover(

@@ -14,7 +14,7 @@ suite('Should do hover', () => {
 	});
 
 	test('Find global class hover', async () => {
-		await testHover(docUri, To0BasedPostion(9, 3), 
+		await testHover(docUri, To0BasedPostion(15, 35), 
 			new vscode.Hover(
 				AHKMarkdownString('(class) TestClass')
 			)

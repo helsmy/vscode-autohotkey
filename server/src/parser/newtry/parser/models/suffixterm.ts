@@ -8,7 +8,7 @@ import {
     SyntaxKind
 } from '../../types';
 import { DelimitedList } from './delimtiedList';
-import { Expr } from './expr';
+import { Expr, Factor } from './expr';
 import { NodeBase } from './nodeBase';
 import { Token } from '../../tokenizor/types';
 import { joinNodeTokenLines } from '../../formatter/joinNodeTokenLines';
@@ -136,6 +136,7 @@ export class SuffixTerm extends SuffixTermBase {
  * Class containing all valid call suffixterm trailers
  */
 export class Call extends SuffixTermBase {
+    private readonly atomIndex: number;
     /**
      * Constructor for the suffix term trailers
      * @param open open paren of the call
@@ -143,30 +144,43 @@ export class Call extends SuffixTermBase {
      * @param close close paren of the call
      */
     constructor(
-        public readonly open: Token,
+        public readonly open: Maybe<Token>,
         public readonly args: DelimitedList<Expr>,
-        public readonly close: Token,
+        public readonly close: Maybe<Token>,
+        private readonly parent: Factor,
     ) {
         super();
+        this.atomIndex = parent.termCount;
     }
 
     public get start(): Position {
-        return this.open.start;
+        return this.open?.start ?? this.args.start;
     }
 
     public get end(): Position {
-        return this.close.end;
+        return this.close?.end ?? this.args.end;
     }
 
     public get ranges(): Range[] {
-        return [this.open, ...this.args.ranges, this.close];
+        if (this.open && this.close)
+            return [this.open, ...this.args.ranges, this.close];
+        return [...this.args.ranges];
+    }
+
+    public get callInfo(): Array<SuffixTerm> {
+        return this.parent.suffixTerm.getElements().slice(0, this.atomIndex+1);
     }
 
     public toLines(): string[] {
         const res = this.args.toLines();
-        if (res.length === 0)
-            return joinNodeTokenLines(this.open, this.close);
-        return joinNodeTokenLines(this.open, this.args, this.close);
+        if (res.length === 0) {
+            if (this.open && this.close)
+                return joinNodeTokenLines(this.open, this.close);
+            return [];
+        }
+        if (this.open && this.close)
+            return joinNodeTokenLines(this.open, this.args, this.close);
+        return res;
     }
 }
 
@@ -178,12 +192,12 @@ export class PercentDereference extends SuffixTermBase {
      * Constructor of percent dereference
      * @param open Start precent
      * @param close End precent
-     * @param referValue The value to be derefer
+     * @param dereferencable The value to be derefer
      */
     constructor(
         public readonly open: Token,
         public readonly close: Token,
-        public readonly referValue: Token
+        public readonly dereferencable: Token
         ) {
         super();
     }
@@ -197,13 +211,13 @@ export class PercentDereference extends SuffixTermBase {
     }
 
     public get ranges(): Range[] {
-        return [this.open, this.referValue, this.close];
+        return [this.open, this.dereferencable, this.close];
     }
 
     public toLines(): string[] {
-        let v = this.referValue.type === TokenType.string ?
-                '"' + this.referValue.content + '"' :
-                this.referValue.content;
+        let v = this.dereferencable.type === TokenType.string ?
+                '"' + this.dereferencable.content + '"' :
+                this.dereferencable.content;
         return [this.open.content+v+this.close.content];
     }
 }
@@ -275,6 +289,42 @@ export class ArrayTerm extends SuffixTermBase {
         itemLines[0] = this.open.content + itemLines[0];
         itemLines[itemLines.length-1] += this.close.content;
         return itemLines;
+    }
+}
+
+/**
+ * Pseudo-Array
+ * example:
+ * ```autohotkey
+ * MyArray1 := "A"
+ * MyArray2 := "B"
+ * MyArray3 := "C"
+ * Loop 3
+ *     MsgBox MyArray%A_Index%  ; Shows A, then B, then C.
+ * ```
+ */
+export class PseudoArray extends SuffixTermBase {
+    
+    constructor(
+        public readonly Identifier: Token,
+        public readonly openPercent: Token,
+        public readonly dereferencable: Token,
+        public readonly closePercent: Token
+    ) {
+        super();
+    }
+
+    public get ranges(): Range[] {
+        return [this.Identifier, this.openPercent, this.dereferencable, this.closePercent];
+    }
+    public toLines(): string[] {
+        throw new Error('Method not implemented.');
+    }
+    public get start(): Position {
+        return this.Identifier.start;
+    }
+    public get end(): Position {
+        throw this.closePercent.end;
     }
 }
 

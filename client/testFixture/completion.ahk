@@ -19,7 +19,7 @@ TestFunc() {
 class TestClass 
 {
 	__New() {
-		this.p = 1
+		this.p := 1
 	}
 	
 	NestedFunc() 

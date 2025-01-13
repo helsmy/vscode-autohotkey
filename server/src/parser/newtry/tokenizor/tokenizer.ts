@@ -627,9 +627,8 @@ export class Tokenizer {
                 case ':':
                     // check if hotstring
                     // ahk的破烂语法真难解析
-                    if (preType === TokenType.EOL &&
-                        this.isParseHotkey) {
-                        return this.CheckHotString();
+                    if (preType === TokenType.EOL) {
+                        return this.CheckHotStringAndCreateToken();
                     }
 
                     const pchar = this.Peek();
@@ -694,7 +693,7 @@ export class Tokenizer {
         }
     }
 
-    private CheckHotString(): TokenResult {
+    private CheckHotStringAndCreateToken(): TokenResult {
         const p = this.genPosition();
         const offset = this.pos;
         this.Advance();

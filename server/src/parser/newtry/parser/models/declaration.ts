@@ -130,6 +130,38 @@ export class ClassBaseClause extends NodeBase {
     } 
 }
 
+export class PropertyDeclaration extends Decl {
+    constructor(
+        public readonly modifier: Maybe<Token>,
+        public readonly propertyElements: ExpersionList 
+    ) {
+        super();
+    }
+
+    public get ranges(): Range[] {
+        return this.modifier ? [this.modifier, ...this.propertyElements.ranges] : [this.propertyElements];
+    }
+
+    public toLines(): string[] {
+        return this.modifier ? [this.modifier.content, ...this.propertyElements.toLines()] : [...this.propertyElements.toLines()]
+    }
+    
+    public get start(): Position {
+        return this.modifier ? this.modifier.start : this.propertyElements.start;
+    }
+    
+    public get end(): Position {
+        return this.propertyElements.end;
+    }
+
+    public accept<T extends (...args: any) => any>(
+        visitor: IStmtVisitor<T>,
+        parameters: Parameters<T>,
+    ): ReturnType<T> {
+        return visitor.visitPropertyDeclaration(this, ...parameters);
+    }
+}
+
 export class DynamicProperty extends Decl {
     constructor(
         public readonly name: Token,

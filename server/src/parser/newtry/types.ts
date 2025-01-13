@@ -79,13 +79,15 @@ export type SuffixTermTrailer =
 	| SuffixTerm.ArrayTerm;
 
 export type Atom =
+	| Expr.ParenExpr
 	| SuffixTerm.Invalid
 	| SuffixTerm.Literal
 	// | SuffixTerm.Grouping
 	| SuffixTerm.PercentDereference
 	| SuffixTerm.ArrayTerm
 	| SuffixTerm.AssociativeArray
-	| SuffixTerm.Identifier;
+	| SuffixTerm.Identifier
+	| SuffixTerm.PseudoArray;
 
 export interface IStmtClass<T = Stmt.Stmt>
 	extends Constructor<T> {
@@ -100,6 +102,7 @@ export interface IExprClass<T = Expr.Expr>
 export interface IStmtVisitor<T extends (...args: any) => any> {
 	visitDeclVariable(decl: Decl.VarDecl, ...parameters: Parameters<T>): ReturnType<T>; 
 	visitDeclClass(decl: Decl.ClassDef, ...parameters: Parameters<T>): ReturnType<T>;
+	visitPropertyDeclaration(decl: Decl.PropertyDeclaration, ...parameters: Parameters<T>): ReturnType<T>;
 	visitDynamicProperty(decl: Decl.DynamicProperty, ...parameters: Parameters<T>): ReturnType<T>;
 	visitDeclHotkey(decl: Decl.Hotkey, ...parameters: Parameters<T>): ReturnType<T>;
 	visitDeclHotString(decl: Decl.HotString, ...parameters: Parameters<T>): ReturnType<T>;

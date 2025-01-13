@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { Position, SymbolKind } from 'vscode-languageserver-types';
-import { IFindResult, ScriptASTFinder } from '../services/scriptFinder';
+import { ScriptASTFinder } from '../services/scriptFinder';
 import { AHKParser } from '../parser/newtry/parser/parser';
 import { FuncDef } from '../parser/newtry/parser/models/declaration';
 import { Call, Identifier } from '../parser/newtry/parser/models/suffixterm';
@@ -74,30 +74,29 @@ suite('Script Finder Test', () => {
         let res = finder.find(docinfo.script.stmts, Position.create(43, 20), [Call]);
         assert.ok(res, 'Find Fail');
         assert.strictEqual(res.nodeResult instanceof Call, true, 'Not A Call');
-        if (res instanceof Factor) {
-            assert.strictEqual(res.suffixTerm.atom instanceof Identifier, true, 'Not A Id');
-            if (res.suffixTerm.atom instanceof Identifier)
-                assert.strictEqual(res.suffixTerm.atom.token.content, 'B');
-            assert.strictEqual(res.suffixTerm.brackets[0] instanceof Call, true, 'Not A Call');
-        }
+        if (!(res.nodeResult instanceof Call)) return;
+        if (res.outterFactor === undefined) return;
+        assert.strictEqual(res.outterFactor.nodeResult as any instanceof Factor, true, 'Not A Factor');
+        const callee = res.nodeResult.callInfo;
+        assert.strictEqual(callee[0].atom instanceof Identifier, true, 'Not An Id');
+        if (!(callee[0].atom instanceof Identifier)) return;
+        assert.strictEqual(callee[0].atom.token.content, 'B');
         // assert.strictEqual(res.node.name, 'mdzz', 'Name find fail');
         // assert.strictEqual(res.node.kind, SymbolKind.Function, 'Kind find fail');
+
     });
 
     test('find Call in Call', () => {
         let res = finder.find(docinfo.script.stmts, Position.create(45, 30), [Call]);
         assert.ok(res, 'Find Fail');
         assert.strictEqual(res.nodeResult instanceof Call, true, 'Not A Call');
-        if (res.outterFactor && res.nodeResult instanceof Call) {
-            const outter = (<IFindResult<Call>>res).outterFactor;
-            assert.strictEqual(outter?.nodeResult instanceof Factor, true, 'Not A Factor');
-            if (res instanceof Factor && outter !== undefined) {
-                assert.strictEqual(outter.nodeResult.suffixTerm.atom instanceof Identifier, true, 'Not A Id');
-                if (outter.nodeResult.suffixTerm.atom instanceof Identifier)
-                    assert.strictEqual(outter.nodeResult.suffixTerm.atom.token.content, 'func2');
-                assert.strictEqual(res.suffixTerm.brackets[0] instanceof Call, true, 'Not A Call');
-            }
-        }
+        if (!(res.nodeResult instanceof Call)) return;
+        if (res.outterFactor === undefined) return;
+        assert.strictEqual(res.outterFactor.nodeResult as any instanceof Factor, true, 'Not A Factor');
+        const callee = res.nodeResult.callInfo;
+        assert.strictEqual(callee[0].atom instanceof Identifier, true, 'Not An Id');
+        if (!(callee[0].atom instanceof Identifier)) return;
+        assert.strictEqual(callee[0].atom.token.content, 'func2');
         // assert.strictEqual(res.node.name, 'mdzz', 'Name find fail');
         // assert.strictEqual(res.node.kind, SymbolKind.Function, 'Kind find fail');
     });
@@ -107,15 +106,13 @@ suite('Script Finder Test', () => {
         // let outter_res = finder.find(docinfo.script.stmts, Position.create(44, 18), [Factor])
         assert.ok(res, 'Find Fail');
         assert.strictEqual(res.nodeResult instanceof Call, true, 'Not A Call');
-        if (res.outterFactor) {
-            const outter = (<IFindResult<Call>>res).outterFactor;
-            if (res instanceof Factor && outter !== undefined) {
-                assert.strictEqual(outter.nodeResult.suffixTerm.atom instanceof Identifier, true, 'Not A Id');
-                if (outter.nodeResult.suffixTerm.atom instanceof Identifier)
-                    assert.strictEqual(outter.nodeResult.suffixTerm.atom.token.content, 'bb');
-                assert.strictEqual(outter.nodeResult.suffixTerm.brackets[0] instanceof Call, true, 'Not A Call');
-            }
-        }
+        if (!(res.nodeResult instanceof Call)) return;
+        if (res.outterFactor === undefined) return;
+        assert.strictEqual(res.outterFactor.nodeResult as any instanceof Factor, true, 'Not A Factor');
+        const callee = res.nodeResult.callInfo;
+        assert.strictEqual(callee[0].atom instanceof Identifier, true, 'Not An Id');
+        if (!(callee[0].atom instanceof Identifier)) return;
+        assert.strictEqual(callee[0].atom.token.content, 'bb');
     })
 
     // test('find var reference', () => {

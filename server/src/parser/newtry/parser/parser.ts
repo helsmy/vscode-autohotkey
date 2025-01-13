@@ -15,8 +15,8 @@ import { NodeBase } from './models/nodeBase';
 import { ParseContext } from './models/parseContext';
 import { URI } from 'vscode-uri';
 import { join } from 'path';
-import { idFactor } from './utils/nodeBuilder';
 import { Position } from 'vscode-languageserver';
+import { failedExpr, failedStmt, ParseError } from './models/parseError';
 
 type IsStartFn = (t: Token) => boolean;
 type ParseFn<T> = () => T; 
@@ -510,12 +510,12 @@ export class AHKParser {
         // FIXME: Report error and recode modifier, when modifier does not needed.
         // If class keyword is not used as name of property or method
         if (token.type === TokenType.class && !(this.tokenizer.Peek() === '(')) 
-            return this.classDefine()
+            return this.classDefine();
         if (isValidIdentifier(this.currentToken.type))
             return this.idLeadClassMember(modifier);
         if (token.type === TokenType.directive)
             return this.directive();
-        return this.assignStmt();
+        return this.makeMissingClassMemberDeclaration(modifier);
     }
 
     private idLeadClassMember(modifier: Maybe<Token>): Stmt.Stmt {
@@ -531,20 +531,21 @@ export class AHKParser {
             default:
                 if (this.v2mode && p.type === TokenType.fatArrow)
                     return this.dynamicProperty();
-                return this.propertyOrAssignExpression(modifier);
+                return this.PropertyDeclarationOrMissingMemberDeclaration(modifier);
         }
     }
 
-    private propertyOrAssignExpression(modifier: Maybe<Token>): Stmt.Stmt {
+    private PropertyDeclarationOrMissingMemberDeclaration(modifier: Maybe<Token>): Stmt.Stmt {
         // TODO: better handle error property
-        if (modifier)
-            return this.propertyDeclaration(modifier);
-        return this.assignStmt();
+        if (this.currentToken.type !== TokenType.id)
+            return this.makeMissingClassMemberDeclaration(modifier);
+        return this.propertyDeclaration(modifier);
     }
 
-    private propertyDeclaration(modifier: Token): Stmt.Stmt {
+    private propertyDeclaration(modifier?: Token): Stmt.Stmt {
+        // FIXME: 检查没有modifier时，第一个表达式必需为赋值
         const expressions = this.expressionList(this.currentToken.start);
-        return new Decl.VarDecl(modifier, expressions);
+        return new Decl.PropertyDeclaration(modifier, expressions);
     }
 
     /**
@@ -674,35 +675,54 @@ export class AHKParser {
             case TokenType.openBrace:
                 return this.exprStmt();
             default:
-                // 这里不可能发生，
-                // isStatementStart 里允许的可能
-                // 在这里已经枚举完
-                this.logger.error(`In statement, Unexpect token[${this.currentToken.start.line}:${this.currentToken.start.character}]: ${this.currentToken.content}|${this.currentToken.type}`);
-                return this.idLeadStatement();
+                // Autohotkey's "does not contain a recognized action"
+                return this.unrecognizedActionStmt();
         }
     }
 
     private idLeadStatement(): Stmt.Stmt {
-        const p = this.peek()
+        const p = this.peek();
         switch (p.type) {
-            case TokenType.openParen:
-                return this.functionRelatedStatement();
             case TokenType.hotkeyand:
             case TokenType.hotkey:
-                return this.hotkey();            
+                return this.hotkey();   
+            case TokenType.openParen:
+                if (this.matchTokenAfterParentGruop(TokenType.openBrace))
+                    return this.funcDefine(this.eatId());
             // 允许 var++ 的语法
+            // 这种情况下就不限制做一些无意义的运算了，
+            // ahk的语法真是神奇
             case TokenType.pplus:
             case TokenType.mminus:
+            // autohotkey does not check recognized action on
+            // member access expression and subscription expression
+            case TokenType.openBracket:
+            case TokenType.dot:
+            // function call is allowed
+            case TokenType.openParen:
+            // `,`豁免检查是否是赋值表达式
+            case TokenType.comma:
                 return this.exprStmt();
             case TokenType.colon:
                 // 如果不是贴在一起的`:`就直接穿透到default case
                 if (p.start.line === this.currentToken.end.line &&
                     p.start.character === this.currentToken.end.character)
                     return this.label();
-            // 其他是语法错误，统一当作有错误的赋值语句
-            default:
-                return this.assignStmt();
         }
+
+        if (this.v2mode && (this.isExpressionStart(p) || p.type === TokenType.EOL || p.type === TokenType.EOF)) {
+            const callexpr = this.v2CommandStyleFucntionCall();
+            this.terminal();
+            return new Stmt.ExprStmt(callexpr);
+        }
+
+        //Assignment Expression
+        if ((p.type >= TokenType.aassign && p.type <= TokenType.lshifteq) ||
+            this.matchTokens(p.type, [TokenType.equal, TokenType.regeq])) {
+            return this.exprStmt();
+        }
+        
+        return this.unrecognizedActionStmt();
     }
 
     private block(): Stmt.Block {
@@ -869,21 +889,19 @@ export class AHKParser {
             return new Stmt.Loop(loop, body);
         }
         
-        // TODO: syntax check for loop command
-        // just skip all command for now
         // FIXME: record comma
         this.eatOptional(TokenType.comma);
-        const loopmode = this.currentToken.content.toLowerCase();
+        // const loopmode = this.currentToken.content.toLowerCase();
 
         // TODO: LOOP Funtoins
         // Check if in any command loop mode
-        if (loopmode === 'files' ||
-            loopmode === 'parse' ||
-            loopmode === 'read'  ||
-            loopmode === 'reg') 
+        // if (loopmode === 'files' ||
+        //     loopmode === 'parse' ||
+        //     loopmode === 'read'  ||
+        //     loopmode === 'reg') 
             this.setCommandScanMode(true);
 
-        const param = this.expressionList(this.currentToken.start);
+        const param = this.commandArguments();
         if (this.atLineEnd()) this.advance();
         const body = this.declaration();
         return new Stmt.Loop(loop, body, param);
@@ -902,10 +920,10 @@ export class AHKParser {
 
     private forStmt(): Stmt.ForStmt {
         const forToken = this.eat();
-        const id1 = idFactor(this.eatId());
+        const id1 = this.factor();
         if (this.currentToken.type === TokenType.comma) {
             const comma = this.eat();
-            const id2 = idFactor(this.eatId());
+            const id2 = this.factor();
             const inToken = this.eatType(TokenType.in);
             const iterable = this.expression();
             const body = this.declaration();
@@ -1005,49 +1023,11 @@ export class AHKParser {
         const delimiter = this.eatOptional(TokenType.comma);
         if (delimiter) {
             const trailer = this.tailorExpr(delimiter);
+            this.terminal();
             return new Stmt.ExprStmt(expr, trailer)
         }
-
-        return new Stmt.ExprStmt(expr)
-    }
-
-    // assignment statemnet
-    private assignStmt(): Stmt.AssignStmt|Stmt.ExprStmt {
-        // const isExprStart = this.isExpressionStart(this.currentToken);
-        const left = this.factor();
-
-        // `,`豁免检查是否是赋值表达式
-        const delimiter = this.eatOptional(TokenType.comma);
-        if (delimiter) {
-            const trailer = this.tailorExpr(delimiter);
-            this.terminal();
-            return new Stmt.ExprStmt(left, trailer);
-        }
-
-        if (this.check(TokenType.equal)) {
-            // if is a `=` let tokenizer take literal token(string)
-            this.tokenizer.isLiteralToken = true;
-            this.tokenizer.setLiteralDeref(false);
-        }
-
-        if (this.checkFromTo(TokenType.aassign, TokenType.lshifteq) ||
-            this.matchTokens(this.currentToken.type, [TokenType.equal, TokenType.regeq])) {
-            const assign = this.eat();
-            const expr = this.expression();
-
-            const delimiter = this.eatOptional(TokenType.comma);
-            // If there are `,`
-            if (delimiter) {
-                const trailer = this.tailorExpr(delimiter);
-                return new Stmt.AssignStmt(left, assign, expr, trailer);
-            }
-
-            this.terminal();
-            return new Stmt.AssignStmt(left, assign, expr);
-        }
-
         this.terminal();
-        return new Stmt.ExprStmt(left);
+        return new Stmt.ExprStmt(expr)
     }
 
     private tailorExpr(delimiter: Token): Stmt.TrailerExprList {
@@ -1250,9 +1230,11 @@ export class AHKParser {
                     );
                 }
                 break;
-            case TokenType.dot:
-                expression = this.memberAccessExpression(expression);
-                return this.postfixExpressionRest(expression);
+            // case TokenType.openBracket:
+            // case TokenType.openParen:
+            // case TokenType.dot:
+            //     expression = this.memberAccessExpression(expression);
+            //     return this.postfixExpressionRest(expression);
             default:
                 break;
         }
@@ -1284,16 +1266,10 @@ export class AHKParser {
             return this.factor();
         }
         // TODO: Put any helpful MissingToken in Invaild Expression
-        return new Expr.Invalid(this.currentToken.start, [this.currentToken]);
-    }
-
-    private memberAccessExpression(expression: Expr.Expr): Expr.Expr {
-        const dereferencableExpression = expression;
-        const dot = this.eatType(TokenType.dot);
-        const memberName = isValidIdentifier(this.currentToken.type) ? 
-                            this.eat() : 
-                            new MissingToken(TokenType.id, this.currentToken.start);
-        return new Expr.MemberAccessExpression(dereferencableExpression, dot, memberName);
+        const token = this.currentToken;
+        return new Expr.Invalid(token.start, [token], new ParseError(
+            token, 'Expect an expression', failedExpr(Expr.Factor)
+        ));
     }
 
     /**
@@ -1308,40 +1284,29 @@ export class AHKParser {
     }
 
     private factor(): Expr.Factor {
-        const suffixTerm = this.suffixTerm();
-        // const factor = new Expr.Factor(suffixTerm.value);
-        const dot = this.eatOptional(TokenType.dot);
-
-        // if factor has a suffix
-        if (dot) {
-            const tailor = this.delimitedList(
-                this.currentToken.start,
-                TokenType.dot,
-                token => this.isVaildAtom(token),
-                () => this.suffixTerm(true)
-            )
-
-            return new Expr.Factor(
-                suffixTerm,
-                new SuffixTerm.SuffixTrailer(dot, tailor)
-            );
-        }
-
-        return new Expr.Factor(suffixTerm);
+        const factor = new Expr.Factor(new DelimitedList(this.currentToken.start));
+        const atomList = this.delimitedList(
+            this.currentToken.start,
+            TokenType.dot,
+            token => this.isVaildAtom(token),
+            () => this.suffixTerm(factor)
+        )
+        factor.suffixTerm.childern.push(...atomList.childern);
+        return factor;
     }
 
-    private suffixTerm(isTailor: boolean = false): SuffixTerm.SuffixTerm {
-        const atom = this.atom(isTailor);
+    private suffixTerm(parent: Expr.Factor): SuffixTerm.SuffixTerm {
+        const atom = this.atom();
         const isValid = !(atom instanceof SuffixTerm.Invalid);
         
         if (isValid) {
-            const trailers = this.suffixTermTailor();
+            const trailers = this.suffixTermTailor(parent);
             return new SuffixTerm.SuffixTerm(atom, trailers);
         }
         return new SuffixTerm.SuffixTerm(atom, []);
     }
 
-    private suffixTermTailor(): SuffixTermTrailer[] {
+    private suffixTermTailor(parent: Expr.Factor): SuffixTermTrailer[] {
         const trailers: SuffixTermTrailer[] = [];
         // parse all exist trailor  
         while (true) {
@@ -1350,7 +1315,7 @@ export class AHKParser {
                 trailers.push(bracket);
             }
             else if (this.currentToken.type === TokenType.openParen) {
-                const callTrailer = this.funcCallTrailer();
+                const callTrailer = this.functionCallTerm(parent);
                 trailers.push(callTrailer);
             }
             else
@@ -1368,34 +1333,48 @@ export class AHKParser {
             case TokenType.precent:
             case TokenType.openBracket:
             case TokenType.openBrace:
+            case TokenType.openParen:
                 return true;
             default:
                 return isValidIdentifier(t);
         }
     }
 
-    private atom(isTailor: boolean = false): Atom {
-        switch (this.currentToken.type) {
+    private atom(): Atom {
+        const type = this.currentToken.type
+        switch (type) {
             // TODO: All keywords is allowed in suffix.
             // But not allowed at first atom
             case TokenType.id:
                 this.advance();
-                return new SuffixTerm.Identifier(this.previous());
+                if (this.currentToken.type !== TokenType.precent)
+                    return new SuffixTerm.Identifier(this.previous());
+                return new SuffixTerm.PseudoArray(
+                    this.previous(),
+                    this.eatType(TokenType.precent),
+                    this.eatId(),
+                    this.eatType(TokenType.precent)
+                );
             case TokenType.number:
             case TokenType.string:
                 let t = this.eat();
                 return new SuffixTerm.Literal(t);
             case TokenType.precent:
-                const open = this.eat();
-                const derefAtom = this.eatId();
-                const close = this.eatType(TokenType.precent);
                 return new SuffixTerm.PercentDereference(
-                    open, close, derefAtom
+                    this.eat(), 
+                    this.eatId(), 
+                    this.eatType(TokenType.precent)
                 );
             case TokenType.openBracket:
                 return this.arrayTerm();
             case TokenType.openBrace:
                 return this.associativeArray();
+            case TokenType.openParen:
+                return new Expr.ParenExpr(
+                    this.eat(),
+                    this.expression(),
+                    this.eatType(TokenType.closeParen)
+                );
             default:
                 // TODO: Allow all keywords here, and warn this
                 const id = this.eatId();
@@ -1435,18 +1414,15 @@ export class AHKParser {
         return new SuffixTerm.Pair(key, colon, value);
     }
 
-    private funcCallTrailer(): SuffixTerm.Call {
-        const open = this.eat();
+    private arguments(): DelimitedList<Expr.Expr> {
         // TODO: 想个更好的办法来处理空参数
-        const args = this.delimitedList(
+        return this.delimitedList(
             this.currentToken.start,
             TokenType.comma,
             this.isExpressionStart,
             () => this.expression(),
             true
         );
-        const close = this.eatType(TokenType.closeParen, true);
-        return new SuffixTerm.Call(open, args, close);
     }
 
     // private emptyArg(): Expr.Expr {
@@ -1460,18 +1436,6 @@ export class AHKParser {
     //         )
     //     );
     // }
-
-    /**
-     * Parse all condition related to Function statements
-     */
-    private functionRelatedStatement(): Stmt.ExprStmt|Decl.FuncDef {
-        const token = this.eat();
-
-        if (this.matchTokenAfterParentGruop(TokenType.openBrace)) {
-            return this.funcDefine(token);
-        }
-        return this.funcCall(token);
-    }
 
     private funcDefine(name: Token): Decl.FuncDef {
         const open = this.eatType(TokenType.openParen);
@@ -1503,29 +1467,34 @@ export class AHKParser {
     /**
      * Parse a function call statement,
      * also parse statement with ',' expression trailer
-     * @param name Name token of a function call
+     * @param callee Name token of a function call
      */
-    private funcCall(name: Token): Stmt.ExprStmt {
-        const call = this.suffixTermTailor();
-        
-        const callFactor = new Expr.Factor(
-            new SuffixTerm.SuffixTerm(
-                new SuffixTerm.Identifier(name),
-                call
-            )
+    private functionCallTerm(parent: Expr.Factor): SuffixTerm.Call {
+        const args = new SuffixTerm.Call(
+            this.eatType(TokenType.openParen),
+            this.arguments(),
+            this.eatType(TokenType.closeParen),
+            parent
         );
 
-        const delimiter = this.eatOptional(TokenType.comma);
-        // If there are `,`
-        if (delimiter) {
-            const trailer = this.tailorExpr(delimiter);
-            this.terminal();
+        return args;
+    }
 
-            return new Stmt.ExprStmt(callFactor, trailer);
-        }
-
-        this.terminal();
-        return new Stmt.ExprStmt(callFactor);
+    private v2CommandStyleFucntionCall(): Expr.Factor {
+        const callee = this.factor();
+        const terms = callee.suffixTerm.getElements();
+        const args: DelimitedList<Expr.Expr> = this.atLineEnd() ? 
+                    new DelimitedList(this.currentToken.start) : 
+                    this.arguments();
+        
+        const call = new SuffixTerm.Call(
+            undefined,
+            args,
+            undefined,
+            callee
+        );
+        terms[terms.length - 1].brackets.push(call);
+        return callee;
     }
 
     private parameters(): Decl.Param {
@@ -1611,7 +1580,16 @@ export class AHKParser {
         // FIXME: 
         const delimiter = this.eatOptional(TokenType.comma);
         
-        const args = this.delimitedList(
+        const args = this.commandArguments()
+
+        this.setCommandScanMode(false);
+        this.terminal();
+
+        return new Stmt.CommandCall(cmd, args);
+    }
+
+    private commandArguments() {
+        return this.delimitedList(
             this.currentToken.start,
             TokenType.comma,
             this.isExpressionStart,
@@ -1621,14 +1599,29 @@ export class AHKParser {
                 return this.expression();
             },
             true
-        )
-
-        this.setCommandScanMode(false);
-        this.terminal();
-
-        return new Stmt.CommandCall(cmd, args);
+        );
     }
 
+    /**
+     * Generate an error that we need an assignment here
+     */
+    private unrecognizedActionStmt(): Stmt.Invalid {
+        const token = new SkipedToken(this.eat());
+        return new Stmt.Invalid(token.start, [token], new ParseError(
+            token, 'This line does not contain a recognized action.',
+            failedStmt(Stmt.ExprStmt)
+        ));
+    }
+
+    private makeMissingClassMemberDeclaration(modifier?: Token): Stmt.Invalid {
+        const token = new SkipedToken(this.eat());
+        return new Stmt.Invalid(token.start, modifier ? [modifier, token] : [token], 
+            new ParseError(
+                token, 'Not a valid method, class or property definition.',
+                failedStmt(Decl.PropertyDeclaration)
+        ));
+    }
+ 
     /**
      * Check the the statement is terminated
      * @param failed failed constructor context
@@ -1765,9 +1758,16 @@ export class AHKParser {
         return false;
     }
 
+    /**
+     * 
+     * @param t TokenType to be matched
+     * @returns 
+     */
     private matchTokenAfterParentGruop(t: TokenType): boolean {
         const pos = this.pos;
-        let unclosed: number = 1;
+        while (this.currentToken.type !== TokenType.openParen)
+            this.advance();
+        let unclosed = 1;
         while (unclosed > 0 && !this.atLineEnd()) {
             let t = this.peek().type
             if (t === TokenType.closeParen)

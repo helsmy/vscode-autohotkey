@@ -23,6 +23,10 @@ export function posInRange(r: Range, pos: Position): boolean {
     return isAfterStart && isBeforeEnd;
 }
 
+export function positionEqual(p1: Position, p2: Position): boolean {
+    return p1.line === p2.line && p1.character === p2.character;
+}
+
 /**
  * Is range2 in range1
  * @param range1 the target range

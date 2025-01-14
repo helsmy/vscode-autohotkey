@@ -13,6 +13,7 @@ import { Token } from '../../tokenizor/types';
 import { Param } from './declaration';
 import { AHKMethodSymbol } from '../../analyzer/models/symbol';
 import { ParseError } from './parseError';
+import { joinLines } from '../utils/stringUtils';
 
 export type ExpersionList = DelimitedList<Expr>;
 
@@ -379,6 +380,35 @@ export class AnonymousFunctionCreation extends Expr {
     }
     public get end(): Position {
         return this.body.end;
+    }
+}
+
+export class CommandArgumentExpression extends Expr {
+    /**
+     * 
+     * @param precent `%` force expression mark
+     * @param expression 
+     */
+    constructor(
+        public readonly precent: Maybe<Token>,
+        public readonly expression: Expr
+    ) {
+        super()
+    }
+    public get ranges(): Range[] {
+        return this.precent ? [this.precent, ...this.expression.ranges] : this.expression.ranges;
+    }
+
+    public toLines(): string[] {
+        return this.precent ? joinLines(' ', ['%'], this.expression.toLines()) : this.expression.toLines();
+    }
+
+    public get start(): Position {
+        return this.precent ? this.precent.start : this.expression.start;
+    }
+    
+    public get end(): Position {
+        return this.expression.end;
     }
 }
 

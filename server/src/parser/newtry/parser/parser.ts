@@ -17,6 +17,7 @@ import { URI } from 'vscode-uri';
 import { join } from 'path';
 import { Position } from 'vscode-languageserver';
 import { failedExpr, failedStmt, ParseError } from './models/parseError';
+import { positionEqual } from '../../../utilities/positionUtils';
 
 type IsStartFn = (t: Token) => boolean;
 type ParseFn<T> = () => T; 
@@ -890,7 +891,7 @@ export class AHKParser {
         }
         
         // FIXME: record comma
-        this.eatOptional(TokenType.comma);
+       const delimiter = this.eatOptional(TokenType.comma);
         // const loopmode = this.currentToken.content.toLowerCase();
 
         // TODO: LOOP Funtoins
@@ -904,7 +905,7 @@ export class AHKParser {
         const param = this.commandArguments();
         if (this.atLineEnd()) this.advance();
         const body = this.declaration();
-        return new Stmt.Loop(loop, body, param);
+        return new Stmt.Loop(loop, body, delimiter, param);
     }
 
     private whileStmt(): Stmt.WhileStmt {
@@ -1585,7 +1586,7 @@ export class AHKParser {
         this.setCommandScanMode(false);
         this.terminal();
 
-        return new Stmt.CommandCall(cmd, args);
+        return new Stmt.CommandCall(cmd, delimiter, args);
     }
 
     private commandArguments() {
@@ -1594,8 +1595,18 @@ export class AHKParser {
             TokenType.comma,
             this.isExpressionStart,
             () => {
-                // Reset deref % expresion mark for every parameter
-                this.tokenizer.setLiteralDeref(false);
+                // Reset % force expresion mark for every parameter
+                this.tokenizer.setPrecentForceExpression(false);
+                if (
+                    this.currentToken.type === TokenType.precent &&
+                    !positionEqual(this.currentToken.end, this.peek().start)
+                ) {
+                    this.tokenizer.setPrecentForceExpression(true);
+                    return new Expr.CommandArgumentExpression(
+                        this.eatType(TokenType.precent),
+                        this.expression()
+                    );
+                }
                 return this.expression();
             },
             true
@@ -1795,9 +1806,7 @@ export class AHKParser {
     private isDefauleCase(): boolean {
         if (this.currentToken.type === TokenType.id && this.currentToken.content.toLowerCase() === 'default') {
             const p = this.peek();
-            return p.content === ':' && 
-                   p.start.line === this.currentToken.end.line &&
-                   p.start.character === this.currentToken.end.character;
+            return p.content === ':' && positionEqual(p.start, this.currentToken.end);
         }
         return false;
     }

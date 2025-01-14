@@ -288,10 +288,10 @@ suite('Syntax Parser Expresion Test', () => {
     });
     test('Command Call', () => {
         const expects = [
-            callTest('SetBatchLines, 1', 'SetBatchLines', [SuffixTerm.Literal]),
-            callTest('SetBatchLines, %abc%', 'SetBatchLines', [SuffixTerm.Identifier]),
-            callTest('\nSetBatchLines, 1', 'SetBatchLines', [SuffixTerm.Literal]),
-            callTest('\nSetBatchLines, 1, abc', 'SetBatchLines', [SuffixTerm.Literal, SuffixTerm.Literal]),
+            callTest('envdiv, 1', 'envdiv', [SuffixTerm.Literal]),
+            callTest('envget, %abc%', 'envget', [SuffixTerm.PercentDereference]),
+            callTest('\envmult, 1', 'envmult', [SuffixTerm.Literal]),
+            callTest('\envset, 1, abc', 'envset', [SuffixTerm.Literal, SuffixTerm.Literal]),
         ];
         for (const expect of expects) {
             const actual = getStmt(expect.source);

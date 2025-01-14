@@ -42,7 +42,7 @@ export class Tokenizer {
         this.currChar = document[this.pos];
     }
 
-    public setLiteralDeref(bool: boolean) {
+    public setPrecentForceExpression(bool: boolean) {
         this.isLiteralDeref = bool;
     }
 
@@ -248,7 +248,7 @@ export class Tokenizer {
                 break;
             }
             // v2 escape `"`|`'`
-            if (this.v2Mode && this.currChar === '`' && this.Peek() === strDelimitor) {
+            if (this.v2Mode && this.currChar === '`') {
                 this.Advance().Advance();
                     continue;
             }
@@ -477,34 +477,38 @@ export class Tokenizer {
         return this.CreateToken(TokenType.string, content, p, this.genPosition());
     }
 
-    private getCommandToken(): TokenResult {
+    private getTokenAfterCommandPrecent(startPosition: Position): TokenResult {
+        if (!this.isAlphaNumeric(this.currChar)) {
+            const start = this.pos;
+            this.Advance();
+            return this.CreateError(
+                this.document.slice(start, this.pos),
+                startPosition, this.genPosition()
+            );
+        }
+        // TODO: AHK allows number as identifier to be derefered
+        // This is for get cli parameter
+        return this.GetId(TokenType.precent);
+    }
+
+    private getCommandToken(preType: TokenType = TokenType.EOL): TokenResult {
         while (true) {
-            const p = this.genPosition();
+            if (this.isWhiteSpace(this.currChar)) {
+                this.SkipWhiteSpace();
+                continue;
+            }
+            const startPosition = this.genPosition();
+            // If is not % force expression, it is %VariableName%.
+            if (preType === TokenType.precent && !(this.currChar === '\n') && !this.isWhiteSpace(this.document[this.pos - 1])) 
+                return this.getTokenAfterCommandPrecent(startPosition);
             switch (this.currChar) {
-                case ' ':
-                case '\t':
-                case '\r':
-                    // skip
-                    this.SkipWhiteSpace();
-                    continue;
                 case '%':
-                    // If next character is a space, 
-                    if (this.Peek() === ' ') {
-                        this.isLiteralDeref = true;
-                        this.Advance();
-                        break;
-                    }
                     this.Advance();
-                    // TODO: AHK allows number as identifier to be derefered
-                    // This is for get cli parameter
-                    let token = this.GetId(TokenType.precent);
-                    // FIXME: check close % of %% dereference
-                    this.Advance();
-                    return token;
+                    return this.CreateToken(TokenType.precent, '%', startPosition, this.genPosition());
                 case ',':
                     // this.isLiteralDeref = false;
                     this.Advance();
-                    return this.CreateToken(TokenType.comma, ',', p, this.genPosition());
+                    return this.CreateToken(TokenType.comma, ',', startPosition, this.genPosition());
                 case '\n':
                     // `=` `\n` `(...)` multiline string
                     if (this.BackPeek(1, true) === '=' && this.Peek(1, true) === '(') {
@@ -515,7 +519,7 @@ export class Tokenizer {
                     // 为了`var=\n`产生空占位符
                     this.isLiteralToken = false;
                     this.AdvanceLine();
-                    return this.returnSkipEmptyLine(p);
+                    return this.returnSkipEmptyLine(startPosition);
                 // muiltline comment
                 case '/':
                     if (this.Peek() === '*') 
@@ -546,7 +550,7 @@ export class Tokenizer {
             // If current is scanning command arguments and
             // not effect by `% ` dereference
             if (this.isLiteralToken && !this.isLiteralDeref) {
-                return this.getCommandToken();
+                return this.getCommandToken(preType);
             }
 
             if (this.ischars(this.currChar ,' ', '\t', '\r')) {

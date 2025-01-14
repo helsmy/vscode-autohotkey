@@ -196,13 +196,14 @@ export class TrailerExprList extends Stmt {
 export class CommandCall extends Stmt {
 	constructor(
 		public readonly command: Token,
+		public readonly comma: Maybe<Token>,
 		public readonly args: DelimitedList<Expr.Expr>
 	) {
 		super();
 	}
 
 	public toLines(): string[] {
-		const res = [this.command.content];
+		const res = this.comma ? [this.command.content + this.comma.content] : [this.command.content];
 		const argsLines = this.args.toLines();
 		if (argsLines.length === 0)
 			return res;
@@ -542,6 +543,7 @@ export class Loop extends Stmt {
 	constructor(
 		public readonly loop: Token,
 		public readonly body: IStmt,
+		public readonly comma?: Maybe<Token>,
 		public readonly condition?: DelimitedList<Expr.Expr>
 	) {
 		super();

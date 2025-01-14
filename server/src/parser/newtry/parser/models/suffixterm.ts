@@ -196,8 +196,8 @@ export class PercentDereference extends SuffixTermBase {
      */
     constructor(
         public readonly open: Token,
-        public readonly close: Token,
-        public readonly dereferencable: Token
+        public readonly dereferencable: Token,
+        public readonly close: Token
         ) {
         super();
     }
@@ -318,13 +318,13 @@ export class PseudoArray extends SuffixTermBase {
         return [this.Identifier, this.openPercent, this.dereferencable, this.closePercent];
     }
     public toLines(): string[] {
-        throw new Error('Method not implemented.');
+        return [`${this.Identifier.content}${this.openPercent.content}${this.dereferencable.content}${this.closePercent.content}`];
     }
     public get start(): Position {
         return this.Identifier.start;
     }
     public get end(): Position {
-        throw this.closePercent.end;
+        return this.closePercent.end;
     }
 }
 

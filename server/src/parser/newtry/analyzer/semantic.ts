@@ -116,7 +116,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				));
 			errors.push(...this.checkDiagnosticForNode(param));
 			if (param instanceof Decl.DefaultParameter && param.value)
-				errors.push(...this.processExpr(param.value));
+				errors.push(...this.processExpression(param.value));
 			if (param instanceof Decl.SpreadParameter)
 				isAlreadyVariadic = true;
 		}
@@ -185,7 +185,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	public visitPropertyDeclaration(decl: Decl.PropertyDeclaration): Diagnostics {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
 		for (const e of decl.propertyElements.getElements()) {
-			this.processExpr(e);
+			this.processExpression(e);
 		}
 		return errors;
 	}
@@ -301,39 +301,39 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const errors = this.checkDiagnosticForNode(stmt);
 		const resultType = this.checkExprResultType(stmt.expr);
 		errors.push(...this.processAssignVar(stmt.left, stmt, resultType));
-		errors.push(...this.processExpr(stmt.expr));
-		errors.push(...this.processTrailerExpr(stmt.trailerExpr));
+		errors.push(...this.processExpression(stmt.expr));
+		errors.push(...this.processTrailerExpression(stmt.trailerExpr));
 		return errors;
 	}
 
 	public visitExpr(stmt: Stmt.ExprStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		errors.push(...this.processExpr(stmt.expression));
-		errors.push(...this.processTrailerExpr(stmt.trailerExpr));
+		errors.push(...this.processExpression(stmt.expression));
+		errors.push(...this.processTrailerExpression(stmt.trailerExpr));
 		return errors;
 	}
 
 	public visitCommandCall(stmt: Stmt.CommandCall): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
 		for (const arg of stmt.args.getElements()) {
-			errors.push(...this.processExpr(arg));
+			errors.push(...this.processExpression(arg));
 		}
 
 		return errors;
 	}
 
 
-	private processTrailerExpr(trailer: Maybe<Stmt.TrailerExprList>): Diagnostics {
+	private processTrailerExpression(trailer: Maybe<Stmt.TrailerExprList>): Diagnostics {
 		const errors: Diagnostics = [];
 		if (!trailer) return errors;
 		errors.push(...this.checkDiagnosticForNode(trailer));
 		for (const expr of trailer.exprList.getElements()) {
-			errors.push(...this.processExpr(expr));
+			errors.push(...this.processExpression(expr));
 		}
 		return errors;
 	}
 
-	private processExpr(expr: Expr.Expr): Diagnostics {
+	private processExpression(expr: Expr.Expr): Diagnostics {
 		const errors = this.checkDiagnosticForNode(expr);
 		if (expr instanceof Expr.Factor) {
 			const atom = expr.suffixTerm;
@@ -341,7 +341,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				errors.push(...this.processSuffixTerm(term))
 		}
 		else if (expr instanceof Expr.Unary) {
-			errors.push(...this.processExpr(expr.factor));
+			errors.push(...this.processExpression(expr.factor));
 		}
 		else if (expr instanceof Expr.Binary) {
 			// if contains assign expression
@@ -352,22 +352,25 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				errors.push(...this.processAssignVar(expr.left, expr, resultType));
 			}
 			else
-				errors.push(...this.processExpr(expr.left));
-			errors.push(...this.processExpr(expr.right));
+				errors.push(...this.processExpression(expr.left));
+			errors.push(...this.processExpression(expr.right));
 		}
 		else if (expr instanceof Expr.Ternary) {
-			errors.push(...this.processExpr(expr.condition));
-			errors.push(...this.processExpr(expr.trueExpr));
-			errors.push(...this.processExpr(expr.falseExpr));
+			errors.push(...this.processExpression(expr.condition));
+			errors.push(...this.processExpression(expr.trueExpr));
+			errors.push(...this.processExpression(expr.falseExpr));
 		}
 		else if (expr instanceof Expr.ParenExpr) {
 			if (expr.expr instanceof Expr.Expr)
-				errors.push(...this.processExpr(expr.expr));
+				errors.push(...this.processExpression(expr.expr));
 			else 
-				expr.expr.getElements().forEach(e => errors.push(...this.processExpr(e)));
+				expr.expr.getElements().forEach(e => errors.push(...this.processExpression(e)));
 		}
 		else if (expr instanceof Expr.AnonymousFunctionCreation) {
-			
+			errors.push(...this.processExpression(expr.body));
+		}
+		else if (expr instanceof Expr.CommandArgumentExpression) {
+			errors.push(...this.processExpression(expr.expression));
 		}
 		
 		return errors;
@@ -509,17 +512,17 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		}
 		if (atom instanceof SuffixTerm.ArrayTerm) {
 			for (const iterm of atom.items.getElements()) 
-				errors.push(...this.processExpr(iterm));
+				errors.push(...this.processExpression(iterm));
 		}
 		else if (atom instanceof SuffixTerm.AssociativeArray) {
 			for (const pair of atom.pairs.getElements()) {
-				errors.push(...this.processExpr(pair.key));
-				errors.push(...this.processExpr(pair.value));
+				errors.push(...this.processExpression(pair.key));
+				errors.push(...this.processExpression(pair.value));
 			}
 		}
 		else if (atom instanceof SuffixTerm.Call) {
 			for (const arg of atom.args.getElements()) {
-				errors.push(...this.processExpr(arg));
+				errors.push(...this.processExpression(arg));
 			}
 		}
 		else if (atom instanceof SuffixTerm.Identifier || atom instanceof SuffixTerm.PercentDereference || atom instanceof SuffixTerm.PseudoArray) {
@@ -534,10 +537,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		}
 		else if (atom instanceof Expr.ParenExpr) {
 			if (atom.expr instanceof Expr.Expr)
-				errors.push(...this.processExpr(atom.expr))
+				errors.push(...this.processExpression(atom.expr))
 			else
 				for (const e of atom.expr.getElements())
-					errors.push(...this.processExpr(e))
+					errors.push(...this.processExpression(e))
 		}
 		else 
 			atom;
@@ -548,7 +551,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	public visitIf(stmt: Stmt.If): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
 		const condExpr = stmt.condition;
-		errors.push(...this.processExpr(condExpr));
+		errors.push(...this.processExpression(condExpr));
 		errors.push(...stmt.body.accept(this, []));
 		if (stmt.elseStmt) {
 			const elseStmt = stmt.elseStmt;
@@ -567,7 +570,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	public visitReturn(stmt: Stmt.Return): Diagnostics {
 		// If any value returns process them
 		if (stmt.value) {
-			return this.processExpr(stmt.value)
+			return this.processExpression(stmt.value)
 		}
 		return this.checkDiagnosticForNode(stmt);
 	}
@@ -586,7 +589,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitSwitch(stmt: Stmt.SwitchStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		errors.push(...this.processExpr(stmt.condition));
+		errors.push(...this.processExpression(stmt.condition));
 		// process every case
 		for (const caseStmt of stmt.cases) {
 			errors.push(...caseStmt.accept(this, []));
@@ -600,7 +603,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		// if is case <experssion>, process every expressions
 		if (stmt.CaseNode instanceof Stmt.CaseExpr) {
 			for (const cond of stmt.CaseNode.conditions.getElements()) {
-				errors.push(...this.processExpr(cond));
+				errors.push(...this.processExpression(cond));
 			}
 		}
 		// process every single statement under this case
@@ -618,7 +621,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			// if any expression
 			if (stmt.condition) {
 				for (const expr of stmt.condition.getElements())
-					errors.push(...this.processExpr(expr));
+					errors.push(...this.processExpression(expr));
 			}
 			errors.push(...stmt.body.accept(this, []));
 			return errors;
@@ -626,13 +629,13 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 		// loop body until <expression>
 		errors.push(...stmt.body.accept(this, []));
-		errors.push(...this.processExpr(stmt.condition));
+		errors.push(...this.processExpression(stmt.condition));
 		return errors;
 	}
 
 	public visitWhile(stmt: Stmt.WhileStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		errors.push(...this.processExpr(stmt.condition));
+		errors.push(...this.processExpression(stmt.condition));
 		errors.push(...stmt.body.accept(this, []));
 		return errors;
 	}
@@ -705,7 +708,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitThrow(stmt: Stmt.Throw): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		return errors.concat(this.processExpr(stmt.expr));
+		return errors.concat(this.processExpression(stmt.expr));
 	}
 
 	private enterScoop(scoop: IScope) {

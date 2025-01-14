@@ -383,6 +383,11 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
             if (matchNodeTypes(expr, matchNodeType)) return createResult(expr);
             return undefined;
         }
+        else if (expr instanceof Expr.CommandArgumentExpression) {
+            if (!posInRange(expr.expression, pos))
+                return undefined;
+            return this.searchExpression(expr.expression, pos, matchNodeType); 
+        }
     }
 
     private searchFactor(factor: Expr.Factor, pos: Position, matchNodeType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {

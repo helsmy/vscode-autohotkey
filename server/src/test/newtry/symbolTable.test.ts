@@ -4,7 +4,7 @@ import { VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { SymbolTable } from '../../parser/newtry/analyzer/models/symbolTable';
 import { ISymType, VarKind } from '../../parser/newtry/analyzer/types';
 import { Label } from '../../parser/newtry/parser/models/declaration';
-import { Expr, Factor } from '../../parser/newtry/parser/models/expr';
+import { Binary, Expr, Factor } from '../../parser/newtry/parser/models/expr';
 import * as Stmt from '../../parser/newtry/parser/models/stmt';
 import { Identifier, Literal } from '../../parser/newtry/parser/models/suffixterm';
 import { AHKParser } from "../../parser/newtry/parser/parser";
@@ -21,27 +21,32 @@ function getAST(s: string) {
 function builtTable(AST: IStmt[]): SymbolTable {
     let table = new SymbolTable('', 'global', 1, new Map());
     for (const stmt of AST) {
-        if (stmt instanceof Stmt.AssignStmt) {
-            const atom = unpackExpr(stmt.expr);
-            if (atom === undefined) continue;
-            let symType: Maybe<ISymType> = undefined;
-            if (atom.type === TokenType.string) {
-                symType = table.resolve('string');
-            }
-            else if (atom.type === TokenType.number) {
-                symType = table.resolve('number');
-            }
-            if (symType === undefined) continue;
-            const latom = stmt.left.suffixTerm;
-            if (latom instanceof Identifier) {
-                const sym = new VariableSymbol(
-                    '',
-                    latom.token.content,
-                    Range.create(stmt.start, stmt.end),
-                    VarKind.variable
-                );
-                table.define(sym);
-            }
+        if (!(stmt instanceof Stmt.ExprStmt))
+            continue;
+        const atom = unpackExpr(stmt.expression);
+        if (atom === undefined) continue;
+        let symType: Maybe<ISymType> = undefined;
+        if (atom.type === TokenType.string) {
+            symType = table.resolve('string');
+        }
+        else if (atom.type === TokenType.number) {
+            symType = table.resolve('number');
+        }
+        if (symType === undefined) continue;
+        if (!(stmt.expression instanceof Binary))
+            continue;
+        const lFactor = stmt.expression.left;
+        if (!(lFactor instanceof Factor))
+            continue
+        const latom = lFactor.suffixTerm.getElements()[0];
+        if (latom.atom instanceof Identifier) {
+            const sym = new VariableSymbol(
+                '',
+                latom.atom.token.content,
+                Range.create(stmt.start, stmt.end),
+                VarKind.variable
+            );
+            table.define(sym);
         }
     }
     return table;

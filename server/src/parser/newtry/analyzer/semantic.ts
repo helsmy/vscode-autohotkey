@@ -1,4 +1,4 @@
-import { Diagnostic } from 'vscode-languageserver-types';
+import { Diagnostic, Position } from 'vscode-languageserver-types';
 import { DiagnosticSeverity, Range } from 'vscode-languageserver';
 import { TreeVisitor } from './treeVisitor';
 import * as Stmt from '../parser/models/stmt';
@@ -12,10 +12,12 @@ import { IScope, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
 import { MissingToken, SkipedToken, Token } from '../tokenizor/types';
+import { ICallInfomation } from '../../../services/types';
 
 type Diagnostics = Diagnostic[];
 interface ProcessResult {
 	table: SymbolTable;
+	callInfomation: ICallInfomation[];
 	diagnostics: Diagnostics;
 }
 
@@ -23,6 +25,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	private table: SymbolTable;
 	private stack: IScope[];
 	private currentScope: IScope;
+	private callInfomation: ICallInfomation[];
 
 	constructor(
 		public readonly script: IScript,
@@ -32,6 +35,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		this.table = new SymbolTable(script.uri, 'global', 1, builtinScope);
 		this.stack = [this.table];
 		this.currentScope = this.stack[this.stack.length-1];
+		this.callInfomation = [];
 	}
 
 	public process(): ProcessResult {
@@ -43,6 +47,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		}
 		return {
 			table: this.table,
+			callInfomation: this.callInfomation,
 			diagnostics: errors
 		};
 	}
@@ -318,7 +323,12 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		for (const arg of stmt.args.getElements()) {
 			errors.push(...this.processExpression(arg));
 		}
-
+		this.callInfomation.push({
+			callee: [stmt.command.content],
+			parameterPosition: this.getArgumentPosition(stmt.args.childern),
+			position: stmt.start,
+			isCommand: true
+		});
 		return errors;
 	}
 
@@ -330,15 +340,40 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		for (const expr of trailer.exprList.getElements()) {
 			errors.push(...this.processExpression(expr));
 		}
+		const atom =1
+		
 		return errors;
 	}
 
 	private processExpression(expr: Expr.Expr): Diagnostics {
 		const errors = this.checkDiagnosticForNode(expr);
 		if (expr instanceof Expr.Factor) {
-			const atom = expr.suffixTerm;
-			for (const term of atom.getElements())
-				errors.push(...this.processSuffixTerm(term))
+			const suffix = expr.suffixTerm;
+			let termIndex = 0
+			const terms = suffix.getElements()
+			for (const term of terms) {
+				termIndex++;
+				const atom = term.atom;
+				if (atom instanceof Expr.ParenExpr) {
+					if (atom.expr instanceof Expr.Expr)
+						errors.push(...this.processExpression(atom.expr))
+					else
+						for (const e of atom.expr.getElements())
+							errors.push(...this.processExpression(e))
+				}
+				else {
+					errors.push(...this.processSuffixTerm(atom));
+					for (const bracket of term.brackets)
+						errors.push(...this.processSuffixTerm(bracket));
+					// Collect call infomation for inlay hint
+					if (term.brackets.length !== 1)
+						continue;
+					const call = term.brackets[0];
+					if (!(call instanceof SuffixTerm.Call))
+						continue;
+					this.getCallInfomation(call, terms.slice(0, termIndex))
+				}
+			}
 		}
 		else if (expr instanceof Expr.Unary) {
 			errors.push(...this.processExpression(expr.factor));
@@ -374,6 +409,36 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		}
 		
 		return errors;
+	}
+
+	private getCallInfomation(call: SuffixTerm.Call, calleeInfomation: SuffixTerm.SuffixTerm[]): void {
+		let argumentsPosition = this.getArgumentPosition(call.args.childern);
+
+		if (calleeInfomation.find(t => !(t.atom instanceof SuffixTerm.Identifier)))
+			return;
+		if (calleeInfomation.slice(0, -1).find(t => t.brackets.length > 0))
+			return;
+		this.callInfomation.push({
+			callee: calleeInfomation.map(t => (<SuffixTerm.Identifier>t.atom).token.content),
+			parameterPosition: argumentsPosition,
+			position: call.start,
+			isCommand: false
+		});
+	}
+
+	private getArgumentPosition(args: (Expr.Expr | Token)[]) {
+		let argumentsPosition: Maybe<Position>[] = [];
+		for (let i = 0; i < args.length; i++) {
+			// If enconter delimiter, got an empty arguments
+			if (args[i] instanceof Token) {
+				argumentsPosition.push(undefined);
+				continue;
+			}
+			argumentsPosition.push(args[i].start);
+			// Skip delimiter
+			i++;
+		}
+		return argumentsPosition;
 	}
 
 	/**
@@ -499,9 +564,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		return errors;
 	}
 
-	private processSuffixTerm(term: SuffixTerm.SuffixTerm): Diagnostics {
-		const errors = this.checkDiagnosticForNode(term);
-		const atom = term.atom;
+	private processSuffixTerm(atom: SuffixTerm.SuffixTermBase): Diagnostics {
+		const errors = this.checkDiagnosticForNode(atom);
 		errors.push(...this.checkDiagnosticForNode(atom));
 		if (atom instanceof SuffixTerm.Invalid) {
 			// Non trailer exists when atom is invalid
@@ -521,7 +585,9 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			}
 		}
 		else if (atom instanceof SuffixTerm.Call) {
+			let argumentsPosition: Position[] = [];
 			for (const arg of atom.args.getElements()) {
+				argumentsPosition.push(arg.start);
 				errors.push(...this.processExpression(arg));
 			}
 		}
@@ -534,13 +600,6 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 					DiagnosticSeverity.Warning
 				));
 			}
-		}
-		else if (atom instanceof Expr.ParenExpr) {
-			if (atom.expr instanceof Expr.Expr)
-				errors.push(...this.processExpression(atom.expr))
-			else
-				for (const e of atom.expr.getElements())
-					errors.push(...this.processExpression(e))
 		}
 		else 
 			atom;

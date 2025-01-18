@@ -191,7 +191,8 @@ export class DocumentService {
         // In case of other async function run ahead
         this.docsAST.set(uri, {
             AST: ast,
-            table: docTable
+            table: docTable,
+            callInfomation: processResult.callInfomation
         });
         
         let [useless, useneed] = this.compareInclude(oldInclude, ast.script.include)
@@ -211,7 +212,8 @@ export class DocumentService {
         this.linkInclude(docTable, uri);
         this.docsAST.set(uri, {
             AST: ast,
-            table: docTable
+            table: docTable,
+            callInfomation: processResult.callInfomation
         });
     }
 
@@ -312,11 +314,12 @@ export class DocumentService {
                     ast.script, 
                     this.v2CompatibleMode ? this.builtinScope.v2 : this.builtinScope.v1
                 );
-                const table = preprocesser.process();
+                const processResult = preprocesser.process();
                 // cache to local storage file AST
                 this.localAST.set(doc.uri, {
                     AST: ast,
-                    table: table.table
+                    table: processResult.table,
+                    callInfomation: processResult.callInfomation
                 });
                 // TODO: Correct document include tree
                 if (this.incInfos.has(uri))

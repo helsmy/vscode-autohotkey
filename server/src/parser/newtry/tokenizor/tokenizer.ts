@@ -17,7 +17,7 @@ export class Tokenizer {
     private pos: number = 0;
     private document: string;
     public isLiteralToken: boolean = false;
-    private isLiteralDeref: boolean = false;
+    private isPrecentForceExpression: boolean = false;
     /**
      * content of current character
      */
@@ -43,7 +43,7 @@ export class Tokenizer {
     }
 
     public setPrecentForceExpression(bool: boolean) {
-        this.isLiteralDeref = bool;
+        this.isPrecentForceExpression = bool;
     }
 
     private Advance() {
@@ -408,10 +408,10 @@ export class Tokenizer {
     private LiteralToken(): TokenResult {
         let start = this.pos;
         let p = this.genPosition();
-        while (this.Peek() !== ',' 
+        while (this.currChar !== "EOF" 
             && this.Peek() !== '%' 
             && this.Peek() !== '\n'
-            && this.currChar !== "EOF") {
+            && this.Peek() !== ',') {
             this.Advance();
         }
         this.Advance();
@@ -499,11 +499,13 @@ export class Tokenizer {
             }
             const startPosition = this.genPosition();
             // If is not % force expression, it is %VariableName%.
-            if (preType === TokenType.precent && !(this.currChar === '\n') && !this.isWhiteSpace(this.document[this.pos - 1])) 
+            if (preType === TokenType.precentForceExpression) 
                 return this.getTokenAfterCommandPrecent(startPosition);
             switch (this.currChar) {
                 case '%':
                     this.Advance();
+                    if (this.isWhiteSpace(this.currChar))
+                        return this.CreateToken(TokenType.precentForceExpression, '%', startPosition, this.genPosition());
                     return this.CreateToken(TokenType.precent, '%', startPosition, this.genPosition());
                 case ',':
                     // this.isLiteralDeref = false;
@@ -549,7 +551,7 @@ export class Tokenizer {
             // For Command
             // If current is scanning command arguments and
             // not effect by `% ` dereference
-            if (this.isLiteralToken && !this.isLiteralDeref) {
+            if (this.isLiteralToken && !this.isPrecentForceExpression) {
                 return this.getCommandToken(preType);
             }
 

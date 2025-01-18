@@ -1,6 +1,6 @@
 import { Position } from 'vscode-languageserver';
 import { Factor } from '../../parser/newtry/parser/models/expr';
-import { Identifier } from '../../parser/newtry/parser/models/suffixterm';
+import { ArrayTerm, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../../parser/newtry/parser/models/suffixterm';
 import {AHKObjectSymbol, AHKSymbol, VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { posInRange } from '../../utilities/positionUtils';
 import { IScope, ISymbol, VarKind } from '../../parser/newtry/analyzer/types';
@@ -49,6 +49,50 @@ export function resolveFactor(factor: Factor, postion: Position, table: IScope):
     return undefined;
 }
 
+/**
+ * Find type class symbol of target suffix
+ * @param suffix target suffix
+ * @param scope current type symbol
+ * @param alwaysResolveProp does always take scope as class 
+ */
+export function resolveSuffixTermSymbol(suffix: SuffixTerm, scope: IScope): Maybe<ISymbol> {
+    const { atom, brackets } = suffix;
+
+    // TODO: no type casting on function call for now
+    for (const bracket of brackets) {
+        if (bracket instanceof Call) return undefined;
+    }
+
+    if (atom instanceof Identifier) {
+        // factor的第一个符号的类型需要从当前作用域找到
+        // 之后的符号的都是类的属性需要用resolveProp
+        const sym = scope instanceof AHKObjectSymbol ? 
+                    // 懒得写根据参数的类型了就类型断言解决了
+                    scope.resolveProp(atom.token.content):
+                    scope.resolve(atom.token.content);
+        // no more index need to be resolve here
+        if (brackets.length === 0) return sym;
+        if (!(sym instanceof AHKObjectSymbol)) return undefined
+        // resolve rest index
+        const bracket = brackets[0];
+        // no type casting on complex indexing
+        // string index property type finding
+        // case: object["property"]
+        const { items } = (<ArrayTerm>bracket);
+        const firstIndex = items.getElements()[0]
+        if (!(firstIndex instanceof Factor)) return undefined;
+        if (firstIndex.termCount !== 1) return undefined;
+        const firstFactor = firstIndex.suffixTerm.getElements()[0]
+        // Only try first string of number
+        if (!(firstFactor instanceof Literal)) return undefined;
+        return sym.resolveProp(firstFactor.token.content)
+    }
+    // 不管动态特性
+    if (atom instanceof PercentDereference) return undefined;
+    // TODO: 字符串和数字的fakebase特性
+    // TODO: 数组和关联数组的自带方法
+}
+
 export function resolveSubclass(object: AHKObjectSymbol) {
     let symbols: AHKSymbol[] = [object];
     let parent: Maybe<IScope> = object.enclosingScope;
@@ -73,7 +117,7 @@ export function resolveCommandCall(cmd: CommandCall): Maybe<string> {
     
 }
 
-function resolveRelative(name: string, scope: IScope): Maybe<AHKSymbol> {
+export function resolveRelative(name: string, scope: IScope): Maybe<AHKSymbol> {
     const sym = scope.resolve(name);
     if (sym instanceof VariableSymbol) {
         const varType = sym.getType();
@@ -89,25 +133,36 @@ function resolveRelative(name: string, scope: IScope): Maybe<AHKSymbol> {
  * 寻找prefix数组中的名字字符所指的符号
  * @param prefixs perfix list for search(top scope at first)
  */
-export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKObjectSymbol> {
+export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKSymbol> {
+    // retreive search class symbol
     let nextScope = scope.resolve(prefixs[0]);
-    if (!(nextScope && nextScope instanceof AHKObjectSymbol)) return undefined;
-    for (const lexem of prefixs.slice(1)) {
+    if (!nextScope) return undefined;
+    // if only one symbol, this is the final result
+    if (prefixs.length === 1) return nextScope;
+    if (!(nextScope instanceof AHKObjectSymbol)) return undefined;
+
+    prefixs = prefixs.slice(1);
+    for (let i = 0; i < prefixs.length; i++) {
+        const lexem = prefixs[i];
         const currentScope: Maybe<ISymbol> = (<AHKObjectSymbol>nextScope).resolveProp(lexem);
         // if (currentScope === undefined) return undefined;
         if (currentScope && currentScope instanceof AHKObjectSymbol) {
-            nextScope = currentScope
+            nextScope = currentScope;
+            continue;
         }
-        else if (currentScope instanceof VariableSymbol) {
+        if (i >= prefixs.length - 1)
+            return currentScope;
+        if (currentScope instanceof VariableSymbol) {
             const varType = currentScope.getType();
             // not a instance of class
             if (varType.length === 0) return undefined;
             const referenceScope = searchPerfixSymbol(varType, nextScope as AHKObjectSymbol);
             if (referenceScope === undefined) return undefined;
-            nextScope = referenceScope
+            nextScope = referenceScope;
+            continue;
         }
-        else 
-            return undefined;
+         
+        return undefined;
     }
-    return nextScope as AHKObjectSymbol;
+    // return nextScope as AHKObjectSymbol;
 }

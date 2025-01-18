@@ -39,7 +39,12 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
         return undefined;
     }
     visitPropertyDeclaration(decl: Decl.PropertyDeclaration, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
-        throw new Error('Method not implemented.');
+        if (!posInRange(decl.propertyElements, pos)) return undefined;
+        for (const element of decl.propertyElements.getElements()) {
+            const result = this.searchExpression(element, pos, matchType);
+            if (result) return result;
+        }
+        return undefined;
     }
     visitDynamicProperty(decl: Decl.DynamicProperty, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
         

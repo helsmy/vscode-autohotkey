@@ -1,4 +1,4 @@
-import { CompletionItemKind, CompletionItem, Position, Range } from 'vscode-languageserver';
+import { CompletionItemKind, CompletionItem, Position, Range, SemanticTokenTypes } from 'vscode-languageserver';
 import { TokenType } from './parser/newtry/tokenizor/tokenTypes';
 import { Parameter } from "./parser/regParser/types";
 import { 
@@ -16,9 +16,23 @@ import { URI } from 'vscode-uri';
 import { ClassDef, FuncDef, PropertyDeclaration, SpreadParameter } from './parser/newtry/parser/models/declaration';
 import { Binary, Factor } from './parser/newtry/parser/models/expr';
 import { Identifier } from './parser/newtry/parser/models/suffixterm';
-import { AssignStmt } from './parser/newtry/parser/models/stmt';
 
 export const ServerName = 'ahk-simple-language-server';
+
+export const AHKLSSemanticTokenTypes = [
+	SemanticTokenTypes.class,
+	SemanticTokenTypes.parameter,
+	SemanticTokenTypes.variable,
+	SemanticTokenTypes.property,
+	SemanticTokenTypes.function,
+	SemanticTokenTypes.method,
+	SemanticTokenTypes.keyword,
+	SemanticTokenTypes.modifier,
+	SemanticTokenTypes.comment,
+	SemanticTokenTypes.string,
+	SemanticTokenTypes.number,
+	SemanticTokenTypes.operator,
+]
 
 export const defaultSettings = new ServerConfiguration(
 	1000,
@@ -84,7 +98,7 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 		logger.error('Can not read builtin-function definition file. Builtin-function related features will not work.');
 	}
 
-	const p = new AHKParser(docText, furi.toString(), true);
+	const p = new AHKParser(docText, furi.toString(), v2mode);
 	const ast = p.parse();
 	const fuctions = ast.script.stmts.map(f => {
 		if (f instanceof FuncDef)

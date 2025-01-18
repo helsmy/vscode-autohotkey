@@ -29,13 +29,18 @@ function AtomTestItem(source: string, type: TokenType, literal: any): IAtomTestI
 }
 
 function atomUnpackTest(value: IExpr, testFunc: (atom: Atom) => void) {
-    assert.strictEqual(value instanceof Expr.Factor, true);
     if (value instanceof Expr.Factor) {
         for (const term of value.suffixTerm.getElements()) {
             assert.strictEqual(term.brackets.length, 0);
             testFunc(term.atom);
         }
+        return;
     }
+    if (value instanceof Expr.CommandArgumentExpression) {
+        atomUnpackTest(value.expression, testFunc);
+        return;
+    }
+    assert.fail('Unexpect Expression type!');
 };
 
 function arrayUnpackTest(value: IExpr, testFunc: (atom: Atom, index: number) => void) {
@@ -290,8 +295,9 @@ suite('Syntax Parser Expresion Test', () => {
         const expects = [
             callTest('envdiv, 1', 'envdiv', [SuffixTerm.Literal]),
             callTest('envget, %abc%', 'envget', [SuffixTerm.PercentDereference]),
-            callTest('\envmult, 1', 'envmult', [SuffixTerm.Literal]),
-            callTest('\envset, 1, abc', 'envset', [SuffixTerm.Literal, SuffixTerm.Literal]),
+            callTest('\nenvmult, 1', 'envmult', [SuffixTerm.Literal]),
+            callTest('\nenvset, % ahk, abc', 'envset', [SuffixTerm.Identifier, SuffixTerm.Literal]),
+            callTest('\nRun, "%run", abc', 'Run', [SuffixTerm.Identifier, SuffixTerm.Literal]),
         ];
         for (const expect of expects) {
             const actual = getStmt(expect.source);
@@ -299,6 +305,7 @@ suite('Syntax Parser Expresion Test', () => {
             if (actual instanceof Stmt.CommandCall) {
                 assert.strictEqual(actual.command.content, expect.callee);
                 const args = actual.args.getElements();
+                assert.strictEqual(args.length, expect.args.length, `${expect.callee}: Wrong arguments length`);
                 for (let i = 0; i < args.length; i++)
                     atomUnpackTest(args[i], atom => {
                         assert.strictEqual(atom instanceof expect.args[i], true, `${expect.callee} Wrong paramter ${i}`);
@@ -381,11 +388,11 @@ suite('Syntax Parser Statment Test', () => {
     })
 });
 
-function assertNoSyntaxError(ast: IScript) {
+function assertSyntaxErrorCount(ast: IScript, count = 0) {
     const processer = new PreProcesser(ast, new Map());
     const res = processer.process();
     const errors = res.diagnostics.filter(e => (e.severity ?? 1) < 2);
-    assert.strictEqual(errors.length, 0, 'Enconter syntrax error:\n' + JSON.stringify(errors));
+    assert.strictEqual(errors.length, count, 'Enconter syntrax error:\n' + JSON.stringify(errors));
 }
 
 suite('Full file test', () => {
@@ -408,7 +415,7 @@ suite('Full file test', () => {
         const fileAST = parser.parse();
         assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
         assert.strictEqual(fileAST.sytanxErrors.length, 0, 'Enconter Parser error');
-        assertNoSyntaxError(fileAST.script);
+        assertSyntaxErrorCount(fileAST.script);
     });
     test('Function define file', () => {
         const file = `a(a, b, c:=100, d*)
@@ -438,7 +445,7 @@ suite('Full file test', () => {
         assert.strictEqual(fileAST.script.stmts.length, 4, 'Error statements number');
         assert.strictEqual(fileAST.script.stmts[0] instanceof Decl.FuncDef, true);
         assert.strictEqual(fileAST.script.stmts[1] instanceof Decl.FuncDef, true);
-        assertNoSyntaxError(fileAST.script);
+        assertSyntaxErrorCount(fileAST.script);
     });
 
     test('Function define file 2', () => {
@@ -498,7 +505,7 @@ FindText(x1:=0, y1:=0, x2:=0, y2:=0, err1:=0, err0:=0
         const fileAST = parser.parse();
         assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
         assert.strictEqual(fileAST.script.stmts.length, 1, 'Enconter Parser error');
-        assertNoSyntaxError(fileAST.script);
+        assertSyntaxErrorCount(fileAST.script);
     });
 
     test('Method define file', () => {
@@ -532,7 +539,7 @@ FindText(x1:=0, y1:=0, x2:=0, y2:=0, err1:=0, err0:=0
         assert.strictEqual(fileAST.script.stmts[0] instanceof Decl.ClassDef, true);
         assert.strictEqual(fileAST.script.stmts[1] instanceof Stmt.ExprStmt, true);
         assert.strictEqual(fileAST.script.stmts[2] instanceof Stmt.ExprStmt, true);
-        assertNoSyntaxError(fileAST.script);
+        assertSyntaxErrorCount(fileAST.script);
     });
 
     test('Full document 1', () => {
@@ -551,7 +558,7 @@ FindText(x1:=0, y1:=0, x2:=0, y2:=0, err1:=0, err0:=0
         const fileAST = parser.parse();
         assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
         assert.strictEqual(fileAST.script.stmts.length, 8, 'Enconter Parser error');
-        assertNoSyntaxError(fileAST.script);
+        assertSyntaxErrorCount(fileAST.script);
     });
     test('Full document 2', () => {
         const file = `Abs(Number){}
@@ -677,15 +684,16 @@ VerCompare(VersionA,VersionB){}
 WinActive(WinTitle := UnSet,WinText := UnSet,ExcludeTitle := UnSet,ExcludeText := UnSet){}
 WinExist(WinTitle := UnSet,WinText := UnSet,ExcludeTitle := UnSet,ExcludeText := UnSet){}
 Array(Value*){}
-Func(FunctionName){}  
+Func(FunctionName){} 
+ Object(Key*, Value*){}
         `;
         const parser = new AHKParser(file, '');
         const fileAST = parser.parse();
         assert.strictEqual(fileAST.tokenErrors.length, 0, 'Enconter Token error');
-        assert.strictEqual(fileAST.script.stmts.length, 124, 'Enconter Parser error');
+        assert.strictEqual(fileAST.script.stmts.length, 125, 'Enconter Parser error');
         for (const stmt of fileAST.script.stmts) {
             assert.strictEqual(stmt instanceof Decl.FuncDef, true);
         }
-        assertNoSyntaxError(fileAST.script);
+        assertSyntaxErrorCount(fileAST.script, 1);
     });
 });

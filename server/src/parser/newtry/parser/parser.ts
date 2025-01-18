@@ -890,7 +890,8 @@ export class AHKParser {
             return new Stmt.Loop(loop, body);
         }
         
-        // FIXME: record comma
+        this.setCommandScanMode(true);
+
        const delimiter = this.eatOptional(TokenType.comma);
         // const loopmode = this.currentToken.content.toLowerCase();
 
@@ -900,7 +901,6 @@ export class AHKParser {
         //     loopmode === 'parse' ||
         //     loopmode === 'read'  ||
         //     loopmode === 'reg') 
-            this.setCommandScanMode(true);
 
         const param = this.commandArguments();
         if (this.atLineEnd()) this.advance();
@@ -1593,21 +1593,23 @@ export class AHKParser {
         return this.delimitedList(
             this.currentToken.start,
             TokenType.comma,
-            this.isExpressionStart,
+            t => t.type === TokenType.precentForceExpression || this.isExpressionStart(t),
             () => {
-                // Reset % force expresion mark for every parameter
-                this.tokenizer.setPrecentForceExpression(false);
-                if (
-                    this.currentToken.type === TokenType.precent &&
-                    !positionEqual(this.currentToken.end, this.peek().start)
-                ) {
+                if (this.currentToken.type === TokenType.precentForceExpression) {
                     this.tokenizer.setPrecentForceExpression(true);
+                    const precent = this.eatType(TokenType.precentForceExpression);
+                    const expression = this.expression();
+                    // Reset % force expresion mark
+                    this.tokenizer.setPrecentForceExpression(false);
                     return new Expr.CommandArgumentExpression(
-                        this.eatType(TokenType.precent),
-                        this.expression()
+                        precent,
+                        expression
                     );
                 }
-                return this.expression();
+                const expression = this.expression();
+                // Reset % force expresion mark
+                this.tokenizer.setPrecentForceExpression(false); 
+                return expression;
             },
             true
         );

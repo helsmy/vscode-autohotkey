@@ -131,6 +131,7 @@ export enum TokenType {
     directive,
     // label,
     implconn,
+    precentForceExpression,
 
     // file
     EOL, EOF,

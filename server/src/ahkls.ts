@@ -24,17 +24,14 @@ import {
     DefinitionParams,
     HoverParams,
     CompletionParams,
-    SemanticTokenTypes,
-    SemanticTokenModifiers,
     SemanticTokens,
     SemanticTokensParams,
-    SemanticTokensBuilder
-} from 'vscode-languageserver/node';
+    SemanticTokensBuilder,
+    InlayHintParams,
+    InlayHint} from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
-import { 
-    IFuncNode,
-	ISymbolNode, 
+import {  
 	Word
 } from './parser/regParser/types';
 import {
@@ -56,7 +53,8 @@ import {
     buildBuiltinCommandNode,
     buildKeyWordCompletions,
     buildbuiltin_variable,
-    ServerName
+    ServerName,
+    AHKLSSemanticTokenTypes
 } from './constants';
 import {
     dirname,
@@ -76,19 +74,19 @@ import * as Expr from "./parser/newtry/parser/models/expr";
 import { binarySearchIndex, binarySearchRange, posInRange, rangeBefore } from './utilities/positionUtils';
 import { NodeConstructor } from './parser/newtry/parser/models/parseError';
 import { ClassDef, DynamicProperty, FuncDef, Parameter } from './parser/newtry/parser/models/declaration';
-import { convertSymbolsHover, convertSymbolCompletion, getFuncPrototype, convertBuiltin2Signature, convertFactorHover, convertNewClassHover } from './services/utils/converter';
-import { resolveCommandCall, resolveFactor, resolveSubclass, searchPerfixSymbol } from './services/utils/symbolResolver';
+import { convertSymbolsHover, convertSymbolCompletion, getFuncPrototype, convertBuiltin2Signature, convertFactorHover, convertNewClassHover, convertMethodCallInlayHint, convertCommandCallInlayHint } from './services/utils/converter';
+import { resolveCommandCall, resolveFactor, resolveRelative, resolveSubclass, resolveSuffixTermSymbol, searchPerfixSymbol } from './services/utils/symbolResolver';
 import { Token } from './parser/newtry/tokenizor/types';
 import { ConfigurationService } from './services/configurationService';
 import { Notifier } from './services/utils/notifier';
 import { DocumentService, IBuiltinScope } from './services/documentService';
-import { IClientCapabilities } from './types';
-import { IAST } from './parser/newtry/types';
+import { AHKSemanticTokenTypes, IClientCapabilities } from './types';
 import { docLangName } from './services/config/serverConfiguration';
 import { builtin_variable } from './utilities/builtins';
 import { SymbolTable } from './parser/newtry/analyzer/models/symbolTable';
 import { DocumentSyntaxInfo } from './services/types';
 import { logException } from './utilities/decorator';
+import { TokenType } from './parser/newtry/tokenizor/tokenTypes';
 
 export class AHKLS
 {
@@ -149,7 +147,8 @@ export class AHKLS
         this.conn.onHover(this.onHover.bind(this));
         this.conn.onCompletion(this.onCompletion.bind(this));
         this.conn.onCompletionResolve(this.onCompletionResolve.bind(this));
-        // this.conn.languages.semanticTokens.on(this.onSemanticTokens.bind(this))
+        this.conn.languages.semanticTokens.on(this.onSemanticTokens.bind(this));
+        this.conn.languages.inlayHint.on(this.onInlayHint.bind(this));
 
         this.documents.onDidOpen(e => this.initDocument(e.document.uri, e.document));
 
@@ -219,14 +218,14 @@ export class AHKLS
                 hoverProvider: true,
                 documentSymbolProvider: true,
                 definitionProvider: true,
-                // semanticTokensProvider: {
-                //     legend: {
-                //         tokenTypes: [SemanticTokenTypes.variable],
-                //         tokenModifiers: [SemanticTokenModifiers.static]
-                //     },
-                //     full: true
-                // },
-                // inlayHintProvider: true,
+                semanticTokensProvider: {
+                    legend: {
+                        tokenTypes: AHKLSSemanticTokenTypes,
+                        tokenModifiers: []
+                    },
+                    full: true
+                },
+                inlayHintProvider: true,
             }
         };
         if (hasWorkspaceFolderCapability) {
@@ -551,20 +550,54 @@ export class AHKLS
         return item;
     }
 
+    @logException
     private async onSemanticTokens(param: SemanticTokensParams, cancellation: CancellationToken): Promise<SemanticTokens>{
         const { textDocument } = param;
-        this.logger.info('onSemanticTokens');
         const doc = this.documentService.getDocumentInfo(textDocument.uri);
         if (!doc) return {data: []};
         const builder = new SemanticTokensBuilder();
-        const first = doc.syntax.AST.script.tokens[1];
-        builder.push(
-            first.start.line, 
-            first.start.character, 
-            first.content.length,
-            0, 0
-        );
+        for (const token of doc.syntax.AST.script.tokens) {
+            if (token.type !== TokenType.string)
+                continue;
+            builder.push(
+                token.start.line, 
+                token.start.character, 
+                token.content.length,
+                AHKSemanticTokenTypes.string, 0
+            );
+        }
         return builder.build();
+    }
+
+    @logException
+    private async onInlayHint(param: InlayHintParams, cancellation: CancellationToken): Promise<Maybe<InlayHint[]>> {
+        const { textDocument } = param;
+        const doc = this.documentService.getDocumentInfo(textDocument.uri);
+        if (!doc) return undefined;;
+        let hint: InlayHint[] = [];
+        for (const call of doc.syntax.callInfomation) {
+            if (call.parameterPosition.length === 0)
+                continue;
+            const callee = call.callee
+            const scope = this.getCurrentScope(call.position, doc.syntax.table);
+            const callSymbol = searchPerfixSymbol(callee, scope);
+            if (callSymbol instanceof AHKMethodSymbol) {
+                hint.push(...convertMethodCallInlayHint(callSymbol, call));
+                continue;
+            }
+            
+            if (!call.isCommand) continue;
+            const commandName = callee[0]
+            let commandSymbolList = this.builtinCommand.filter(s => s.name === commandName);
+            if (commandSymbolList.length === 0) continue;
+            commandSymbolList.sort(s => s.params.length);
+            const commandSymbol = commandSymbolList.find(s => s.params.length >= call.parameterPosition.length);
+            hint.push(...convertCommandCallInlayHint(
+                commandSymbol ? commandSymbol : commandSymbolList[commandSymbolList.length - 1],
+                call
+            ));
+        }
+        return hint;
     }
     
     /**
@@ -633,9 +666,16 @@ export class AHKLS
             return undefined;
 
         let allTerms = node.suffixTerm.getElements().filter(item => posInRange(item, pos) || rangeBefore(item, pos));
-        let nextScope = scope;
+        let nextScope = this.resolveToLastTerm(allTerms, scope);
+        
+        if (nextScope instanceof AHKObjectSymbol)
+            return nextScope.allSymbols().map(sym => convertSymbolCompletion(sym));
+        return undefined;
+    }
+
+    private resolveToLastTerm(allTerms: SuffixTerm[], nextScope: IScope) {
         for (const lexem of allTerms) {
-            const currentScope = this.resolveSuffixTermSymbol(lexem, nextScope);
+            const currentScope = resolveSuffixTermSymbol(lexem, nextScope);
             // if (currentScope === undefined) return undefined;
             if (currentScope && currentScope instanceof AHKObjectSymbol) {
                 nextScope = currentScope
@@ -646,58 +686,13 @@ export class AHKLS
                 if (varType.length === 0) return undefined;
                 const referenceScope = searchPerfixSymbol(varType, nextScope);
                 if (referenceScope === undefined) return undefined;
+                if (!(referenceScope instanceof AHKObjectSymbol)) return undefined;
                 nextScope = referenceScope
             }
             else 
                 return undefined;
         }
-        if (nextScope instanceof AHKObjectSymbol)
-            return nextScope.allSymbols().map(sym => convertSymbolCompletion(sym));
-        return undefined;
-    }
-
-    /**
-     * Find type class symbol of target suffix
-     * @param suffix target suffix
-     * @param scope current type symbol
-     * @param alwaysResolveProp does always take scope as class 
-     */
-    private resolveSuffixTermSymbol(suffix: SuffixTerm, scope: IScope): Maybe<ISymbol> {
-        const { atom, brackets } = suffix;
-
-        // TODO: no type casting on function call for now
-        for (const bracket of brackets) {
-            if (bracket instanceof Call) return undefined;
-        }
-
-        if (atom instanceof Identifier) {
-            // factor的第一个符号的类型需要从当前作用域找到
-            // 之后的符号的都是类的属性需要用resolveProp
-            const sym = scope instanceof AHKObjectSymbol ? 
-                        // 懒得写根据参数的类型了就类型断言解决了
-                        scope.resolveProp(atom.token.content):
-                        scope.resolve(atom.token.content);
-            // no more index need to be resolve here
-            if (brackets.length === 0) return sym;
-            if (!(sym instanceof AHKObjectSymbol)) return undefined
-            // resolve rest index
-            const bracket = brackets[0];
-            // no type casting on complex indexing
-            // string index property type finding
-            // case: object["property"]
-            const { items } = (<ArrayTerm>bracket);
-            const firstIndex = items.getElements()[0]
-            if (!(firstIndex instanceof Expr.Factor)) return undefined;
-            if (firstIndex.termCount !== 1) return undefined;
-            const firstFactor = firstIndex.suffixTerm.getElements()[0]
-            // Only try first string of number
-            if (!(firstFactor instanceof Literal)) return undefined;
-            return sym.resolveProp(firstFactor.token.content)
-        }
-        // 不管动态特性
-        if (atom instanceof PercentDereference) return undefined;
-        // TODO: 字符串和数字的fakebase特性
-        // TODO: 数组和关联数组的自带方法
+        return nextScope;
     }
 
     /**
@@ -828,7 +823,8 @@ export class AHKLS
             // FIXME: 把这个遗留的反转的分词顺序解决一下
             const perfixs = lexems.reverse().slice(0, -1);
             const symbol = searchPerfixSymbol(perfixs, scope);
-            return symbol ? symbol.resolveProp(lexems[lexems.length-1]) : undefined;
+            if (!symbol || !(symbol instanceof AHKObjectSymbol)) return undefined;
+            return symbol.resolveProp(lexems[lexems.length-1]);
         }
         
         return lexems[0] !== undefined ? scope.resolve(lexems[0]) : undefined;
@@ -1143,3 +1139,4 @@ export class AHKLS
         }
 	}
 }
+

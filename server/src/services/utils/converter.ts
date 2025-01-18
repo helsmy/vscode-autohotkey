@@ -1,4 +1,4 @@
-import { CompletionItem, CompletionItemKind, Hover, MarkupContent, MarkupKind, ParameterInformation, Position, Range, SignatureInformation } from 'vscode-languageserver';
+import { CompletionItem, CompletionItemKind, Hover, InlayHint, InlayHintKind, MarkupContent, MarkupKind, ParameterInformation, Position, Range, SignatureInformation } from 'vscode-languageserver';
 import { AHKBuiltinMethodSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, BuiltinVariableSymbol, HotStringSymbol, HotkeySymbol, VariableSymbol, isClassObject, isMethodObject } from '../../parser/newtry/analyzer/models/symbol';
 import { IScope, ISymbol, VarKind } from '../../parser/newtry/analyzer/types';
 import { BuiltinFuncNode } from '../../constants';
@@ -6,6 +6,7 @@ import { Parameter } from '../../parser/newtry/parser/models/declaration';
 import { Factor } from '../../parser/newtry/parser/models/expr';
 import { resolveFactor } from './symbolResolver';
 import { Call } from '../../parser/newtry/parser/models/suffixterm';
+import { ICallInfomation } from '../types';
 
 type MarkdownHover = Omit<Hover, 'contents'> & {
     contents: MarkupContent
@@ -192,6 +193,41 @@ export function convertNewClassHover(node: Factor, position: Position, table: IS
                 symbol.concat(constructor), range
             );
     }
+}
+
+export function convertMethodCallInlayHint(callSymbol: AHKMethodSymbol, call: ICallInfomation): InlayHint[] {
+    let hint: InlayHint[] = [];
+    const parameterList = callSymbol.requiredParameters.concat(callSymbol.optionalParameters);
+    for (let i = 0; i < parameterList.length; i++) {
+        const parameterPosition = call.parameterPosition[i];
+        if (!parameterPosition) continue;
+        const parameter = parameterList[i];
+        let label = `${parameter.isByref ? '&' : ''}${parameter.name}`;
+        if (i > callSymbol.requiredParameters.length - 1)
+            label = `${label}${parameter.isSpread ? '*' : '?'}`;
+        hint.push(InlayHint.create(
+            parameterPosition,
+            label + ': ',
+            InlayHintKind.Parameter
+        ));
+    }
+    return hint;
+}
+
+export function convertCommandCallInlayHint(callSymbol: BuiltinFuncNode, call: ICallInfomation): InlayHint[] {
+    let hint: InlayHint[] = [];
+    const parameterList = callSymbol.params
+    for (let i = 0; i < parameterList.length; i++) {
+        const parameterPosition = call.parameterPosition[i];
+        if (!parameterPosition) continue;
+        const parameter = parameterList[i];
+        hint.push(InlayHint.create(
+            parameterPosition,
+            `${parameter.name}${parameter.isOptional ? '?' : ''}: `,
+            InlayHintKind.Parameter
+        ));
+    }
+    return hint;
 }
 
 function lastItem<T>(a: T[]): T {

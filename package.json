@@ -26,7 +26,6 @@
         "vscode": "^1.77.3"
     },
     "activationEvents": [
-        "onLanguage:ahk"
     ],
     "main": "./client/out/extension",
     "contributes": {
@@ -107,6 +106,12 @@
                     "type": "boolean",
                     "default": false,
                     "description": "(Preview)Send errors to client or not. Only for debugging now"
+                },
+                "ahk-simple-language-server.enableInlayHint": {
+                    "scope": "window",
+                    "type":"boolean",
+                    "default": true,
+                    "description": "Enable inlay hint or not."
                 },
                 "ahk-simple-language-server.documentLanguage": {
                     "scope": "application",

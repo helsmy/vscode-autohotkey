@@ -41,7 +41,8 @@ export const defaultSettings = new ServerConfiguration(
 	{
 		level: 'info'
 	},
-	false
+	false,
+	true
 )
 
 export const keywords = (() => {

@@ -405,7 +405,7 @@ export class Tokenizer {
         return this.CreateError(currstr, p, this.genPosition());
     }
 
-    private LiteralToken(): TokenResult {
+    private GetLiteralToken(): TokenResult {
         let start = this.pos;
         let p = this.genPosition();
         while (this.currChar !== "EOF" 
@@ -416,6 +416,12 @@ export class Tokenizer {
         }
         this.Advance();
         let end = this.pos;
+        // Tail comment of command
+        if (this.currChar === '\n') {
+            const commentMarkOffset = this.document.slice(start, this.pos).search(';');
+            if (commentMarkOffset !== -1)
+                this.BackTo(start + commentMarkOffset);
+        }
         const value = this.document.slice(start, this.pos).trim();
         return this.CreateToken(TokenType.string, value, p, this.genPosition());
     }
@@ -477,21 +483,38 @@ export class Tokenizer {
         return this.CreateToken(TokenType.string, content, p, this.genPosition());
     }
 
-    private getTokenAfterCommandPrecent(startPosition: Position): TokenResult {
+    private getPrecentDereferenceToken(startPosition: Position): TokenResult {
+        this.Advance();
+        let tokens = [new Token(TokenType.precent, '%', startPosition, this.genPosition())];
         if (!this.isAlphaNumeric(this.currChar)) {
-            const start = this.pos;
-            this.Advance();
-            return this.CreateError(
-                this.document.slice(start, this.pos),
-                startPosition, this.genPosition()
-            );
+            return {
+                result: tokens,
+                kind: TokenKind.Multi
+            };
         }
         // TODO: AHK allows number as identifier to be derefered
         // This is for get cli parameter
-        return this.GetId(TokenType.precent);
+        const offset = this.pos;
+        const idstartpos = this.genPosition();
+        while (this.isAlphaNumeric(this.currChar) && this.currChar !== "EOF")
+            this.Advance();
+        const value = this.document.slice(offset, this.pos);
+        tokens.push(new Token(TokenType.id, value, idstartpos, this.genPosition()));
+        if (this.currChar !== '%')
+            return {
+                result: tokens,
+                kind: TokenKind.Multi
+            };
+        const prestartpos = this.genPosition();
+        this.Advance();
+        tokens.push(new Token(TokenType.precent, '%', prestartpos, this.genPosition()));
+        return {
+            result: tokens,
+            kind: TokenKind.Multi
+        };
     }
 
-    private getCommandToken(preType: TokenType = TokenType.EOL): TokenResult {
+    private getCommandToken(): TokenResult {
         while (true) {
             if (this.isWhiteSpace(this.currChar)) {
                 this.SkipWhiteSpace();
@@ -499,14 +522,14 @@ export class Tokenizer {
             }
             const startPosition = this.genPosition();
             // If is not % force expression, it is %VariableName%.
-            if (preType === TokenType.precentForceExpression) 
-                return this.getTokenAfterCommandPrecent(startPosition);
             switch (this.currChar) {
                 case '%':
-                    this.Advance();
-                    if (this.isWhiteSpace(this.currChar))
+                    if (this.isWhiteSpace(this.Peek())) {
+                        this.Advance();
                         return this.CreateToken(TokenType.precentForceExpression, '%', startPosition, this.genPosition());
-                    return this.CreateToken(TokenType.precent, '%', startPosition, this.genPosition());
+                    }
+                    this.Advance();
+                    return this.getPrecentDereferenceToken(startPosition);
                 case ',':
                     // this.isLiteralDeref = false;
                     this.Advance();
@@ -526,14 +549,14 @@ export class Tokenizer {
                 case '/':
                     if (this.Peek() === '*') 
                         return this.BlockComment();
-                    return this.LiteralToken();
+                    return this.GetLiteralToken();
                 // line comment
                 case ';':
                     if (this.isWhiteSpace(this.Peek()))
                         return this.LineComment();
-                    this.LiteralToken();
+                    this.GetLiteralToken();
                 default:
-                    return this.LiteralToken();
+                    return this.GetLiteralToken();
             }
         }
     }
@@ -552,7 +575,7 @@ export class Tokenizer {
             // If current is scanning command arguments and
             // not effect by `% ` dereference
             if (this.isLiteralToken && !this.isPrecentForceExpression) {
-                return this.getCommandToken(preType);
+                return this.getCommandToken();
             }
 
             if (this.ischars(this.currChar ,' ', '\t', '\r')) {

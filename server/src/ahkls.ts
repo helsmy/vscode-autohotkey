@@ -125,6 +125,9 @@ export class AHKLS
     public sendError: boolean = false;
 
     public v2CompatibleMode: boolean = false;
+
+    public enableInlayHint: boolean = true;
+
     private currentDocUri: string = '';
 
 	constructor(conn: Connection, logger: ILoggerBase, config: ConfigurationService) {
@@ -163,6 +166,7 @@ export class AHKLS
         }
 
         this.v2CompatibleMode = config.getConfig('v2CompatibleMode');
+        this.enableInlayHint = config.getConfig('enableInlayHint');
         this._configurationDone.notify();
     }
 
@@ -571,6 +575,9 @@ export class AHKLS
 
     @logException
     private async onInlayHint(param: InlayHintParams, cancellation: CancellationToken): Promise<Maybe<InlayHint[]>> {
+        await this._configurationDone.wait(1000);
+        if (!this.enableInlayHint) return undefined;
+        
         const { textDocument } = param;
         const doc = this.documentService.getDocumentInfo(textDocument.uri);
         if (!doc) return undefined;;

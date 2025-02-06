@@ -459,11 +459,15 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			const firstTerm = expr.suffixTerm.getElements()[0];
 			const brackets = firstTerm.brackets;
 			const atom = firstTerm.atom;
+			if (atom instanceof SuffixTerm.ArrayTerm) return ['Array'];
+			if (atom instanceof SuffixTerm.AssociativeArray) return ['AssociativeArray'];
 			if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
 			if (brackets.length > 1) return undefined;
 			const trailer = brackets[0];
-			if (trailer instanceof SuffixTerm.Call)
+			if (trailer instanceof SuffixTerm.Call) {
+				if (atom.token.content.toLowerCase() === 'array') return ['Array'];
 				return atom.token.content.toLowerCase() === 'fileopen' ? ['File'] : undefined;
+			}
 		}
 		if (!isNewClass) return undefined;
 		

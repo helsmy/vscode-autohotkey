@@ -22,6 +22,7 @@ export interface AHKLSSettings {
         level: LogLevelClient
     };
     v2CompatibleMode: boolean;
+    enableInlayHint: boolean;
 }
 
 export class ServerConfiguration implements AHKLSSettings {
@@ -30,7 +31,8 @@ export class ServerConfiguration implements AHKLSSettings {
         public readonly documentLanguage: docLangName,
         public readonly sendError: boolean,
         public readonly traceServer: {level: LogLevelClient},
-        public readonly v2CompatibleMode: boolean
+        public readonly v2CompatibleMode: boolean,
+        public readonly enableInlayHint: boolean
 	) {
 
     }
@@ -45,7 +47,8 @@ export class ServerConfiguration implements AHKLSSettings {
             config.documentLanguage ?? this.documentLanguage,
             config.sendError ?? this.sendError,
             config.traceServer ?? this.traceServer,
-            config.v2CompatibleMode ?? this.v2CompatibleMode
+            config.v2CompatibleMode ?? this.v2CompatibleMode,
+            config.enableInlayHint ?? this.enableInlayHint
         );
     }
 

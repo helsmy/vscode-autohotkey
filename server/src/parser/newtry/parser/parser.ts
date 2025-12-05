@@ -510,7 +510,11 @@ export class AHKParser {
         const token = this.currentToken;
         // FIXME: Report error and recode modifier, when modifier does not needed.
         // If class keyword is not used as name of property or method
-        if (token.type === TokenType.class && !(this.tokenizer.Peek() === '(')) 
+        if (token.type === TokenType.class && 
+            // Not method
+            !(this.tokenizer.Peek() === '(') && 
+            // Not property
+            !this.matchTokens(this.peek().type, [TokenType.openBrace, TokenType.fatArrow])) 
             return this.classDefine();
         if (isValidIdentifier(this.currentToken.type))
             return this.idLeadClassMember(modifier);

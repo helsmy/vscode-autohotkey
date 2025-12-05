@@ -260,6 +260,7 @@ export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument
 			param.isSpread? 
 			param.name === '*' ? '' : '*'
 			: '?'}`);
+		// FIXME: 这里也许需要用symbolInfomationName(sym)来获取名字？
 		return `${this.name}(${reqParaStr.concat(optParaStr).join(', ')})`
 	}
 }

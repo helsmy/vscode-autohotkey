@@ -7,6 +7,7 @@ import { Factor } from '../../parser/newtry/parser/models/expr';
 import { resolveFactor } from './symbolResolver';
 import { Call } from '../../parser/newtry/parser/models/suffixterm';
 import { ICallInfomation } from '../types';
+import { symbolInfomationName } from '../../parser/newtry/analyzer/models/symbolInformationProvider';
 
 type MarkdownHover = Omit<Hover, 'contents'> & {
     contents: MarkupContent
@@ -87,7 +88,7 @@ export function convertSymbolsHover(symbols: ISymbol[], range: Range): MarkdownH
     const hover = symbols.map(s => {
         if (s instanceof AHKMethodSymbol || s instanceof AHKBuiltinMethodSymbol)
             return s.toString();
-        return s.name;
+        return symbolInfomationName(s);
     }).join('.');
     const value = `${AHKMDStart}${prefix}${hover}${AHKMDEnd}${docComment ? '\n\n-----\n'+docComment: ''}`;
     return {

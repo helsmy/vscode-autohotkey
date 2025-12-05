@@ -1,6 +1,6 @@
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver';
 import { AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, VariableSymbol } from './symbol';
-import { VarKind } from '../types';
+import { ISymbol, VarKind } from '../types';
 
 export function symbolInformations(symbols: Map<string, AHKSymbol>, uri: string): SymbolInformation[] {
 	let info: SymbolInformation[] = [];
@@ -10,7 +10,7 @@ export function symbolInformations(symbols: Map<string, AHKSymbol>, uri: string)
 			if (sym.tag === VarKind.parameter)
 				continue;
 			info.push(SymbolInformation.create(
-				sym.name,
+				symbolInfomationName(sym),
 				sym.tag === VarKind.variable ? SymbolKind.Variable : SymbolKind.Property,
 				sym.range,
 				uri
@@ -18,7 +18,7 @@ export function symbolInformations(symbols: Map<string, AHKSymbol>, uri: string)
 		}
 		else if (sym instanceof AHKMethodSymbol) {
 			info.push(SymbolInformation.create(
-				sym.name,
+				symbolInfomationName(sym),
 				SymbolKind.Method,
 				sym.range,
 				uri
@@ -27,7 +27,7 @@ export function symbolInformations(symbols: Map<string, AHKSymbol>, uri: string)
 		}
 		else if (sym instanceof AHKObjectSymbol) {
 			let symInfo = SymbolInformation.create(
-				sym.name,
+				symbolInfomationName(sym),
 				SymbolKind.Class,
 				sym.range,
 				uri
@@ -35,13 +35,12 @@ export function symbolInformations(symbols: Map<string, AHKSymbol>, uri: string)
 			const childernInfo = sym.symbolInformations();
 			if (symInfo.name === '' && childernInfo.length === 0) 
 				continue;
-			symInfo.name = symInfo.name === '' ? '<class name>' : symInfo.name;
 			info.push(symInfo);
 			info.push(...childernInfo);
 		}
 		else if (sym instanceof HotkeySymbol || sym instanceof HotStringSymbol) {
 			info.push(SymbolInformation.create(
-				sym.name,
+				symbolInfomationName(sym),
 				SymbolKind.Event,
 				sym.range,
 				uri
@@ -51,4 +50,27 @@ export function symbolInformations(symbols: Map<string, AHKSymbol>, uri: string)
 			continue;
 	}
 	return info;
+}
+
+export function symbolInfomationName(sym: ISymbol): string {
+	if (sym.name !== '') return sym.name;
+	if (sym instanceof VariableSymbol) {
+			// Do not show parameter in Outline
+			if (sym.tag === VarKind.parameter)
+				return '<parameter name>'
+			return '<variable name>'
+		}
+		else if (sym instanceof AHKMethodSymbol) {
+			return '<method name>'
+		}
+		else if (sym instanceof AHKObjectSymbol) {
+			return '<class name>'
+		}
+		else if (sym instanceof HotkeySymbol) {
+			return '<hotkey name>'
+		}
+		else if (sym instanceof HotStringSymbol) {
+			return '<hotstring name>'
+		}
+		return '<unknown symbol name>'
 }

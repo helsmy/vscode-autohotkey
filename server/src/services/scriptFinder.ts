@@ -77,7 +77,9 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
             }
         }
         if (posInRange(decl.body, pos)) {
-            const deepMatch = decl.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = decl.body instanceof Stmt.Block
+                            ? decl.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>>
+                            : this.searchExpression(decl.body.expr, pos, matchType) ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(decl, matchType)) return createResult(decl);
@@ -95,7 +97,9 @@ export class ScriptASTFinder implements IStmtVisitor<(pos:Position, matchType: N
     visitDeclGetterSetter(decl: Decl.GetterSetter, pos: Position, matchType: NodeConstructor[]): Maybe<IFindResult<NodeBase>> {
         
         if (posInRange(decl.body, pos)) {
-            const deepMatch = decl.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>> ; 
+            const deepMatch = decl.body instanceof Stmt.Block
+                            ? decl.body.accept(this, [pos, matchType]) as Maybe<IFindResult<NodeBase>>
+                            : this.searchExpression(decl.body.expr, pos, matchType) ; 
             if (deepMatch) return deepMatch;
         }
         if (matchNodeTypes(decl, matchType)) return createResult(decl);

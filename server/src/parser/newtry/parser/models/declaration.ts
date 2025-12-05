@@ -374,7 +374,7 @@ export class FuncDef extends Decl {
         public readonly open: Token,
         public readonly params: Param,
         public readonly close: Token,
-        public readonly body: Block,
+        public readonly body: Block | ShortClassMember,
     ) {
         super();
     }
@@ -574,7 +574,7 @@ export class GetterSetter extends Decl {
      */
     constructor(
         public readonly nameToken: Token,
-        public readonly body: Block | ExprStmt
+        public readonly body: Block | ShortClassMember
     ) {
         super();
     }
@@ -603,5 +603,34 @@ export class GetterSetter extends Decl {
         parameters: Parameters<T>,
     ): ReturnType<T> {
         return visitor.visitDeclGetterSetter(this, ...parameters);
+    }
+}
+
+export class ShortClassMember extends NodeBase {
+    constructor(
+        public readonly fatArrow: Token,
+        public readonly expr: Expr
+    ) {
+        super();
+    }
+
+    public toLines(): string[] {
+        return [this.fatArrow.content, ...this.expr.toLines()];
+    }
+
+    public get start(): Position {
+        return this.fatArrow.start;
+    }
+
+    public get end(): Position {
+        return this.expr.end;
+    }
+
+    public get ranges(): Range[] {
+        return [this.fatArrow, ...this.expr.ranges]
+    }
+
+    public get isKeyword(): boolean {
+        return false;
     }
 }

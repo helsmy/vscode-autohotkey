@@ -595,7 +595,9 @@ export class AHKParser {
             if (fatArrow) {
                 const expr = this.expression();
                 const stmt = new Stmt.ExprStmt(expr);
-                return new Decl.GetterSetter(name, stmt);
+                return new Decl.GetterSetter(name, new Decl.ShortClassMember(
+                    fatArrow, this.expression()
+                ));
             }
         }
         
@@ -1446,7 +1448,9 @@ export class AHKParser {
         const open = this.eatType(TokenType.openParen);
         let parameters = this.parameters();
         const close = this.eatType(TokenType.closeParen);
-        let block = this.block();
+        let block = this.currentToken.type === TokenType.fatArrow 
+                    ? new Decl.ShortClassMember(this.eatType(TokenType.fatArrow), this.expression())
+                    :this.block();
         return new Decl.FuncDef(
             name,
             open,
@@ -1462,11 +1466,11 @@ export class AHKParser {
         // case 1: `param => expression`
         // case 2: `(param1, param2) => expression`
         const open = this.eatOptional(TokenType.openParen);
-        const parameter = this.parameters();
+        const parameters = this.parameters();
         const close = open ? this.eatType(TokenType.closeParen) : undefined;
         const fatArrow = this.eatType(TokenType.fatArrow);
         const body = this.expression();
-        return new Expr.AnonymousFunctionCreation(open, parameter, close, fatArrow, body);
+        return new Expr.AnonymousFunctionCreation(open, parameters, close, fatArrow, body);
     }
 
     /**

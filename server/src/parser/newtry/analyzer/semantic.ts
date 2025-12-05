@@ -150,7 +150,10 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		this.currentScope.addScope(sym);
 
 		this.enterScoop(sym);
-		errors.push(...decl.body.accept(this, []));
+		if (decl.body instanceof Stmt.Block)
+			errors.push(...decl.body.accept(this, []));
+		else
+			errors.push(...this.processExpression(decl.body.expr));
 		this.leaveScoop();
 		return errors;
 	}
@@ -241,7 +244,9 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitDeclGetterSetter(decl: Decl.GetterSetter): Diagnostics {
 		// FIXME: finish getter setter function
-		return this.checkDiagnosticForNode(decl).concat(decl.body.accept(this, []));
+		if (decl.body instanceof Stmt.Block)
+			return this.checkDiagnosticForNode(decl).concat(decl.body.accept(this, []));
+		return this.checkDiagnosticForNode(decl).concat(this.processExpression(decl.body.expr));
 	}
 
 	public visitDeclHotkey(decl: Decl.Hotkey): Diagnostics {
@@ -998,7 +1003,10 @@ export class Processer extends TreeVisitor<Diagnostics> {
 		this.currentScope.addScope(sym);
 
 		this.enterScoop(sym);
-		errors.push(...decl.body.accept(this, []));
+		if (decl.body instanceof Stmt.Block)
+			errors.push(...decl.body.accept(this, []));
+		else
+			errors.push(...this.processExpression(decl.body.expr));
 		this.leaveScoop();
 		return errors;
 	}
@@ -1089,7 +1097,9 @@ export class Processer extends TreeVisitor<Diagnostics> {
 
 	public visitDeclGetterSetter(decl: Decl.GetterSetter): Diagnostics {
 		// FIXME: finish getter setter function
-		return this.checkDiagnosticForNode(decl).concat(decl.body.accept(this, []));
+		if (decl.body instanceof Stmt.Block)
+			return this.checkDiagnosticForNode(decl).concat(decl.body.accept(this, []));
+		return this.checkDiagnosticForNode(decl).concat(this.processExpression(decl.body.expr));
 	}
 
 	public visitDeclHotkey(decl: Decl.Hotkey): Diagnostics {

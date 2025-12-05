@@ -96,7 +96,7 @@
       "patterns": [
         {
           "name": "meta.class.ahk",
-          "begin": "(?<!\\.|\\$)\\b(?i:(class))\\b",
+          "begin": "(?<!\\.|\\$)\\b(?i:(class)\\s+[[:alpha:]_一-龟][_$[:alnum:]一-龟]+)\\b",
           "end": "(?<=\\})",
           "beginCaptures": {
             "1": {

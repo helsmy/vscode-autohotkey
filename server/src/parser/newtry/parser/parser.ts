@@ -7,7 +7,7 @@ import * as Expr from './models/expr';
 import * as SuffixTerm from './models/suffixterm';
 import { Associativity, PrecedenceAndAssociativity } from './models/precedences';
 import * as Decl from './models/declaration';
-import { IDiagnosticInfo, MissingToken, SkipedToken, Token, TokenKind } from '../tokenizor/types';
+import { MissingToken, SkipedToken, Token, TokenKind, TokenResult } from '../tokenizor/types';
 import { mockLogger } from '../../../utilities/logger';
 import { Script } from '../models/script';
 import { DelimitedList } from './models/delimtiedList';
@@ -32,7 +32,7 @@ export class AHKParser {
      * list for storaging all tokens
      */
     private tokens: Token[] = [];
-    private tokenErrors: IDiagnosticInfo[] = [];
+    private tokenErrors: Token[] = [];
     private comments: Token[] = [];
     private includes: Set<string> = new Set();
 
@@ -54,7 +54,7 @@ export class AHKParser {
     private get currentToken(): Token {
         return this.tokens[this.pos];
     }
-
+    
     /**
      * Retrieve next meaningful token,
      * any error or comment token will not be included
@@ -62,18 +62,18 @@ export class AHKParser {
      */
     private nextToken(): Token {
         let tokenResult = this.tokenGetter.next().value;
-        while (tokenResult.kind !== TokenKind.Token) {
-            switch (tokenResult.kind) {
-                case TokenKind.Diagnostic:
-                    this.tokenErrors.push(tokenResult.result);
-                    tokenResult = this.tokenGetter.next().value;
-                    continue;
-                case TokenKind.Commnet:
-                    this.comments.push(tokenResult.result);
-                    tokenResult = this.tokenGetter.next().value;
-                    continue;
-            }
+        let tokenComment: Token|undefined = undefined;
+        while (tokenResult.kind === TokenKind.Commnet) {
+            this.comments.push(tokenResult.result);
+            tokenComment = tokenResult.result;
+            tokenResult = this.tokenGetter.next().value;
         }
+        // 如果没有先遇到注释token，那么tokenComment为 undefined
+        // 如果有先遇到，那么tokenComment为注释token
+        // 即直接赋值就可以记录离token最近的一个注释
+        tokenResult.result.comment = tokenComment;
+        if (tokenResult.kind === TokenKind.Diagnostic)
+            this.tokenErrors.push(tokenResult.result);
         return tokenResult.result;
     }
 

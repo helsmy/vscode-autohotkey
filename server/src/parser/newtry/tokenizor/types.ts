@@ -28,22 +28,8 @@ export interface Result<T, TokenKind> {
 	kind: TokenKind
 };
 
-/**
- * Infomation of an error
- */
-export interface IDiagnosticInfo {
-	/**
-	 * what is scanned
-	 */
-	content: string,
-	/**
-	 * range of error
-	 */
-	range: Range
-}
-
 export type TakeToken = Result<Token, TokenKind.Token>;
-export type TakeDiagnostic = Result<IDiagnosticInfo, TokenKind.Diagnostic>;
+export type TakeDiagnostic = Result<Token, TokenKind.Diagnostic>;
 export type TakeComment = Result<Token, TokenKind.Commnet>;
 export type TakeMultiToken = Result<Token[], TokenKind.Multi>;
 

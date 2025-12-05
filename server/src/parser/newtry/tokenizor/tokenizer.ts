@@ -685,7 +685,6 @@ export class Tokenizer {
 
     public *GenToken(): Generator<Exclude<TokenResult, TakeMultiToken>, never, unknown> {
         let preType = TokenType.EOL;
-        let preToken: Maybe<Token> = undefined;
         while (true) {
             const tokenResult = this.GetNextToken(preType);
             switch (tokenResult.kind) {
@@ -695,18 +694,11 @@ export class Tokenizer {
                     break;
                 case TokenKind.Commnet:
                     yield tokenResult;
-                    preToken = tokenResult.result;
+                    preType = tokenResult.result.type;
                     break;
                 case TokenKind.Token:
-                    // Record nearest comment, for hovering the doc comment.
-                    const isCommentToken = preToken && 
-                        preToken.type === TokenType.blockComment;
-                    if (isCommentToken) 
-                        tokenResult.result.comment = preToken;
                     yield tokenResult;
                     preType = tokenResult.result.type;
-                    if (preType !== TokenType.EOL)
-                        preToken = tokenResult.result;
                     break;
                 case TokenKind.Multi:
                     // FIXME: Record comment at first token result
@@ -716,7 +708,6 @@ export class Tokenizer {
                             kind: TokenKind.Token
                         };
                     preType = tokenResult.result[tokenResult.result.length - 1].type;
-                    preToken = tokenResult.result[tokenResult.result.length - 1];
                     break;
             }
         }
@@ -779,10 +770,7 @@ export class Tokenizer {
 
     private CreateError(c: string, start: Position, end: Position): TakeDiagnostic {
         return {
-            result: {
-                content: c,
-                range: Range.create(start, end)
-            },
+            result: new Token(TokenType.unknown, c, start, end),
             kind: TokenKind.Diagnostic
         };
     }

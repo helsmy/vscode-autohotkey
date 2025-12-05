@@ -8,7 +8,7 @@ import * as Expr from './parser/models/expr';
 import * as Stmt from './parser/models/stmt';
 import * as SuffixTerm from './parser/models/suffixterm';
 import * as Decl from './parser/models/declaration';
-import { IDiagnosticInfo, Token } from './tokenizor/types';
+import { Token } from './tokenizor/types';
 
 export enum SyntaxKind {
 	script,
@@ -25,7 +25,7 @@ export interface IParseError extends Range {
 export interface IAST {
 	script: IScript;
 	sytanxErrors: IParseError[];
-	tokenErrors: IDiagnosticInfo[];
+	tokenErrors: Token[];
 } 
 
 export interface IScript {

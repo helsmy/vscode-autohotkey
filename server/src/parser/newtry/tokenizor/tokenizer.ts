@@ -276,7 +276,11 @@ export class Tokenizer {
         while (!(this.currChar === ')' && this.BackPeek(1, true) === '\n')) {
             if (this.IsEOF()) return;
 
-            if (this.IsEOLAndLength()) {
+            const eol = this.IsEOLAndLength()
+            if (eol) {
+                // skip `/r`
+                if (eol > 1)
+                    this.Advance();
                 this.AdvanceLine();
                 continue;
             }

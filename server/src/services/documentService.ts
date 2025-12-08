@@ -7,7 +7,7 @@ import { SymbolTable } from '../parser/newtry/analyzer/models/symbolTable';
 import { URI } from 'vscode-uri';
 import { dirname, extname, isAbsolute, join, normalize } from 'path';
 import { AHKParser } from '../parser/newtry/parser/parser';
-import { PreProcesser } from '../parser/newtry/analyzer/semantic';
+import { PreProcesser, Processer } from '../parser/newtry/analyzer/semantic';
 import { Notifier } from './utils/notifier';
 import { AHKSymbol } from '../parser/newtry/analyzer/models/symbol';
 import { getBuiltinScope } from '../constants';
@@ -157,15 +157,21 @@ export class DocumentService {
         await this._configurationDone.wait(1000);
         // update documnet
         this.serverDocs.set(uri, doc);
-        this.logger.info(`v2 mode ${this.v2CompatibleMode}.`)
+        // this.logger.info(`v2 mode ${this.v2CompatibleMode}.`)
+
         const parser = new AHKParser(doc.getText(), doc.uri, this.v2CompatibleMode, this.logger);
         const ast = parser.parse();
+        const start = Date.now();
         const preprocesser = new PreProcesser(
             ast.script, 
             this.v2CompatibleMode ? this.builtinScope.v2 : this.builtinScope.v1
         );
         const processResult = preprocesser.process();
-        const docTable = processResult.table;
+        const processer = new Processer(ast.script, this.v2CompatibleMode, processResult.table);
+        const sencondResult = processer.process();
+        const docTable = sencondResult.table;
+        const end = Date.now();
+        this.logger.info(`Analzay finished, take ${end - start} ms`);
 
         if (this.isSendError) {
             this.sendErrors(ast.sytanxErrors, uri);

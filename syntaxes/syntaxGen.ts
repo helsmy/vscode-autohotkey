@@ -55,7 +55,7 @@ class ParamInfo {
 	}
 }
 
-const v2 = false;
+const v2 = true;
 const rootPath = resolvePath('../..', v2 ? 'ahkdoc/v2/docs' : 'ahkdoc/v1/docs');
 
 function resolvePath(...path: string[]) {
@@ -81,7 +81,7 @@ export function syntaxGen() {
 	let g_reserved = new Set(["as", "contains", "false", "in", "IsSet", "super", "true", "unset"])
 	let g_knownVars = new Set(["this", "ThisHotkey"])
 	let g_knownFuncs = new Set()
-	let g_knownClasses = new Set()
+	let g_knownClasses: Set<ObjectInfo|string> = new Set()
 	let g_operator = new Set();
 
 	let g_knownProps = new Set([
@@ -180,10 +180,8 @@ export function syntaxGen() {
 				]);
 				continue;
 			case SyntaxType.BuiltinClass:
-				g_knownClasses.add([
-					item_name,
-					v2 ? getObjectDetail(item_path, item_name) : ''
-				]);
+				const objd = getObjectDetail(item_path, item_name)
+				g_knownClasses.add(objd ? objd : item_name);
 				continue;
 			case SyntaxType.Operator:
 				g_operator.add(item_name);
@@ -224,6 +222,20 @@ ${createApiList(g_operator)}
 
 	const fdef = openSync(join(__dirname, 'functions.d.ahk'), 'w');
 	writeSync(fdef, methodinfos.map(i => mi2str(i)).join('\n'));
+	const odef = openSync(join(__dirname, 'classes.d.ahk'), 'w');
+	writeSync(odef, Array(...g_knownClasses).map(i => {
+		if (typeof i === 'string')
+			return `class ${i} {}`;
+		let lines = [i.extend ? `class ${i.name} extends ${i.extend} {` : `class ${i.name} {`];
+		for (const p of i.property) 
+			lines.push(`    ${p} := Unset`);
+		for (const sm of i.staticMethod) 
+			lines.push(`    static ${mi2str(sm)}`);
+		for (const m of i.method) 
+			lines.push('    ' + mi2str(m));
+		lines.push('}')
+		return lines;
+	}).flat().join('\n'));
 }
 
 function parseFunc(f: string): MethodInfo {
@@ -512,7 +524,9 @@ function getObjectDetail(path: string, objName: string): ObjectInfo | undefined 
 			const optSafe = spanTagRender(syntax.text);
 			const m = optSafe.replace(/<[\.\/\w\s"=#]+?>/g, '').trim();
 
-			tempArray.push(parseFunc(m));
+			const mi = parseFunc(m);
+			if (mi.name === objName) continue;
+			tempArray.push(mi);
 		}
 
 	}

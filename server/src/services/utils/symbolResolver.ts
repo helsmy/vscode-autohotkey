@@ -1,7 +1,7 @@
 import { Position } from 'vscode-languageserver';
 import { Factor } from '../../parser/newtry/parser/models/expr';
 import { ArrayTerm, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../../parser/newtry/parser/models/suffixterm';
-import {AHKObjectSymbol, AHKSymbol, VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
+import {AHKObjectSymbol, AHKSymbol, ScopedSymbol, VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { posInRange } from '../../utilities/positionUtils';
 import { IScope, ISymbol, VarKind } from '../../parser/newtry/analyzer/types';
 import { builtin_command } from '../../utilities/builtins';
@@ -120,6 +120,7 @@ export function resolveCommandCall(cmd: CommandCall): Maybe<string> {
 export function resolveRelative(name: string, scope: IScope): Maybe<AHKSymbol> {
     const sym = scope.resolve(name);
     if (sym instanceof VariableSymbol) {
+        if (sym.type && sym.type instanceof AHKSymbol) return sym.type; 
         const varType = sym.getType();
         // not a instance of class
         if (varType.length === 0) return sym;
@@ -139,7 +140,11 @@ export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKS
     if (!nextScope) return undefined;
     // if only one symbol, this is the final result
     if (prefixs.length === 1) return nextScope;
-    if (!(nextScope instanceof AHKObjectSymbol)) return undefined;
+    if (!(nextScope instanceof AHKObjectSymbol)) {
+        if (!(nextScope instanceof VariableSymbol)) return undefined;
+        if (!(nextScope.type instanceof AHKObjectSymbol)) return undefined;
+        nextScope = nextScope.type;
+    }
 
     prefixs = prefixs.slice(1);
     for (let i = 0; i < prefixs.length; i++) {
@@ -153,6 +158,11 @@ export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKS
         if (i >= prefixs.length - 1)
             return currentScope;
         if (currentScope instanceof VariableSymbol) {
+            if (currentScope.type instanceof ScopedSymbol) {
+                nextScope = currentScope.type;
+                continue
+            }
+            // fallback to string infomation collected in first scan
             const varType = currentScope.getType();
             // not a instance of class
             if (varType.length === 0) return undefined;

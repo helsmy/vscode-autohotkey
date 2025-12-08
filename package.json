@@ -169,7 +169,8 @@
         "syntaxGen": "gulp syntax_gen",
         "devCompile": "gulp buildAllWithMap",
         "gulp": "gulp",
-        "esbuild": "esbuild"
+        "esbuild": "esbuild",
+        "tsc": "tsc"
     },
     "devDependencies": {
         "@types/glob": "^8.1.0",

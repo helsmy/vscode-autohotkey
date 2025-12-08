@@ -327,7 +327,8 @@ export class AHKLS
         }));
         const optParam: ParameterInformation[] = func.optionalParameters.map((param, i) => {
             // fix active parameter on spread parameter
-            index = param.isSpread ? reqParam.length+i : index;
+            if (index && index+1 > func.requiredParameters.length) 
+                index = param.isSpread ? reqParam.length+i : index;
             return {label: `${param.isByref ? 'byref ' : ''}${param.name}${param.isSpread? '*': '?'}`};
         });
         return {
@@ -592,6 +593,12 @@ export class AHKLS
                 hint.push(...convertMethodCallInlayHint(callSymbol, call));
                 continue;
             }
+
+            if (callSymbol instanceof AHKObjectSymbol && this.v2CompatibleMode) {
+                const s = callSymbol.resolveProp('__new')
+                if (!(s instanceof AHKMethodSymbol)) continue;
+                hint.push(...convertMethodCallInlayHint(s, call));
+            }
             
             if (!call.isCommand) continue;
             const commandName = callee[0]
@@ -688,6 +695,11 @@ export class AHKLS
                 nextScope = currentScope
             }
             else if (currentScope instanceof VariableSymbol) {
+                if (currentScope.type instanceof ScopedSymbol) {
+                    nextScope = currentScope.type;
+                    continue
+                }
+                // fallback to string infomation collected in first scan
                 const varType = currentScope.getType();
                 // not a instance of class
                 if (varType.length === 0) return undefined;

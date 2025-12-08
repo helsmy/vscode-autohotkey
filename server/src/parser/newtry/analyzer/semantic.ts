@@ -8,7 +8,7 @@ import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
 import { Atom, IScript } from '../types';
 import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VariableSymbol } from './models/symbol';
-import { IScope, VarKind } from './types';
+import { IScope, ISymbol, ISymType, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
 import { MissingToken, SkipedToken, Token } from '../tokenizor/types';
@@ -57,7 +57,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 
 	public visitDeclVariable(decl: Decl.VarDecl): Diagnostics {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
-		const [e, vs] = this.createVarSym(decl.assigns);
+		const [e, vs] = this.processVarSym(decl.assigns);
 		errors.push(...e);
 		if (decl.scope.type === TokenType.static) {
 			if (!(this.currentScope instanceof AHKObjectSymbol) &&
@@ -474,7 +474,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			const trailer = brackets[0];
 			if (trailer instanceof SuffixTerm.Call) {
 				if (atom.token.content.toLowerCase() === 'array') return ['Array'];
-				return atom.token.content.toLowerCase() === 'fileopen' ? ['File'] : undefined;
+				if (atom.token.content.toLowerCase() === 'fileopen') return ['File'];
+				return [atom.token.content];
 			}
 		}
 		if (!isNewClass) return undefined;
@@ -715,7 +716,8 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		const errors = this.checkDiagnosticForNode(stmt);
 		const id1 = stmt.iter1id.suffixTerm.getElements()[0];
 		const id2 = stmt.iter2id?.suffixTerm.getElements()[0];
-		errors.push(...this.visitIterId(id1, stmt));
+		if (id1)
+			errors.push(...this.visitIterId(id1, stmt));
 		if (id2) 
 			errors.push(...this.visitIterId(id2, stmt));
 
@@ -792,7 +794,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 		this.currentScope = this.stack[this.stack.length-1];
 	}
 
-	private createVarSym(assigns: Expr.ExpersionList): [Diagnostics, VariableSymbol[]] {
+	private processVarSym(assigns: Expr.ExpersionList): [Diagnostics, VariableSymbol[]] {
 		const errors: Diagnostics = [];
 		const varSym: VariableSymbol[] = [];
 		for (const assign of assigns.getElements()) {
@@ -885,6 +887,7 @@ export class Processer extends TreeVisitor<Diagnostics> {
 
 	constructor(
 		public readonly script: IScript,
+		private readonly v2mode: boolean,
 		table: SymbolTable 
 	) {
 		super();
@@ -908,100 +911,17 @@ export class Processer extends TreeVisitor<Diagnostics> {
 		};
 	}
 
-	public visitDeclVariable(decl: Decl.VarDecl): Diagnostics {
+		public visitDeclVariable(decl: Decl.VarDecl): Diagnostics {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
-		const [e, vs] = this.createVarSym(decl.assigns);
+		const [e, vs] = this.processVarSym(decl.assigns);
 		errors.push(...e);
-		if (decl.scope.type === TokenType.static) {
-			if (!(this.currentScope instanceof AHKObjectSymbol) &&
-				!(this.currentScope instanceof AHKMethodSymbol)) {
-				errors.push(
-					this.error(
-						Range.create(decl.start, decl.end),
-						'Static declaration can only be used in class'
-					)
-				);
-			}
-			// Define static property of class
-			vs.forEach(v => this.currentScope.define(v));
-			return errors;
-		}
-
-		// global and local declaration is not allowed in class
-		// report errors and return
-		if (this.currentScope instanceof AHKObjectSymbol) {
-			// TODO: 正确的local和global错误信息
-			errors.push(
-				this.error(
-					Range.create(decl.start, decl.end),
-					'global and local are not allowed in class body'
-				)
-			);
-			return errors;
-		}
-
-		// TODO: 变量在local和global上重复定义的问题
-		// Define global and local variable
-		if (decl.scope.type === TokenType.local) 
-			vs.forEach(v => this.currentScope.define(v));
-		else {
-			for (const sym of vs) {
-				// global declaration in global
-				if (this.currentScope.name === 'global')
-					this.table.define(sym);
-				const globalSym = this.table.resolve(sym.name);
-				// if variable exists in global
-				// add it to local, make it visible in local
-				if (globalSym)
-					this.currentScope.define(sym);
-				// if not add to both
-				else {
-					this.currentScope.define(sym);
-					this.table.define(sym);
-				}
-			}
-		}
 		return errors;
 	}
 
 	public visitDeclFunction(decl: Decl.FuncDef): Diagnostics {
 		const errors = this.checkDiagnosticForNode(decl);
-		const params = decl.params;
-		let isAlreadyVariadic = false;
-		for (const param of params.ParamaterList.getElements()) {
-			if (isAlreadyVariadic)
-				errors.push(this.error(
-					copyRange(param),
-					'Only last parameter can be variadic.',
-					DiagnosticSeverity.Error
-				));
-			errors.push(...this.checkDiagnosticForNode(param));
-			if (param instanceof Decl.DefaultParameter && param.value)
-				errors.push(...this.processExpression(param.value));
-			if (param instanceof Decl.SpreadParameter)
-				isAlreadyVariadic = true;
-		}
-		const reqParams = this.paramAction(params.requiredParameters);
-		const dfltParams = this.paramAction(params.optionalParameters);
-		const sym = new AHKMethodSymbol(
-			this.script.uri,
-			decl.nameToken.content,
-			copyRange(decl),
-			reqParams,
-			dfltParams,
-			this.table,
-			this.currentScope instanceof AHKObjectSymbol ?
-				this.currentScope : undefined
-		);
-		if (decl.nameToken.comment)
-			sym.document = decl.nameToken.comment.content;
-		// this.supperGlobal.define(sym);
-		// this.supperGlobal.addScoop(sym);
-		// this.table.define(sym);
-		// this.table.addScoop(sym);
-		this.currentScope.define(sym);
-		this.currentScope.addScope(sym);
-
+		const sym = this.table.resolve(decl.nameToken.content);
+		if (!(sym instanceof AHKMethodSymbol)) return errors;
 		this.enterScoop(sym);
 		if (decl.body instanceof Stmt.Block)
 			errors.push(...decl.body.accept(this, []));
@@ -1010,37 +930,12 @@ export class Processer extends TreeVisitor<Diagnostics> {
 		this.leaveScoop();
 		return errors;
 	}
-
-	private paramAction(params: Decl.Parameter[]): ParameterSymbol[] {
-		const syms: ParameterSymbol[] = [];
-		for(const param of params) {
-			syms.push(new ParameterSymbol(
-				this.script.uri,
-				param.identifier.content,
-				copyRange(param),
-				VarKind.parameter,
-				param.byref !== undefined,
-				param instanceof Decl.SpreadParameter,
-				this.currentScope
-			));
-		}
-		return syms;
-	}
 	
 	public visitDeclClass(decl: Decl.ClassDef): Diagnostics {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
-		// TODO: parent scoop of class
-		const parentScoop = undefined;
-		const objTable = new AHKObjectSymbol(
-			this.script.uri,
-			decl.name.content,
-			copyRange(decl),
-			parentScoop,
-			this.currentScope
-		);
-		
-		this.currentScope.define(objTable);
-		this.enterScoop(objTable);
+		const sym = this.table.resolve(decl.name.content);
+		if (!(sym instanceof AHKObjectSymbol)) return errors;
+		this.enterScoop(sym);
 		errors.push(... decl.body.accept(this, []));
 		this.leaveScoop();
 		return errors;
@@ -1057,13 +952,8 @@ export class Processer extends TreeVisitor<Diagnostics> {
 	public visitDynamicProperty(decl: Decl.DynamicProperty): Diagnostics {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
 		if (!(this.currentScope instanceof AHKObjectSymbol)) return errors;
-		const dynamicProperty = new AHKDynamicPropertySymbol(
-			this.script.uri,
-			decl.name.content,
-			copyRange(decl),
-			this.currentScope
-		);
-		this.currentScope.define(dynamicProperty);
+		const dynamicProperty = this.table.resolve(decl.name.content);
+		if (!(dynamicProperty instanceof AHKDynamicPropertySymbol)) return errors;
 
 		// ShortDynamicProperty
 		if (decl.body instanceof Stmt.ExprStmt) {
@@ -1077,17 +967,8 @@ export class Processer extends TreeVisitor<Diagnostics> {
 				errors.push(...getterSetter.accept(this, []));
 				continue;
 			}
-			const funcType = getterSetter.nameToken.content.toLowerCase();
-			const symName = funcType === 'get' ? 'get' : 'set';
-			const sym = new AHKGetterSetterSymbol(
-				this.script.uri,
-				symName,
-				decl.name.content,
-				copyRange(getterSetter),
-				this.currentScope,
-				this.table
-			)
-			dynamicProperty.define(sym);
+			const sym = this.table.resolve(decl.name.content);
+			if (!(sym instanceof AHKGetterSetterSymbol)) return errors;
 			this.enterScoop(sym);
 			errors.push(...getterSetter.accept(this, []));
 			this.leaveScoop();
@@ -1103,50 +984,19 @@ export class Processer extends TreeVisitor<Diagnostics> {
 	}
 
 	public visitDeclHotkey(decl: Decl.Hotkey): Diagnostics {
-		const key1 = `${decl.key1.modifiers?.content ?? ''}${decl.key1.key.content}`;
-		const keyfull = decl.key2 ? `${key1} & ${decl.key2.key.content}`: key1;
-		const name = `${keyfull} ${decl.up ? 'UP' : ''}`
-		this.table.define(
-			new HotkeySymbol(
-				this.script.uri,
-				name,
-				copyRange(decl)
-			)
-		);
 		return this.checkDiagnosticForNode(decl);
 	}
 
 	public visitDeclHotString(decl: Decl.HotString): Diagnostics {
-		this.table.define(
-			new HotStringSymbol(
-				this.script.uri,
-				decl.str.content,
-				copyRange(decl)
-			)
-		);
 		return this.checkDiagnosticForNode(decl);
 	}
 
 	public visitDeclLabel(decl: Decl.Label): Diagnostics {
-		this.table.define(
-			new LabelSymbol(
-				this.script.uri,
-				decl.name.content,
-				copyRange(decl)
-			)
-		);
 		return this.checkDiagnosticForNode(decl);
 	}
 
 	public visitStmtInvalid(stmt: Stmt.Invalid): Diagnostics {
-		if (!stmt.error)
-			return stmt.tokens.flatMap(token => this.checkDiagnosticForUnexpectedToken(token) ?? []);
-		const error: Diagnostic = {
-			range: copyRange(stmt.error),
-			message: stmt.error.message,
-			severity: DiagnosticSeverity.Error
-		};
-		return [error];
+		return [];
 	}
 
 	public visitDirective(stmt: Stmt.Directive): Diagnostics {
@@ -1307,7 +1157,7 @@ export class Processer extends TreeVisitor<Diagnostics> {
 	 * For temporary usage. Retrieve the class name of a `new classname(.classname)?()` 
 	 * @param expr Expression to check
 	 */
-	private checkExprResultType(expr: Expr.Expr): Maybe<string[]> {
+	private checkExprResultType(expr: Expr.Expr): Maybe<ISymbol> {
 		const isNewClass = expr instanceof Expr.Unary && 
 						   expr.operator.type === TokenType.new &&
 						   expr.factor instanceof Expr.Factor &&
@@ -1320,20 +1170,20 @@ export class Processer extends TreeVisitor<Diagnostics> {
 			const firstTerm = expr.suffixTerm.getElements()[0];
 			const brackets = firstTerm.brackets;
 			const atom = firstTerm.atom;
-			if (atom instanceof SuffixTerm.ArrayTerm) return ['Array'];
-			if (atom instanceof SuffixTerm.AssociativeArray) return ['AssociativeArray'];
+			if (atom instanceof SuffixTerm.ArrayTerm) return this.table.resolve('array');
+			if (atom instanceof SuffixTerm.AssociativeArray) return this.table.resolve('AssociativeArray');
 			if (!(atom instanceof SuffixTerm.Identifier)) return undefined;
 			if (brackets.length > 1) return undefined;
 			const trailer = brackets[0];
 			if (trailer instanceof SuffixTerm.Call) {
-				if (atom.token.content.toLowerCase() === 'array') return ['Array'];
-				return atom.token.content.toLowerCase() === 'fileopen' ? ['File'] : undefined;
+				if (atom.token.content.toLowerCase() === 'array') this.table.resolve('array');
+				if (atom.token.content.toLowerCase() === 'fileopen') return this.table.resolve('File');
 			}
 		}
-		if (!isNewClass) return undefined;
+		if (!isNewClass && !(this.v2mode && (expr instanceof Expr.Factor))) return undefined;
 		
 		let objectNames: string[] = [];
-		const factor = expr.factor;
+		const factor = (expr instanceof Expr.Factor ? expr : expr.factor) as Expr.Factor;
 		const terms = factor.suffixTerm.getElements();
 		for (const term of terms.slice(0, -1)) {
 			const atom = term.atom;
@@ -1351,17 +1201,25 @@ export class Processer extends TreeVisitor<Diagnostics> {
 		if (brackets.length === 1) {
 			const trailer = brackets[0]
 			if (trailer instanceof SuffixTerm.Call)
-				return objectNames.concat(lastTerm.atom.token.content);
-			return undefined;
+				objectNames.push(lastTerm.atom.token.content);
+			else
+				return undefined;
 		}
 		// Case 2: `new Object`
 		if (brackets.length === 0) 
-			return objectNames.concat(lastTerm.atom.token.content);
-		return objectNames;
+			objectNames.push(lastTerm.atom.token.content);
+
+		let s: Maybe<AHKSymbol>
+		for (const name of objectNames) {
+			s = this.table.resolve(name);
+			if (!(s instanceof AHKObjectSymbol)) return undefined;
+		}
+		return s;
 	}
 
-	private processAssignVar(left: Expr.Factor, fullRange: Range, varType: Maybe<string[]>): Diagnostics {
+	private processAssignVar(left: Expr.Factor, fullRange: Range, varType: Maybe<AHKSymbol>): Diagnostics {
 		const errors = this.checkDiagnosticForNode(left);
+		const vt = varType instanceof AHKObjectSymbol ? varType : undefined;
 
 		switch (left.termCount) {
 			// Assign to variable
@@ -1375,7 +1233,7 @@ export class Processer extends TreeVisitor<Diagnostics> {
 				if (firstTerm.brackets.length !== 0) 
 					return errors;
 				const idName = firstTerm.atom.token.content;
-				if (!this.currentScope.resolve(idName)) {
+				if (this.currentScope.resolve(idName)) {
 					const kind = this.currentScope instanceof AHKObjectSymbol ?
 								VarKind.property : VarKind.variable;
 					const sym = new VariableSymbol(
@@ -1383,9 +1241,9 @@ export class Processer extends TreeVisitor<Diagnostics> {
 						idName,
 						copyRange(left),
 						kind,
-						undefined
+						undefined,undefined,undefined,
+						vt
 					);
-					if (varType) sym.setType(varType);
 					this.currentScope.define(sym);
 				}
 				return errors;
@@ -1420,9 +1278,9 @@ export class Processer extends TreeVisitor<Diagnostics> {
 					propertyTerm.atom.token.content,
 					copyRange(fullRange),
 					VarKind.property,
-					undefined
+					undefined,undefined,undefined,
+					vt
 				);
-				if (varType) sym.setType(varType);
 				this.currentScope.parentScope.define(sym);
 			}
 		}
@@ -1645,7 +1503,7 @@ export class Processer extends TreeVisitor<Diagnostics> {
 		this.currentScope = this.stack[this.stack.length-1];
 	}
 
-	private createVarSym(assigns: Expr.ExpersionList): [Diagnostics, VariableSymbol[]] {
+	private processVarSym(assigns: Expr.ExpersionList): [Diagnostics, VariableSymbol[]] {
 		const errors: Diagnostics = [];
 		const varSym: VariableSymbol[] = [];
 		for (const assign of assigns.getElements()) {
@@ -1659,12 +1517,14 @@ export class Processer extends TreeVisitor<Diagnostics> {
 				assign.left instanceof Expr.Factor &&
 				assign.left.suffixTerm instanceof SuffixTerm.Identifier) {
 				const id = assign.left.suffixTerm.token;
+				const resultType = this.checkExprResultType(assign.right);
 				const sym = new VariableSymbol(
 					this.script.uri,
 					id.content,
 					copyRange(id),
 					kind,
-					undefined
+					undefined,undefined,undefined,
+					resultType
 				);
 				varSym.push(sym);
 				continue;

@@ -117,7 +117,7 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 	//       a_file的类型推断为File类
 	// 目前 `classes.d.ahk` 只含有File类
 	// syntaxes/builtin/v1/classes.d.ahk
-	const fclassUri = URI.file(join(__dirname, '..', '..', 'syntaxes', 'builtin', 'v1' ,'classes.d.ahk'));
+	const fclassUri = URI.file(join(__dirname, '..', '..', 'syntaxes', 'builtin', version, 'classes.d.ahk'));
 	try {
 		docText = readFileSync(fclassUri.fsPath, {encoding: 'utf-8'});
 	}

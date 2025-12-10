@@ -171,7 +171,7 @@ export class DocumentService {
         const sencondResult = processer.process();
         const docTable = sencondResult.table;
         const end = Date.now();
-        this.logger.info(`Analzay finished, take ${end - start} ms`);
+        this.logger.log(`Analzay finished[${end - start} ms]`);
 
         if (this.isSendError) {
             this.sendErrors(ast.sytanxErrors, uri);
@@ -257,12 +257,12 @@ export class DocumentService {
             // useless need delete, useneed need to add
             // FIXME: delete useless include
             const [useless, useneed] = setDiffSet(oldInc, newInc);
-            this.logger.info(`Got ${newInc.size} include file. ${useneed.length} file to load.` );
+            this.logger.log(`Got ${newInc.size} include file. ${useneed.length} file to load.` );
             return [useless, useneed];
         }
         else {
             const useneed = newInc ? [... newInc] : [];
-            this.logger.info(`Got ${useneed.length} include file to load.` );
+            this.logger.log(`Got ${useneed.length} include file to load.` );
             return [[], useneed];
         }
     }

@@ -1424,36 +1424,30 @@ export class Processer extends TreeVisitor<Diagnostics> {
 
 	public visitFor(stmt: Stmt.ForStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
-		const id1 = stmt.iter1id.suffixTerm.getElements()[0];
-		const id2 = stmt.iter2id?.suffixTerm.getElements()[0];
-		errors.push(...this.visitIterId(id1, stmt));
-		if (id2) 
-			errors.push(...this.visitIterId(id2, stmt));
-
 		return errors.concat(stmt.body.accept(this, []));
 	}
 
-	private visitIterId(oneId: SuffixTerm.SuffixTerm, stmt: Stmt.ForStmt): Diagnostics {
-		const errors: Diagnostics = [];
-		errors.push(...this.processSuffixTerm(oneId));
+	// private visitIterId(oneId: SuffixTerm.SuffixTerm, stmt: Stmt.ForStmt): Diagnostics {
+	// 	const errors: Diagnostics = [];
+	// 	errors.push(...this.processSuffixTerm(oneId));
 
-		if (errors.length === 0) {
-			// 如果没有错误发生, 则parser 已经确保 oneId 一定为标识符
-			const id = oneId.atom as SuffixTerm.Identifier;
-			// check if iter variable is defined, if not define them
-			if (!this.currentScope.resolve(id.token.content)) {
-				const sym = new VariableSymbol(
-					this.script.uri,
-					id.token.content,
-					copyRange(stmt.iter1id),
-					VarKind.variable,
-					undefined
-				);
-				this.currentScope.define(sym);
-			}
-		}
-		return errors;
-	}
+	// 	if (errors.length === 0) {
+	// 		// 如果没有错误发生, 则parser 已经确保 oneId 一定为标识符
+	// 		const id = oneId.atom as SuffixTerm.Identifier;
+	// 		// check if iter variable is defined, if not define them
+	// 		if (!this.currentScope.resolve(id.token.content)) {
+	// 			const sym = new VariableSymbol(
+	// 				this.script.uri,
+	// 				id.token.content,
+	// 				copyRange(stmt.iter1id),
+	// 				VarKind.variable,
+	// 				undefined
+	// 			);
+	// 			this.currentScope.define(sym);
+	// 		}
+	// 	}
+	// 	return errors;
+	// }
 
 	public visitTry(stmt: Stmt.TryStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);

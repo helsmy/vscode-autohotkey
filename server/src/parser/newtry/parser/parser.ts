@@ -198,13 +198,13 @@ export class AHKParser {
         const diagnostics: IParseError[] = [];
         const baseName = this.uri.split('/').slice(-1)[0];
 
-        this.logger.info(`Parsing started for ${baseName}`);
+        this.logger.log(`Parsing started for ${baseName}`);
         
         try {
             const start = Date.now();
             const statment = this.parseList(ParseContext.SourceElements);
             const end = Date.now();
-            this.logger.info(`Parsing finished for ${baseName}, take ${end - start} ms`);
+            this.logger.log(`Parsing finished for ${baseName}[${end - start} ms]`);
 
             return {
                 script: new Script(

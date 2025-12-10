@@ -423,8 +423,17 @@ export class Tokenizer {
         // Tail comment of command
         if (this.currChar === '\n') {
             const commentMarkOffset = this.document.slice(start, this.pos).search(';');
-            if (commentMarkOffset !== -1)
-                this.BackTo(start + commentMarkOffset);
+            if (commentMarkOffset !== -1) {
+                const s = this.document.slice(start, start+commentMarkOffset);
+                const c = this.document.slice(start+commentMarkOffset+1, this.pos);
+                return {
+                    result: [
+                        new Token(TokenType.string, s, p, Position.create(p.line, p.character+commentMarkOffset)),
+                        new Token(TokenType.lineComment, c, Position.create(p.line, p.character+commentMarkOffset+1), this.genPosition())
+                    ],
+                    kind: TokenKind.Multi
+                }
+            }
         }
         const value = this.document.slice(start, this.pos).trim();
         return this.CreateToken(TokenType.string, value, p, this.genPosition());
@@ -706,11 +715,18 @@ export class Tokenizer {
                     break;
                 case TokenKind.Multi:
                     // FIXME: Record comment at first token result
-                    for (const token of tokenResult.result) 
+                    for (const token of tokenResult.result) {
+                        if (token.type === TokenType.lineComment || token.type === TokenType.blockComment) {
+                            yield {
+                                result: token,
+                                kind: TokenKind.Commnet
+                            }
+                        }
                         yield {
                             result: token,
                             kind: TokenKind.Token
                         };
+                    }
                     preType = tokenResult.result[tokenResult.result.length - 1].type;
                     break;
             }

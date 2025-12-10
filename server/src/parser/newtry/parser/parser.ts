@@ -896,22 +896,27 @@ export class AHKParser {
             return new Stmt.Loop(loop, body);
         }
         
-        this.setCommandScanMode(true);
+        if (!this.v2mode) {
+            this.setCommandScanMode(true);
+            const delimiter = this.eatOptional(TokenType.comma);
+            // const loopmode = this.currentToken.content.toLowerCase();
+    
+            // TODO: LOOP Funtoins
+            // Check if in any command loop mode
+            // if (loopmode === 'files' ||
+            //     loopmode === 'parse' ||
+            //     loopmode === 'read'  ||
+            //     loopmode === 'reg') 
+    
+            const param = this.commandArguments();
+            if (this.atLineEnd()) this.advance();
+            const body = this.declaration();
+            return new Stmt.Loop(loop, body, delimiter, param);
+        }
 
-       const delimiter = this.eatOptional(TokenType.comma);
-        // const loopmode = this.currentToken.content.toLowerCase();
-
-        // TODO: LOOP Funtoins
-        // Check if in any command loop mode
-        // if (loopmode === 'files' ||
-        //     loopmode === 'parse' ||
-        //     loopmode === 'read'  ||
-        //     loopmode === 'reg') 
-
-        const param = this.commandArguments();
-        if (this.atLineEnd()) this.advance();
+        const condition = this.expressionList(this.currentToken.start);
         const body = this.declaration();
-        return new Stmt.Loop(loop, body, delimiter, param);
+        return new Stmt.Loop(loop, body, undefined, condition);
     }
 
     private whileStmt(): Stmt.WhileStmt {

@@ -5,11 +5,7 @@
 
 import {
 	createConnection,
-	InlayHint,
-	InlayHintParams,
 	ProposedFeatures,
-	// InlayHintParams,
-	// InlayHint,
 } from 'vscode-languageserver/node';
 
 import {
@@ -32,13 +28,6 @@ const logger = new Logger(
 	LogLevel[defaultSettings.traceServer.level]
 );
 const ahkls: AHKLS = new AHKLS(connection, logger, configurationService);
-
-// connection.languages.inlayHint.on(
-// 	async (param: InlayHintParams, token): Promise<Maybe<InlayHint[]>> => {
-// 		logger.log(JSON.stringify(param));
-// 		return undefined;
-// 	}
-// );
 
 connection.onDidChangeWatchedFiles(_change => {
 	// Monitored files have change in VSCode

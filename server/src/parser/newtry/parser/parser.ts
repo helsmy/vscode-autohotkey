@@ -1147,7 +1147,7 @@ export class AHKParser {
             
             this.advance();
             const right = this.expression(
-                newAssociative === Associativity.Left ? newAssociative+1 : newAssociative
+                newAssociative === Associativity.Left ? newPrecedence+1 : newPrecedence
             );
             result = new Expr.Binary(
                 result,

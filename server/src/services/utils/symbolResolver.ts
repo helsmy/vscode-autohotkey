@@ -25,7 +25,7 @@ export function resolveFactor(factor: Factor, postion: Position, table: IScope):
         if (suffix.brackets.length !== 0 && i < elements.length - 1 && !isInRange) return undefined;
         if (!(suffix.atom instanceof Identifier)) return undefined;
         const name = suffix.atom.token.content;
-        const symbol = (suffix.brackets.length === 0 && currentScope instanceof AHKObjectSymbol) ?
+        const symbol = (currentScope instanceof AHKObjectSymbol) ?
                        currentScope.resolveProp(name) :
                        currentScope.resolve(name);
         if (symbol === undefined) return undefined;

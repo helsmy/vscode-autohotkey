@@ -7,7 +7,7 @@ import * as Expr from '../parser/models/expr';
 import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
 import { Atom, IScript } from '../types';
-import { AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VariableSymbol } from './models/symbol';
+import { AHKBuiltinMethodSymbol, AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VariableSymbol } from './models/symbol';
 import { IScope, ISymbol, ISymType, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
@@ -176,13 +176,13 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 	
 	public visitDeclClass(decl: Decl.ClassDef): Diagnostics {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
-		// TODO: parent scoop of class
-		const parentScoop = undefined;
+		// TODO: parent scope of class
+		const parentScope = undefined;
 		const objTable = new AHKObjectSymbol(
 			this.script.uri,
 			decl.name.content,
 			copyRange(decl),
-			parentScoop,
+			parentScope,
 			this.currentScope
 		);
 		
@@ -935,10 +935,34 @@ export class Processer extends TreeVisitor<Diagnostics> {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
 		const sym = this.table.resolve(decl.name.content);
 		if (!(sym instanceof AHKObjectSymbol)) return errors;
+		if (decl.classBaseClause) {
+			const base = this.getBaseClass(decl.classBaseClause);
+			if (base) sym.parentScope = base;
+		}
 		this.enterScoop(sym);
 		errors.push(... decl.body.accept(this, []));
 		this.leaveScoop();
 		return errors;
+	}
+
+	private getBaseClass(base: Decl.ClassBaseClause): Maybe<AHKObjectSymbol> {
+		if (base.baseClass.termCount === 0) return undefined;
+
+		let terms = base.baseClass.suffixTerm.getElements();
+		const first = terms[0];
+		if (first.brackets.length !== 0 || !(first.atom instanceof SuffixTerm.Identifier)) return undefined;
+		const sym = this.currentScope.resolve(first.atom.token.content);
+		if (!(sym instanceof AHKObjectSymbol)) return undefined;
+		let scope = sym;
+		
+		for (let i = 1; i < terms.length; i += 1) {
+			const term = terms[i];
+			if (term.brackets.length !== 0 || !(term.atom instanceof SuffixTerm.Identifier)) return undefined;
+			const sym = scope.resolve(term.atom.token.content);
+			if (!(sym instanceof AHKObjectSymbol)) return undefined;
+			scope = sym;
+		}
+		return scope;
 	}
 
 	public visitPropertyDeclaration(decl: Decl.PropertyDeclaration): Diagnostics {

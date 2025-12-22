@@ -268,23 +268,24 @@ export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument
 
 export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 
-	public readonly parentScoop: AHKClassSymbol;
+	// may be readonly is better?
+	public parentScope: AHKClassSymbol;
 	/**
 	 * @param name Name of class symbol
 	 * @param range range of symbol
-	 * @param parentScoop parent class
-	 * @param enclosingScoop parent scoop
+	 * @param parentScope parent class
+	 * @param enclosingScope parent scoop
 	 */
 	constructor(
 		uri: string,
 		name: string,
 		public readonly range: Range,
-		parentScoop?: AHKObjectSymbol,
-		enclosingScoop?: IScope
+		parentScope?: AHKObjectSymbol,
+		enclosingScope?: IScope
 	) {
-		super(uri, name, enclosingScoop);
+		super(uri, name, enclosingScope);
 		// All object is extended from Base object
-		this.parentScoop = parentScoop ?? new AHKBaseObject(); 
+		this.parentScope = parentScope ?? new AHKBaseObject(); 
 	}
 
 	/**
@@ -295,12 +296,12 @@ export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 		const searchName = name.toLocaleLowerCase();
 		if (this.symbols.has(searchName))
 			return this.symbols.get(searchName);
-		return this.parentScoop.resolveProp(searchName);
+		return this.parentScope.resolveProp(searchName);
 	}
 
 	public allSymbols(): ISymbol[] {
 		let sym = new Set(super.allSymbols());
-		for (const s of this.parentScoop.allSymbols()) {
+		for (const s of this.parentScope.allSymbols()) {
 			// Child class' property overwrite parent class'
 			if (this.symbols.has(s.name.toLowerCase()))
 				continue

@@ -3,11 +3,11 @@ import { Factor } from '../../parser/newtry/parser/models/expr';
 import { ArrayTerm, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../../parser/newtry/parser/models/suffixterm';
 import {AHKObjectSymbol, AHKSymbol, ScopedSymbol, VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { posInRange } from '../../utilities/positionUtils';
-import { IScope, ISymbol, VarKind } from '../../parser/newtry/analyzer/types';
+import { IScope, ISymbol, ISymType, VarKind } from '../../parser/newtry/analyzer/types';
 import { builtin_command } from '../../utilities/builtins';
 import { CommandCall } from '../../parser/newtry/parser/models/stmt';
 
-export function resolveFactor(factor: Factor, postion: Position, table: IScope): Maybe<AHKSymbol[]> {
+export function resolveFactor(factor: Factor, position: Position, table: IScope): Maybe<AHKSymbol[]> {
     const first = factor.suffixTerm.getElements()[0];
     // TODO: Support fake base. eg "String".Method()
     if (!(first.atom instanceof Identifier))
@@ -18,7 +18,7 @@ export function resolveFactor(factor: Factor, postion: Position, table: IScope):
     let symbols: AHKSymbol[] = [];
     for (let i = 0; i < elements.length; i += 1) {
         const suffix = elements[i];
-        const isInRange = posInRange(suffix, postion);
+        const isInRange = posInRange(suffix, position);
         // TODO: 复杂的索引查找，估计不会搞这个，
         // 动态语言的类型推断不会，必不可能搞
         // 条件：任何的一种括号，并且这个括号不是最后一个，以防是在请求括号前的所有标识符
@@ -37,7 +37,7 @@ export function resolveFactor(factor: Factor, postion: Position, table: IScope):
             return symbols;
         }
 
-        const scope = resolveRelative(suffix.atom.token.content, currentScope);
+        const scope = resolveRelative(suffix.atom.token.content, currentScope, position);
         if (!(scope instanceof AHKObjectSymbol)) return undefined;
         currentScope = scope;
         // 如果当前的符号是另一个class的实例，那么之前的class信息就没用了
@@ -117,16 +117,30 @@ export function resolveCommandCall(cmd: CommandCall): Maybe<string> {
     
 }
 
-export function resolveRelative(name: string, scope: IScope): Maybe<AHKSymbol> {
+export function resolveRelative(name: string, scope: IScope, position: Position): Maybe<AHKSymbol> {
     const sym = scope.resolve(name);
     if (sym instanceof VariableSymbol) {
-        if (sym.type && sym.type instanceof AHKSymbol) return sym.type; 
+        if (sym.type) return findEffectiveType(sym.type, position); 
         const varType = sym.getType();
         // not a instance of class
         if (varType.length === 0) return sym;
         return searchPerfixSymbol(varType, scope);
     }
     return sym;
+}
+
+/**
+ * 返回类型信息列表中最靠近
+ */
+function findEffectiveType(ts: ISymType[], p: Position): ISymbol {
+    let s = ts[0].type
+    for (let i = 0; i < ts.length; i++) {
+        if (ts[0].position.line <= p.line)
+            s = ts[i].type;
+        else
+            break;
+    }
+    return s;
 }
 
 /**

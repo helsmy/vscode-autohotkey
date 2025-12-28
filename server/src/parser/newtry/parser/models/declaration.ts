@@ -1,6 +1,6 @@
 import { Position, Range } from 'vscode-languageserver';
 import { TokenType } from '../../tokenizor/tokenTypes';
-import { IStmtVisitor } from '../../types';
+import { IModifierNode, IStmtVisitor } from '../../types';
 import { joinLines } from '../utils/stringUtils';
 import { DelimitedList } from './delimtiedList';
 import { ExpersionList, Expr, Factor } from './expr';
@@ -130,7 +130,7 @@ export class ClassBaseClause extends NodeBase {
     } 
 }
 
-export class PropertyDeclaration extends Decl {
+export class PropertyDeclaration extends Decl implements IModifierNode{
     constructor(
         public readonly modifier: Maybe<Token>,
         public readonly propertyElements: ExpersionList 
@@ -162,7 +162,7 @@ export class PropertyDeclaration extends Decl {
     }
 }
 
-export class DynamicProperty extends Decl {
+export class DynamicProperty extends Decl implements IModifierNode{
     constructor(
         public readonly name: Token,
         public readonly body: Block | ExprStmt,
@@ -170,20 +170,20 @@ export class DynamicProperty extends Decl {
         public readonly param?: Maybe<Param>,
         public readonly close?: Maybe<Token>,
         public readonly fatArrow?: Maybe<Token>,
+        public readonly modifier?: Maybe<Token>,
     ) {
         super();
     }
 
     public get ranges(): Range[] {
-        if (this.param)
-            return [this.name, ...this.param.ranges, ...this.body.ranges];
-        return [this.name, ...this.body.ranges];
+        const base = this.param ? [this.name, ...this.param.ranges, ...this.body.ranges] : [this.name, ...this.body.ranges];
+        return this.modifier ? [this.modifier, ...base] : base;
     }
     public toLines(): string[] {
         throw new Error('Method not implemented.');
     }
     public get start(): Position {
-        return this.name.start
+        return this.modifier ? this.modifier.start : this.name.start
     }
     public get end(): Position {
         return this.body.end
@@ -405,6 +405,36 @@ export class FuncDef extends Decl {
         parameters: Parameters<T>,
     ): ReturnType<T> {
         return visitor.visitDeclFunction(this, ...parameters);
+    }
+}
+
+export class MethodDef extends FuncDef implements IModifierNode {
+    constructor(
+        nameToken: Token,
+        open: Token,
+        params: Param,
+        close: Token,
+        body: Block | ShortClassMember,
+        public readonly modifier?: Token,
+    ) {
+        super(nameToken, open, params, close, body);
+    }
+
+    public toLines(): string[] {
+        const idLines = this.modifier ? `${this.modifier.content} ${this.nameToken.content}`: this.nameToken;
+        const params = this.params.toLines();
+        const block = this.body.toLines();    
+        params[0] = idLines + params[0];
+
+        return joinLines(' ', params, block);
+    }
+
+    public get start(): Position {
+        return this.modifier ? this.modifier.start : this.nameToken.start
+    }
+
+    public get ranges(): Range[] {
+        return this.modifier ? [this.modifier, ...super.ranges] : super.ranges
     }
 }
 

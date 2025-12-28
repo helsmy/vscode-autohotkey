@@ -67,6 +67,10 @@ export interface IStmt extends RangeSequence {
 	tag: SyntaxKind.stmt;
 }
 
+export interface IModifierNode {
+	modifier?: Token
+}
+
 /**
  * Type repersents all valid syntax node
  */

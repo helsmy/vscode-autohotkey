@@ -7,7 +7,7 @@ import * as Expr from '../parser/models/expr';
 import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
 import { Atom, IScript } from '../types';
-import { AHKBuiltinMethodSymbol, AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VariableSymbol } from './models/symbol';
+import { AHKBuiltinMethodSymbol, AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, AHKTypeInfomation, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VariableSymbol } from './models/symbol';
 import { IScope, ISymbol, ISymType, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
@@ -211,10 +211,24 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 			this.currentScope
 		);
 		this.currentScope.define(dynamicProperty);
+		const params = decl.param ? this.paramAction(decl.param.requiredParameters.concat(decl.param.optionalParameters)) : []
 
 		// ShortDynamicProperty
 		if (decl.body instanceof Stmt.ExprStmt) {
 			errors.push(...this.checkDiagnosticForNode(decl.body));
+			const sym = new AHKGetterSetterSymbol(
+				this.script.uri,
+				'get',
+				decl.name.content,
+				copyRange(decl.body),
+				this.currentScope,
+				this.table
+			)
+			for (const param of params) sym.define(param);
+			dynamicProperty.define(sym);
+			this.enterScoop(sym);
+			errors.push(...decl.body.accept(this, []));
+			this.leaveScoop();
 			return errors;
 		}
 
@@ -234,6 +248,7 @@ export class PreProcesser extends TreeVisitor<Diagnostics> {
 				this.currentScope,
 				this.table
 			)
+			for (const param of params) sym.define(param);
 			dynamicProperty.define(sym);
 			this.enterScoop(sym);
 			errors.push(...getterSetter.accept(this, []));
@@ -911,7 +926,7 @@ export class Processer extends TreeVisitor<Diagnostics> {
 		};
 	}
 
-		public visitDeclVariable(decl: Decl.VarDecl): Diagnostics {
+	public visitDeclVariable(decl: Decl.VarDecl): Diagnostics {
 		const errors: Diagnostics = this.checkDiagnosticForNode(decl);
 		const [e, vs] = this.processVarSym(decl.assigns);
 		errors.push(...e);
@@ -920,7 +935,7 @@ export class Processer extends TreeVisitor<Diagnostics> {
 
 	public visitDeclFunction(decl: Decl.FuncDef): Diagnostics {
 		const errors = this.checkDiagnosticForNode(decl);
-		const sym = this.table.resolve(decl.nameToken.content);
+		const sym = this.currentScope.resolve(decl.nameToken.content);
 		if (!(sym instanceof AHKMethodSymbol)) return errors;
 		this.enterScoop(sym);
 		if (decl.body instanceof Stmt.Block)
@@ -1257,19 +1272,13 @@ export class Processer extends TreeVisitor<Diagnostics> {
 				if (firstTerm.brackets.length !== 0) 
 					return errors;
 				const idName = firstTerm.atom.token.content;
-				if (this.currentScope.resolve(idName)) {
-					const kind = this.currentScope instanceof AHKObjectSymbol ?
-								VarKind.property : VarKind.variable;
-					const sym = new VariableSymbol(
-						this.script.uri,
-						idName,
-						copyRange(left),
-						kind,
-						undefined,undefined,undefined,
-						vt
-					);
-					this.currentScope.define(sym);
-				}
+				const sym = this.currentScope.resolve(idName)
+				if (!vt) break;
+				if (!(sym instanceof VariableSymbol)) 
+					break;
+				if (sym.type === undefined)
+					sym.type = [];
+				sym.type.push(new AHKTypeInfomation(vt, left.start));
 				return errors;
 			}
 			// Assign to property
@@ -1297,15 +1306,13 @@ export class Processer extends TreeVisitor<Diagnostics> {
 					return errors;
 				if (this.currentScope.parentScope.resolve(propertyTerm.atom.token.content)) 
 					return errors;
-				const sym = new VariableSymbol(
-					this.script.uri,
-					propertyTerm.atom.token.content,
-					copyRange(fullRange),
-					VarKind.property,
-					undefined,undefined,undefined,
-					vt
-				);
-				this.currentScope.parentScope.define(sym);
+				const sym = this.currentScope.parentScope.resolveProp(propertyTerm.atom.token.content);
+				if (!vt) break;
+				if (!(sym instanceof VariableSymbol)) 
+					break;
+				if (sym.type === undefined)
+					sym.type = [];
+				sym.type.push(new AHKTypeInfomation(vt, left.start));
 			}
 		}
 		return errors;
@@ -1451,28 +1458,6 @@ export class Processer extends TreeVisitor<Diagnostics> {
 		return errors.concat(stmt.body.accept(this, []));
 	}
 
-	// private visitIterId(oneId: SuffixTerm.SuffixTerm, stmt: Stmt.ForStmt): Diagnostics {
-	// 	const errors: Diagnostics = [];
-	// 	errors.push(...this.processSuffixTerm(oneId));
-
-	// 	if (errors.length === 0) {
-	// 		// 如果没有错误发生, 则parser 已经确保 oneId 一定为标识符
-	// 		const id = oneId.atom as SuffixTerm.Identifier;
-	// 		// check if iter variable is defined, if not define them
-	// 		if (!this.currentScope.resolve(id.token.content)) {
-	// 			const sym = new VariableSymbol(
-	// 				this.script.uri,
-	// 				id.token.content,
-	// 				copyRange(stmt.iter1id),
-	// 				VarKind.variable,
-	// 				undefined
-	// 			);
-	// 			this.currentScope.define(sym);
-	// 		}
-	// 	}
-	// 	return errors;
-	// }
-
 	public visitTry(stmt: Stmt.TryStmt): Diagnostics {
 		const errors = this.checkDiagnosticForNode(stmt);
 		errors.push(...stmt.body.accept(this, []));
@@ -1536,15 +1521,13 @@ export class Processer extends TreeVisitor<Diagnostics> {
 				assign.left.suffixTerm instanceof SuffixTerm.Identifier) {
 				const id = assign.left.suffixTerm.token;
 				const resultType = this.checkExprResultType(assign.right);
-				const sym = new VariableSymbol(
-					this.script.uri,
-					id.content,
-					copyRange(id),
-					kind,
-					undefined,undefined,undefined,
-					resultType
-				);
-				varSym.push(sym);
+				const sym = this.currentScope.resolve(id.content);
+				if (!resultType) break;
+				if (!(sym instanceof VariableSymbol)) 
+					break;
+				if (sym.type === undefined)
+					sym.type = [];
+				sym.type.push(new AHKTypeInfomation(resultType, id.start));
 				continue;
 			}
 			// If a variable is decleared

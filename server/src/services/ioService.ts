@@ -2,8 +2,9 @@
  * reference: kos-language-server
  */
 
-import { readFile, readdirSync, existsSync, lstatSync, statSync } from 'fs';
-import { dirname, join } from 'path';
+import { readFile, readFileSync, readdirSync, existsSync, lstatSync, statSync } from 'fs';
+import { dirname, join, relative } from 'path';
+import ignore = require('ignore');
 
 /**
  * What kind of entity is this
@@ -64,6 +65,53 @@ export class IoService {
 
     public fileExistsSync(path: string): boolean {
         return existsSync(path) && lstatSync(path).isFile();
+    }
+
+    /**
+     * Recursively find all files with a given extension in a directory
+     * Respects .gitignore patterns if present
+     * @param rootPath The root directory to search
+     * @param extension The file extension to match (default: '.ahk')
+     * @returns Array of absolute file paths
+     */
+    public findFilesRecursive(rootPath: string, extension: string = '.ahk'): string[] {
+        const results: string[] = [];
+
+        // Set up ignore patterns from .gitignore
+        const ig = ignore();
+        ig.add('.git');  // Always ignore .git directory
+
+        const gitignorePath = join(rootPath, '.gitignore');
+        if (existsSync(gitignorePath)) {
+            try {
+                const patterns = readFileSync(gitignorePath, 'utf-8');
+                ig.add(patterns);
+            } catch {
+                // Ignore read errors
+            }
+        }
+
+        const scan = (dir: string): void => {
+            const entries = this.statDirectory(dir);
+            for (const entry of entries) {
+                const fullPath = join(dir, entry.path);
+                const relativePath = relative(rootPath, fullPath);
+
+                // Skip if matches .gitignore patterns
+                if (ig.ignores(relativePath)) continue;
+
+                if (entry.kind === IoKind.folder) {
+                    scan(fullPath);
+                } else if (entry.path.toLowerCase().endsWith(extension)) {
+                    results.push(fullPath);
+                }
+            }
+        };
+
+        if (existsSync(rootPath) && lstatSync(rootPath).isDirectory()) {
+            scan(rootPath);
+        }
+        return results;
     }
 
     /**

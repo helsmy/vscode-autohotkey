@@ -90,28 +90,28 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 	// add built-in function
 	const version = v2mode ? 'v2' : 'v1'
 	const furi = URI.file(join(__dirname, '..', '..', 'syntaxes', 'builtin', version,'functions.d.ahk'));
-	// TODO: Hanlde file read failure
-	let docText = '';
 	try {
-		docText = readFileSync(furi.fsPath, {encoding: 'utf-8'});
+		const docText = readFileSync(furi.fsPath, {encoding: 'utf-8'});
+		const p = new AHKParser(docText, furi.toString(), v2mode);
+		const ast = p.parse();
+		const fuctions = ast.script.stmts.map(f => {
+			if (f instanceof FuncDef)
+				return convertStmt2MethodSymbol(f);
+			throw new Error('Need A function defination but got:\n' + JSON.stringify(f));
+		});
+		for (const m of fuctions)
+			b.set(m.name.toLowerCase(), m);
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+			logger.info('Builtin function definitions not found. Function-related features unavailable.');
+		} else {
+			logger.error('Failed to parse builtin functions: ' + (err as Error).message);
+		}
 	}
-	catch (err) {
-		logger.error('Can not read builtin-function definition file. Builtin-function related features will not work.');
-	}
-
-	const p = new AHKParser(docText, furi.toString(), v2mode);
-	const ast = p.parse();
-	const fuctions = ast.script.stmts.map(f => {
-		if (f instanceof FuncDef)
-			return convertStmt2MethodSymbol(f);
-		throw new Error('Need A function defination but got:\n' + JSON.stringify(f));
-	});
-	for (const m of fuctions) 
-		b.set(m.name.toLowerCase(), m);
 
 	// TODO: 下面是Built in Class的实验性代码，
 	// 配合对于内置函数 FileOpen 的类型的特例类型推断
-	// case: 
+	// case:
 	//      `a_file := FileOpen("file_name")`
 	//   ->  只对FileOpen函数进行函数的类型推断
 	//       a_file的类型推断为File类
@@ -119,38 +119,40 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 	// syntaxes/builtin/v1/classes.d.ahk
 	const fclassUri = URI.file(join(__dirname, '..', '..', 'syntaxes', 'builtin', version, 'classes.d.ahk'));
 	try {
-		docText = readFileSync(fclassUri.fsPath, {encoding: 'utf-8'});
-	}
-	catch (err) {
-		logger.error('Can not read builtin-class definition file. Builtin-class related features will not work.');
-	}
-	const p2 = new AHKParser(docText, fclassUri.toString(), true);
-	// logger.info(docText);
-	const ast2 = p2.parse();
-	const objects = ast2.script.stmts.filter(s => s instanceof ClassDef).map(o => {
-		const odef = new AHKObjectSymbol(fclassUri.toString(), o.name.content, fakeRange);
-		for (const stmt of o.body.stmts) {
-			if (stmt instanceof PropertyDeclaration) {
-				const propElement = stmt.propertyElements.getElements()[0];
-				if (!(propElement instanceof Binary && propElement.left instanceof Factor))
-					continue;
-				const prop = propElement.left.suffixTerm.getElements()[0]
-				if (prop === undefined || !(prop.atom instanceof Identifier)) continue;
-				odef.define(new VariableSymbol(
-					fclassUri.toString(),
-					prop.atom.token.content,
-					fakeRange,
-					VarKind.property
-				));
+		const docText = readFileSync(fclassUri.fsPath, {encoding: 'utf-8'});
+		const p2 = new AHKParser(docText, fclassUri.toString(), true);
+		const ast2 = p2.parse();
+		const objects = ast2.script.stmts.filter(s => s instanceof ClassDef).map(o => {
+			const odef = new AHKObjectSymbol(fclassUri.toString(), o.name.content, fakeRange);
+			for (const stmt of o.body.stmts) {
+				if (stmt instanceof PropertyDeclaration) {
+					const propElement = stmt.propertyElements.getElements()[0];
+					if (!(propElement instanceof Binary && propElement.left instanceof Factor))
+						continue;
+					const prop = propElement.left.suffixTerm.getElements()[0]
+					if (prop === undefined || !(prop.atom instanceof Identifier)) continue;
+					odef.define(new VariableSymbol(
+						fclassUri.toString(),
+						prop.atom.token.content,
+						fakeRange,
+						VarKind.property
+					));
+				}
+				if (stmt instanceof FuncDef)
+					odef.define(convertStmt2MethodSymbol(stmt));
 			}
-			if (stmt instanceof FuncDef) 
-				odef.define(convertStmt2MethodSymbol(stmt));
-		}
-		return odef;
-	});
+			return odef;
+		});
 
-	for(const o of objects) 
-		b.set(o.name.toLowerCase(), o);
+		for(const o of objects)
+			b.set(o.name.toLowerCase(), o);
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+			logger.info('Builtin class definitions not found. Class-related features unavailable.');
+		} else {
+			logger.error('Failed to parse builtin classes: ' + (err as Error).message);
+		}
+	}
 
 	// add built-in variable
 	const v = buildbuiltin_variable().map(
@@ -165,7 +167,7 @@ export function getBuiltinScope(v2mode = false, logger: ILoggerBase): Map<string
 	);
 	for (const [name, sym] of v)
 		b.set(name, sym);
-	
+
 	return b;
 }
 

@@ -1,16 +1,23 @@
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver-types';
 import { IScope, ISymbol } from '../types';
 import {
-	BuiltinTypeSymbol, 
-	AHKSymbol, 
-	VariableSymbol, 
-	AHKMethodSymbol, 
-	AHKObjectSymbol, 
-	HotkeySymbol, 
+	BuiltinTypeSymbol,
+	AHKSymbol,
+	VariableSymbol,
+	AHKMethodSymbol,
+	AHKObjectSymbol,
+	HotkeySymbol,
 	HotStringSymbol,
 	LabelSymbol,
 } from './symbol';
 import { symbolInformations } from './symbolInformationProvider';
+
+/**
+ * Interface for workspace-wide symbol lookup
+ */
+export interface IWorkspaceSymbolProvider {
+	findByName(name: string): Array<{uri: string, symbol: AHKSymbol}>;
+}
 
 type SymbolMap = Map<string, AHKSymbol>;
 
@@ -22,12 +29,17 @@ export class SymbolTable implements IScope {
 	private symbols: SymbolMap = new Map();
 	private labelSymbols: SymbolMap = new Map();
 	public readonly name: string;
-	private readonly builtinScope: SymbolMap; 
+	private readonly builtinScope: SymbolMap;
 	public readonly enclosingScope: Maybe<SymbolTable>;
 	public readonly dependcyScope: Set<IScope>;
 	private includeTable: Map<string, SymbolTable>;
 	public readonly scoopLevel: number;
 	public readonly uri: string;
+
+	/**
+	 * Workspace-wide symbol provider for fallback resolution
+	 */
+	private workspaceSymbolProvider?: IWorkspaceSymbolProvider;
 
 	constructor(uri: string, name: string, scoopLevel: number, builtinScope: SymbolMap, enclosingScoop?: Maybe<SymbolTable>) {
 		this.uri = uri;
@@ -52,20 +64,44 @@ export class SymbolTable implements IScope {
 			this.labelSymbols.set(sym.name.toLowerCase(), sym)
 	}
 
+	/**
+	 * Set the workspace symbol provider for fallback resolution
+	 * @param provider Workspace symbol provider
+	 */
+	public setWorkspaceSymbolProvider(provider: IWorkspaceSymbolProvider): void {
+		this.workspaceSymbolProvider = provider;
+	}
+
 	public resolve(name: string): Maybe<AHKSymbol> {
 		const searchName = name.toLowerCase();
+
+		// 1. Check current file symbols
 		let result = this.symbols.get(searchName);
 		if (result) return result;
-		// Then check parent scoop
+
+		// 2. Check parent scope
 		result = this.enclosingScope?.resolve(searchName);
 		if (result) return result;
-		// Third check include symbol table
+
+		// 3. Check include symbol tables
 		for (const [uri, table] of this.includeTable) {
 			result = table.resolve(searchName);
 			if (result) return result;
 		}
-		// Finally check builtin symbols
-		return this.builtinScope.get(searchName);
+
+		// 4. Check builtin symbols
+		result = this.builtinScope.get(searchName);
+		if (result) return result;
+
+		// 5. Fallback to workspace-wide symbol index
+		if (this.workspaceSymbolProvider) {
+			const matches = this.workspaceSymbolProvider.findByName(searchName);
+			if (matches.length > 0) {
+				return matches[0].symbol;
+			}
+		}
+
+		return undefined;
 	}
 
 	public addScope(scoop: IScope) {

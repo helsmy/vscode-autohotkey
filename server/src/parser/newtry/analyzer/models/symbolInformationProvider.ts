@@ -52,6 +52,22 @@ export function symbolInformations(symbols: Map<string, AHKSymbol>, uri: string)
 	return info;
 }
 
+export function getSymbolKind(sym: ISymbol): SymbolKind {
+	if (sym instanceof VariableSymbol) {
+		return sym.tag === VarKind.variable ? SymbolKind.Variable : SymbolKind.Property;
+	}
+	else if (sym instanceof AHKMethodSymbol) {
+		return SymbolKind.Method;
+	}
+	else if (sym instanceof AHKObjectSymbol) {
+		return SymbolKind.Class;
+	}
+	else if (sym instanceof HotkeySymbol || sym instanceof HotStringSymbol) {
+		return SymbolKind.Event;
+	}
+	return SymbolKind.Variable;
+}
+
 export function symbolInfomationName(sym: ISymbol): string {
 	if (sym.name !== '') return sym.name;
 	if (sym instanceof VariableSymbol) {

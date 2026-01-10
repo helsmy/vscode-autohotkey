@@ -156,8 +156,12 @@ export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKS
     if (prefixs.length === 1) return nextScope;
     if (!(nextScope instanceof AHKObjectSymbol)) {
         if (!(nextScope instanceof VariableSymbol)) return undefined;
-        if (!(nextScope.type instanceof AHKObjectSymbol)) return undefined;
-        nextScope = nextScope.type;
+        if (nextScope.type instanceof AHKObjectSymbol) 
+            nextScope = nextScope.type;
+        else {
+            nextScope = searchPerfixSymbol(nextScope.getType(), scope);
+            if (!(nextScope instanceof AHKObjectSymbol)) return undefined;
+        }
     }
 
     prefixs = prefixs.slice(1);

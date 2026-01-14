@@ -41,8 +41,8 @@ export class RunFileCommand implements ICommand {
         );
     }
 
-    public execute() {
-        const runtime = this.interpreterPathProvider();
+    public async execute() {
+        const runtime = await this.interpreterPathProvider();
         const activeEditor = window.activeTextEditor;
         if (!runtime) {
             window.showErrorMessage(

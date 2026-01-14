@@ -1,4 +1,4 @@
-import { ConfigurationChangeEvent, ExtensionContext, languages, LanguageStatusItem, LanguageStatusSeverity, workspace } from 'vscode';
+import { ConfigurationChangeEvent, ExtensionContext, languages, LanguageStatusItem, LanguageStatusSeverity, LogOutputChannel, workspace } from 'vscode';
 import { AUTOHOTKEY_LANGUAGE } from '../constants';
 import * as child_process from 'child_process';
 import * as fs from 'fs';
@@ -7,32 +7,29 @@ import { InterpreterInformation } from './types';
 
 export class InterpreterService {
     private languageStatus: LanguageStatusItem | undefined;
-    private interpreterInfomation: InterpreterInformation;
-    private availableInterpreterList: InterpreterInformation[] = [];
+    private interpreterInfomation: Promise<InterpreterInformation>;
+    private availableInterpreterList: Promise<InterpreterInformation>[] = [];
     private interpreterDir: Promise<string>;
 
-    constructor() {
-        this.interpreterInfomation = {
-            version: undefined,
-            path: ''
-        }
+    constructor(private logger: LogOutputChannel) {
+        this.interpreterInfomation = this.getInerpreterStatus();
         this.interpreterDir = this.getInterpreterDir();
     }
 
-    private async onDidChangeConfiguration(event: ConfigurationChangeEvent) { 
+    private async onDidChangeConfiguration(event: ConfigurationChangeEvent) {
         if (event.affectsConfiguration('ahk-simple-language-server.interpreterPath'))
             this.updateDisplay();
     }
 
     public onDidChangeInterpreter(interpreterInfomation: InterpreterInformation) {
         workspace.getConfiguration('ahk-simple-language-server')
-                 .update('interpreterPath', interpreterInfomation.path);
+            .update('interpreterPath', interpreterInfomation.path);
     }
-    
+
     public async activate(context: ExtensionContext) {
         this.languageStatus = languages.createLanguageStatusItem(
             'AutohotkeySS.displayInterpreter',
-            {language: AUTOHOTKEY_LANGUAGE}
+            { language: AUTOHOTKEY_LANGUAGE }
         );
         this.languageStatus.severity = LanguageStatusSeverity.Information;
         this.languageStatus.command = {
@@ -49,8 +46,8 @@ export class InterpreterService {
 
     public async updateDisplay() {
         if (this.languageStatus) {
-            const interpreter = await this.getInerpreterStatus();
-            this.interpreterInfomation = interpreter;
+            this.interpreterInfomation = this.getInerpreterStatus();
+            const interpreter = await this.interpreterInfomation;
             this.syncLanguageStatus(interpreter);
         }
     }
@@ -70,18 +67,24 @@ export class InterpreterService {
                 this.languageStatus.command.tooltip = 'Set A Vaild Interpreter';
         }
     }
-    
+
 
     /**
      * Return interpreter path if interpreter is vaild autohotkey runtime
      * @returns Path of interpreter
      */
-    public getVaildInterpreterPath(): string | undefined {
-        return this.interpreterInfomation.version ? this.interpreterInfomation.path : undefined;
+    public async getVaildInterpreterPath(): Promise<string | undefined> {
+        const ii = await this.interpreterInfomation;
+        return ii.version ? ii.path : undefined;
     }
 
-    public getInterpreterList(): InterpreterInformation[] {
-        return [this.interpreterInfomation, ...this.availableInterpreterList];
+    public async getInterpreterList(reacquireInterperterPath?: string): Promise<InterpreterInformation[]> {
+        let info = [this.interpreterInfomation, ...this.availableInterpreterList];
+        if (reacquireInterperterPath) {
+            const index = info.findIndex(async item => (await item).path === reacquireInterperterPath);
+            info[index] = this.getVersion(reacquireInterperterPath);
+        }
+        return Promise.all(info);
     }
 
     /**
@@ -89,8 +92,8 @@ export class InterpreterService {
      */
     private async getInerpreterStatus(): Promise<InterpreterInformation> {
         const runtime = workspace
-                        .getConfiguration('ahk-simple-language-server')
-                        .get('interpreterPath') as string;
+            .getConfiguration('ahk-simple-language-server')
+            .get('interpreterPath') as string;
         const nruntime = path.normalize(runtime);
         if (!path.isAbsolute(nruntime))
             return {
@@ -102,14 +105,7 @@ export class InterpreterService {
                 path: nruntime,
                 version: undefined
             };
-        const rawStdout = await this.getVersion(nruntime).catch((error) => {
-            console.warn(error);
-            return undefined;
-        });
-        return {
-            path: nruntime,
-            version: rawStdout
-        };
+        return this.getVersion(nruntime)
     }
 
     private async getInterpreterDir(): Promise<string> {
@@ -119,7 +115,7 @@ export class InterpreterService {
                 (error, stdout) => {
                     if (error) reject(error);
                     const temp = stdout.split('    ');
-                    resolve(temp[temp.length-1].trim());
+                    resolve(temp[temp.length - 1].trim());
                 }
             )
         })
@@ -143,7 +139,7 @@ export class InterpreterService {
             const fullpath = path.join(dir, file);
             // in case of permition denied
             try {
-                if (fs.lstatSync(fullpath).isDirectory()) 
+                if (fs.lstatSync(fullpath).isDirectory())
                     this.deepScanInterpreterAtDir(fullpath);
             }
             catch (e) {
@@ -151,11 +147,8 @@ export class InterpreterService {
                 continue;
             }
             if (path.basename(file).startsWith('AutoHotkey') && path.extname(file) === '.exe') {
-                const version = await this.getVersion(fullpath).catch(e => undefined);
-                this.availableInterpreterList.push({
-                    path: fullpath,
-                    version: version
-                });
+                const version = this.getVersion(fullpath);
+                this.availableInterpreterList.push(version);
             }
         }
     }
@@ -165,7 +158,7 @@ export class InterpreterService {
      * @returns Version of runtime
      * @todo Make a waiting UI, and wait until powershell finish execute. 
      */
-    private async getVersion(runtime: string): Promise<string> {
+    private async getVersion(runtime: string): Promise<InterpreterInformation> {
         return new Promise((resolve, reject) => {
             // Use stdin as input file of runtime, 
             // so that no actually file on disk is needed.
@@ -175,18 +168,25 @@ export class InterpreterService {
             const queryCommand = `WMIC DATAFILE WHERE "name='${runtime.replace(/\\/g, '\\\\')}'" get Version`
             const child = child_process.exec(queryCommand, (error, stdout, stderr) => {
                 if (error) {
-                    reject(error);
+                    resolve({
+                        version: undefined,
+                        path: runtime
+                    });
+                    this.logger.error(error);
                 }
                 const matched = stdout.trim().match(/[0-9]+(\.[0-9]+(-?\w+)?){0,3}/);
                 // TODO: Check error of version query
-                matched ? resolve(matched[0]) : reject();
+                resolve({
+                    version: matched ? matched[0] : undefined,
+                    path: runtime
+                });
             });
-	    
+
             // child.stdin.write('FileOpen("*", "w").Write(A_AhkVersion)');
             // child.stdin.end();
             // kill it if no respond after 1000ms
-            
-	    // powershell时不时能超1s，就那么一点命令也能超，也是真行
+
+            // powershell时不时能超1s，就那么一点命令也能超，也是真行
             setTimeout(() => child.kill(), 1000);
         });
     }

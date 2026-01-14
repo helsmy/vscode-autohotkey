@@ -4,10 +4,10 @@ export const parseVersion = (version: string): AUTOHOTKEY_VERSION => {
     const s = version.split('.');
     const reg = /^(?<major>\d+)\.(?<minor>\d+)(\.(?<patch>\d+))?(\.(?<build>\d+))?$/
     const result = [
-        '-1' ?? s[0],
-        '-1' ?? s[1],
-        '-1' ?? s[2],
-        '-1' ?? s[3]
+        s[0] ?? '-1',
+        s[1] ?? '-1',
+        s[2] ?? '-1',
+        s[3] ?? '-1'
     ];
     return {
         major: parseInt(result[0]),

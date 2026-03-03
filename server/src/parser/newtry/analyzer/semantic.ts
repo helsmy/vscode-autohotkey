@@ -8,7 +8,7 @@ import * as SuffixTerm from '../parser/models/suffixterm';
 import { SymbolTable } from './models/symbolTable';
 import { Atom, IScript } from '../types';
 import { AHKBuiltinMethodSymbol, AHKDynamicPropertySymbol, AHKGetterSetterSymbol, AHKMethodSymbol, AHKObjectSymbol, AHKSymbol, AHKTypeInfomation, HotkeySymbol, HotStringSymbol, LabelSymbol, ParameterSymbol, VariableSymbol } from './models/symbol';
-import { IScope, ISymbol, ISymType, VarKind } from './types';
+import { IScope, ISymbol, IAHKTypeInfomation, VarKind } from './types';
 import { TokenType } from '../tokenizor/tokenTypes';
 import { NodeBase } from '../parser/models/nodeBase';
 import { MissingToken, SkipedToken, Token } from '../tokenizor/types';

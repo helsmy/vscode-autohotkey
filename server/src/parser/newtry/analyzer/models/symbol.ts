@@ -1,4 +1,4 @@
-import { IScope, ISymbol, ISymbolWithDocument, ISymType as IAHKTypeInfomation, ModifierKind, VarKind, IModifierSymbol } from '../types';
+import { IScope, ISymbol, ISymbolWithDocument, IAHKTypeInfomation, ModifierKind, VarKind, IModifierSymbol } from '../types';
 import { Position, Range, SymbolInformation, SymbolKind } from 'vscode-languageserver/node';
 import { symbolInformations } from './symbolInformationProvider';
 import { SpreadParameter } from '../../parser/models/declaration';

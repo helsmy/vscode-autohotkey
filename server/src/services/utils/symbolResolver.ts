@@ -1,9 +1,9 @@
 import { Position } from 'vscode-languageserver';
 import { Factor } from '../../parser/newtry/parser/models/expr';
 import { ArrayTerm, Call, Identifier, Literal, PercentDereference, SuffixTerm } from '../../parser/newtry/parser/models/suffixterm';
-import {AHKObjectSymbol, AHKSymbol, ScopedSymbol, VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
+import {AHKObjectSymbol, AHKSymbol, VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { posInRange } from '../../utilities/positionUtils';
-import { IScope, ISymbol, ISymType, VarKind } from '../../parser/newtry/analyzer/types';
+import { IScope, ISymbol, IAHKTypeInfomation } from '../../parser/newtry/analyzer/types';
 import { builtin_command } from '../../utilities/builtins';
 import { CommandCall } from '../../parser/newtry/parser/models/stmt';
 
@@ -132,7 +132,7 @@ export function resolveRelative(name: string, scope: IScope, position: Position)
 /**
  * 返回类型信息列表中最靠近
  */
-function findEffectiveType(ts: ISymType[], p: Position): ISymbol {
+function findEffectiveType(ts: IAHKTypeInfomation[], p: Position): ISymbol {
     let s = ts[0].type
     for (let i = 0; i < ts.length; i++) {
         if (ts[0].position.line <= p.line)
@@ -150,24 +150,18 @@ function findEffectiveType(ts: ISymType[], p: Position): ISymbol {
  */
 export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKSymbol> {
     // retreive search class symbol
-    let nextScope = scope.resolve(prefixs[0]);
-    if (!nextScope) return undefined;
+    const firstsymbol = scope.resolve(prefixs[0] ?? '');
+    if (!firstsymbol) return undefined;
     // if only one symbol, this is the final result
-    if (prefixs.length === 1) return nextScope;
-    if (!(nextScope instanceof AHKObjectSymbol)) {
-        if (!(nextScope instanceof VariableSymbol)) return undefined;
-        if (nextScope.type instanceof AHKObjectSymbol) 
-            nextScope = nextScope.type;
-        else {
-            nextScope = searchPerfixSymbol(nextScope.getType(), scope);
-            if (!(nextScope instanceof AHKObjectSymbol)) return undefined;
-        }
-    }
+    if (prefixs.length === 1) return firstsymbol;
 
-    prefixs = prefixs.slice(1);
-    for (let i = 0; i < prefixs.length; i++) {
+    let nextScope = searchFirstSymbol(firstsymbol, scope);
+    if (!nextScope) return undefined;
+    
+    for (let i = 1; i < prefixs.length; i++) {
+        if (!nextScope) return undefined;
         const lexem = prefixs[i];
-        const currentScope: Maybe<ISymbol> = (<AHKObjectSymbol>nextScope).resolveProp(lexem);
+        const currentScope: Maybe<ISymbol> = nextScope.resolveProp(lexem);
         // if (currentScope === undefined) return undefined;
         if (currentScope && currentScope instanceof AHKObjectSymbol) {
             nextScope = currentScope;
@@ -176,16 +170,20 @@ export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKS
         if (i >= prefixs.length - 1)
             return currentScope;
         if (currentScope instanceof VariableSymbol) {
-            if (currentScope.type instanceof ScopedSymbol) {
-                nextScope = currentScope.type;
+            if (!currentScope.type) return undefined;
+            // 不注解类型就报 ts(7022) 什么操作，不懂 
+            const t1: IAHKTypeInfomation = currentScope.type[0];
+            if (t1.type instanceof AHKObjectSymbol) {
+                nextScope = t1.type;
                 continue
             }
             // fallback to string infomation collected in first scan
             const varType = currentScope.getType();
             // not a instance of class
             if (varType.length === 0) return undefined;
-            const referenceScope = searchPerfixSymbol(varType, nextScope as AHKObjectSymbol);
+            const referenceScope = searchPerfixSymbol(varType, nextScope);
             if (referenceScope === undefined) return undefined;
+            if (!(referenceScope instanceof AHKObjectSymbol)) return undefined;
             nextScope = referenceScope;
             continue;
         }
@@ -193,4 +191,16 @@ export function searchPerfixSymbol(prefixs: string[], scope: IScope): Maybe<AHKS
         return undefined;
     }
     // return nextScope as AHKObjectSymbol;
+}
+
+function searchFirstSymbol(firstsymbol: ISymbol, scope: IScope): Maybe<AHKObjectSymbol> {
+    if (firstsymbol instanceof AHKObjectSymbol) 
+        return firstsymbol;
+    if (!(firstsymbol instanceof VariableSymbol)) return undefined;
+    if (!firstsymbol.type) return undefined;
+    const t1 = firstsymbol.type[0];
+    if (t1.type instanceof AHKObjectSymbol) return t1.type;
+
+    let nextScope = searchPerfixSymbol(firstsymbol.getType(), scope);
+    return (!(nextScope instanceof AHKObjectSymbol))  ? undefined : nextScope;
 }

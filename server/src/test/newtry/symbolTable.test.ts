@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { Range } from 'vscode-languageserver-types';
 import { VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { SymbolTable } from '../../parser/newtry/analyzer/models/symbolTable';
-import { ISymbol, ISymType, VarKind } from '../../parser/newtry/analyzer/types';
+import { ISymbol, IAHKTypeInfomation, VarKind } from '../../parser/newtry/analyzer/types';
 import { Label } from '../../parser/newtry/parser/models/declaration';
 import { Binary, Expr, Factor } from '../../parser/newtry/parser/models/expr';
 import * as Stmt from '../../parser/newtry/parser/models/stmt';

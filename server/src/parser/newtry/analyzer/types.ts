@@ -50,7 +50,7 @@ export interface IModifierSymbol extends ISymbol {
 }
 
 // Just marking object is a type
-export interface ISymType {
+export interface IAHKTypeInfomation {
 	type: ISymbol;
 	position: Position;
 	readonly name: string;

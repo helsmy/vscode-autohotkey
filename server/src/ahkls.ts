@@ -682,7 +682,7 @@ export class AHKLS
                 continue;
             const callee = call.callee
             const scope = this.getCurrentScope(call.position, doc.syntax.table);
-            const callSymbol = searchPerfixSymbol(callee, scope);
+            const callSymbol = searchPerfixSymbol(callee, scope, call.position);
             if (callSymbol instanceof AHKMethodSymbol) {
                 hint.push(...convertMethodCallInlayHint(callSymbol, call));
                 continue;
@@ -774,14 +774,14 @@ export class AHKLS
             return undefined;
 
         let allTerms = node.suffixTerm.getElements().filter(item => posInRange(item, pos) || rangeBefore(item, pos));
-        let nextScope = this.resolveToLastTerm(allTerms, scope);
+        let nextScope = this.resolveToLastTerm(allTerms, scope, pos);
         
         if (nextScope instanceof AHKObjectSymbol)
             return nextScope.allSymbols().map(sym => convertSymbolCompletion(sym));
         return undefined;
     }
 
-    private resolveToLastTerm(allTerms: SuffixTerm[], nextScope: IScope) {
+    private resolveToLastTerm(allTerms: SuffixTerm[], nextScope: IScope, pos: Position) {
         for (const lexem of allTerms) {
             const currentScope = resolveSuffixTermSymbol(lexem, nextScope);
             // if (currentScope === undefined) return undefined;
@@ -797,7 +797,7 @@ export class AHKLS
                 const varType = currentScope.getType();
                 // not a instance of class
                 if (varType.length === 0) return undefined;
-                const referenceScope = searchPerfixSymbol(varType, nextScope);
+                const referenceScope = searchPerfixSymbol(varType, nextScope,pos);
                 if (referenceScope === undefined) return undefined;
                 if (!(referenceScope instanceof AHKObjectSymbol)) return undefined;
                 nextScope = referenceScope
@@ -935,7 +935,7 @@ export class AHKLS
             // check if it is a property access
             // FIXME: 把这个遗留的反转的分词顺序解决一下
             const perfixs = lexems.reverse().slice(0, -1);
-            const symbol = searchPerfixSymbol(perfixs, scope);
+            const symbol = searchPerfixSymbol(perfixs, scope, position);
             if (!symbol || !(symbol instanceof AHKObjectSymbol)) return undefined;
             return symbol.resolveProp(lexems[lexems.length-1]);
         }

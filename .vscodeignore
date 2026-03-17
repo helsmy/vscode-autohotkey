@@ -4,6 +4,7 @@
 **/*.test.ts
 **/*.map
 .gitignore
+.eslintignore
 .github
 **/tsconfig.json
 **/tsconfig.base.json

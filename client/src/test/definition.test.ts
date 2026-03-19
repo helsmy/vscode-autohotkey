@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
-import { getDocUri, activate } from './helper';
+import { getDocUri, getDocPath, activate } from './helper';
 
 suite('Should do definition', () => {
 	const docUri = getDocUri('completion.ahk');
+	const includeTestUri = getDocUri('include_test.ahk');
 
 	test('Find global symbol', async () => {
 		await testDefinition(docUri, new vscode.Position(32-1, 2), [{
@@ -43,6 +44,53 @@ suite('Should do definition', () => {
 			),
 			uri: docUri
 		}]);
+	});
+
+	test('Navigate to #Include file', async () => {
+		// Arrange
+		const expectedTargetUri = getDocUri('included_lib.ahk');
+		// Line 2 has: #Include included_lib.ahk
+		// Position on the include path (column 10 is within "included_lib.ahk")
+		const position = new vscode.Position(2, 10);
+
+		// Act
+		await activate(includeTestUri);
+		const actualDefinition = (await vscode.commands.executeCommand(
+			'vscode.executeDefinitionProvider',
+			includeTestUri,
+			position
+		)) as vscode.Location[];
+
+		// Assert
+		assert.strictEqual(actualDefinition.length, 1, 'Should return exactly one definition');
+		assert.strictEqual(
+			actualDefinition[0].uri.fsPath,
+			expectedTargetUri.fsPath,
+			'Should navigate to the included file'
+		);
+	});
+
+	test('Navigate to #Include file with trailing comment', async () => {
+		// Arrange
+		const expectedTargetUri = getDocUri('included_lib.ahk');
+		// Line 3 has: #Include included_lib.ahk ; with trailing comment
+		const position = new vscode.Position(3, 10);
+
+		// Act
+		await activate(includeTestUri);
+		const actualDefinition = (await vscode.commands.executeCommand(
+			'vscode.executeDefinitionProvider',
+			includeTestUri,
+			position
+		)) as vscode.Location[];
+
+		// Assert
+		assert.strictEqual(actualDefinition.length, 1, 'Should return exactly one definition');
+		assert.strictEqual(
+			actualDefinition[0].uri.fsPath,
+			expectedTargetUri.fsPath,
+			'Should navigate to the included file despite trailing comment'
+		);
 	});
 });
 

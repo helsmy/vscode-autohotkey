@@ -1,5 +1,6 @@
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { IoService } from './ioService';
+import { WorkspaceIndex } from './workspaceIndex';
 import { mockLogger } from '../utilities/logger';
 import { DocumentSyntaxInfo } from './types';
 import { Connection, Diagnostic, Position, Range, TextDocuments } from 'vscode-languageserver/node';
@@ -99,6 +100,16 @@ export class DocumentService {
 
     private _configurationDone = new Notifier();
 
+    /**
+     * Workspace root directory
+     */
+    private workspaceRoot: string | undefined;
+
+    /**
+     * Workspace-wide symbol index
+     */
+    public readonly workspaceIndex: WorkspaceIndex = new WorkspaceIndex();
+
     constructor(
         private conn: Connection, 
         documents: TextDocuments<TextDocument>,
@@ -123,6 +134,20 @@ export class DocumentService {
         const doc = this.serverDocs.get(uri);
         if (!info || !doc) return undefined;
         return new DocumentInfomation(doc, info);
+    }
+
+    /**
+     * Get all open document information for workspace symbol search
+     */
+    public getAllDocumentInfo(): Map<string, DocumentInfomation> {
+        const result = new Map<string, DocumentInfomation>();
+        for (const [uri, info] of this.docsAST) {
+            const doc = this.serverDocs.get(uri);
+            if (doc) {
+                result.set(uri, new DocumentInfomation(doc, info));
+            }
+        }
+        return result;
     }
 
     public onConfigChange(config: ConfigurationService) {
@@ -167,7 +192,15 @@ export class DocumentService {
             this.v2CompatibleMode ? this.builtinScope.v2 : this.builtinScope.v1
         );
         const processResult = preprocesser.process();
-        const docTable = processResult.table;
+        const processer = new Processer(ast.script, this.v2CompatibleMode, processResult.table);
+        const sencondResult = processer.process();
+        const docTable = sencondResult.table;
+
+        // Connect workspace index to enable cross-file symbol resolution
+        docTable.setWorkspaceSymbolProvider(this.workspaceIndex);
+
+        const end = Date.now();
+        this.logger.log(`Analzay finished[${end - start} ms]`);
 
         if (this.isSendError) {
             this.sendErrors(ast.sytanxErrors, uri);
@@ -420,7 +453,7 @@ export class DocumentService {
         });
     }
 
-    private include2Path(rawPath: string, scriptPath: string): Maybe<string> {
+    public include2Path(rawPath: string, scriptPath: string): Maybe<string> {
         const scriptDir = scriptPath;
         const normalized = normalize(rawPath);
         switch (extname(normalized)) {
@@ -448,6 +481,109 @@ export class DocumentService {
             default:
                 return undefined;
         }
+    }
+
+    // ==================== Workspace Indexing ====================
+
+    /**
+     * Set the workspace root and prepare for scanning
+     * @param root Workspace root directory path
+     */
+    public setWorkspaceRoot(root: string): void {
+        this.workspaceRoot = root;
+        this.workspaceIndex.clear();
+    }
+
+    /**
+     * Scan all .ahk files in the workspace and index their symbols
+     * @param progressCallback Optional callback for progress updates
+     */
+    public async scanWorkspace(progressCallback?: (processed: number, total: number) => void): Promise<void> {
+        if (!this.workspaceRoot) {
+            this.logger.warn('No workspace root set, cannot scan');
+            return;
+        }
+
+        this.workspaceIndex.isIndexing = true;
+
+        try {
+            const files = this.ioService.findFilesRecursive(this.workspaceRoot, '.ahk');
+            const totalFiles = files.length;
+            let processed = 0;
+
+            // Process files in batches to avoid blocking
+            const BATCH_SIZE = 10;
+            for (let i = 0; i < files.length; i += BATCH_SIZE) {
+                const batch = files.slice(i, i + BATCH_SIZE);
+
+                for (const filePath of batch) {
+                    await this.indexFile(filePath);
+                    processed++;
+                    if (progressCallback) {
+                        progressCallback(processed, totalFiles);
+                    }
+                }
+
+                // Yield to event loop between batches
+                if (i + BATCH_SIZE < files.length) {
+                    await new Promise(resolve => setImmediate(resolve));
+                }
+            }
+
+            this.logger.info(`Indexed ${processed} files in workspace`);
+        } finally {
+            this.workspaceIndex.isIndexing = false;
+        }
+    }
+
+    /**
+     * Index a single file into the workspace index
+     * @param filePath Absolute path to the file
+     */
+    public async indexFile(filePath: string): Promise<void> {
+        const uri = URI.file(filePath).toString();
+
+        // Skip if already open in editor (handled by docsAST)
+        if (this.docsAST.has(uri)) return;
+
+        try {
+            const content = await this.ioService.load(filePath);
+            const parser = new AHKParser(content, uri, this.v2CompatibleMode, this.logger);
+            const ast = parser.parse();
+            const preprocesser = new PreProcesser(
+                ast.script,
+                this.v2CompatibleMode ? this.builtinScope.v2 : this.builtinScope.v1
+            );
+            const processResult = preprocesser.process();
+
+            // Extract top-level symbols for the index
+            const symbols = processResult.table.allSymbols() as AHKSymbol[];
+            this.workspaceIndex.addFile(uri, symbols);
+        } catch (err) {
+            this.logger.error(`Failed to index ${filePath}: ${err}`);
+        }
+    }
+
+    /**
+     * Re-index a file (remove old entry and index again)
+     * @param filePath Absolute path to the file
+     */
+    public async reindexFile(filePath: string): Promise<void> {
+        const uri = URI.file(filePath).toString();
+
+        // Skip if open in editor
+        if (this.docsAST.has(uri)) return;
+
+        this.workspaceIndex.removeFile(uri);
+        await this.indexFile(filePath);
+    }
+
+    /**
+     * Remove a file from the workspace index
+     * @param uri File URI to remove
+     */
+    public removeFileFromIndex(uri: string): void {
+        this.workspaceIndex.removeFile(uri);
     }
 }
 

@@ -6,7 +6,7 @@ import { TokenType } from '../../tokenizor/tokenTypes';
 
 export type AHKClassSymbol = AHKObjectSymbol | AHKBuiltinObjectSymbol;
 export type AHKFunctionSymbol = AHKMethodSymbol | AHKBuiltinMethodSymbol;
-export type AHKBUiltinSymbol = AHKBuiltinObjectSymbol | AHKBuiltinMethodSymbol | BuiltinVariableSymbol;
+export type AHKBuiltinSymbol = AHKBuiltinObjectSymbol | AHKBuiltinMethodSymbol | BuiltinVariableSymbol;
 
 export abstract class AHKSymbol implements ISymbol {
 	public readonly name: string;
@@ -418,7 +418,7 @@ export function isClassObject(obj: ISymbol): obj is AHKClassSymbol {
 	return obj instanceof AHKObjectSymbol || obj instanceof AHKBuiltinObjectSymbol
 }
 
-export function isBuiltinSymbol(obj: ISymbol): obj is AHKBUiltinSymbol {
+export function isBuiltinSymbol(obj: ISymbol): obj is AHKBuiltinSymbol {
 	return obj instanceof AHKBuiltinMethodSymbol 
 		|| obj instanceof AHKBuiltinObjectSymbol
 		|| obj instanceof BuiltinVariableSymbol

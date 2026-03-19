@@ -3,7 +3,7 @@ import { IoService } from './ioService';
 import { WorkspaceIndex } from './workspaceIndex';
 import { mockLogger } from '../utilities/logger';
 import { DocumentSyntaxInfo } from './types';
-import { Connection, Diagnostic, Position, Range, TextDocuments } from 'vscode-languageserver/node';
+import { Connection, Diagnostic, DidChangeWatchedFilesParams, FileChangeType, Position, Range, TextDocuments } from 'vscode-languageserver/node';
 import { SymbolTable } from '../parser/newtry/analyzer/models/symbolTable';
 import { URI } from 'vscode-uri';
 import { dirname, extname, isAbsolute, join, normalize } from 'path';
@@ -124,6 +124,7 @@ export class DocumentService {
         this.SLibDir = 'C:\\Program Files\\AutoHotkey\\Lib';
         this.ULibDir = homedir() + '\\Documents\\AutoHotkey\\Lib';
 
+        conn.onDidChangeWatchedFiles(this.onDidChangeWatchedFiles.bind(this));
         documents.onDidChangeContent(e => this.updateDocumentAST(e.document.uri, e.document));
         documents.onDidSave(e => this.updateLocalAST(e.document.uri));
         documents.onDidClose(e => this.deleteUnusedDocument(e.document.uri));
@@ -170,6 +171,35 @@ export class DocumentService {
         this._configurationDone.notify();
     }
 
+    private onDidChangeWatchedFiles(change: DidChangeWatchedFilesParams) {
+        // Handle file changes for workspace indexing
+        for (const event of change.changes) {
+            const uri = event.uri;
+            const fsPath = URI.parse(uri).fsPath;
+    
+            // Only handle .ahk files
+            if (!fsPath.toLowerCase().endsWith('.ahk')) continue;
+    
+            switch (event.type) {
+                case FileChangeType.Created:
+                    this.logger.info(`File created: ${fsPath}`);
+                    this.indexFile(fsPath);
+                    break;
+    
+                case FileChangeType.Changed:
+                    // Only re-index if not open in editor (open files are handled by docsAST)
+                    this.logger.info(`File changed: ${fsPath}`);
+                    this.reindexFile(fsPath);
+                    break;
+    
+                case FileChangeType.Deleted:
+                    this.logger.info(`File deleted: ${fsPath}`);
+                    this.removeFileFromIndex(uri);
+                    break;
+            }
+        }
+    }
+
     /**
      * Update infomation of a given document, will automatic load its includes
      * @param uri Uri of updated document
@@ -187,16 +217,19 @@ export class DocumentService {
         const parser = new AHKParser(doc.getText(), doc.uri, this.v2CompatibleMode, this.logger);
         const ast = parser.parse();
         
+        const start = Date.now();
         const preprocesser = new PreProcesser(
             ast.script, 
             this.v2CompatibleMode ? this.builtinScope.v2 : this.builtinScope.v1
         );
         const processResult = preprocesser.process();
-        const processer = new Processer(ast.script, this.v2CompatibleMode, processResult.table);
-        const sencondResult = processer.process();
-        const docTable = sencondResult.table;
+        // const processer = new Processer(ast.script, this.v2CompatibleMode, processResult.table);
+        // const sencondResult = processer.process();
+        const docTable = processResult.table;
 
         // Connect workspace index to enable cross-file symbol resolution
+        // Processer use the reference of the symboltable
+        // Connection will be holded in the rest of code
         docTable.setWorkspaceSymbolProvider(this.workspaceIndex);
 
         const end = Date.now();

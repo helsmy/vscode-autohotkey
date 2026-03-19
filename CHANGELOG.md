@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.9.11
+
+1. fix inlayhint crashes
+2. workspace level features (thanks to  alfredomtx)
+	1. Go-to-definition support for #Include statements (navigates to the included file)
+	2. Workspace-wide symbol indexing for cross-file go-to-definition
+	3. Handles trailing comments after #Include paths
+
 ## 0.9.9
 
 1. support `=>` short dynamic property

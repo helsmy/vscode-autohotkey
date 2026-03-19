@@ -9,8 +9,6 @@ import {
 	InlayHint,
 	InlayHintParams,
 	ProposedFeatures,
-	// InlayHintParams,
-	// InlayHint,
 } from 'vscode-languageserver/node';
 import { URI } from 'vscode-uri';
 

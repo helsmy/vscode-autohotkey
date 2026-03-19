@@ -5,7 +5,6 @@ import {
     DebugConfigurationProvider,
     CancellationToken,
     DebugConfiguration,
-    ProviderResult,
     WorkspaceFolder
 } from "vscode";
 import { InterpreterPathProvider } from '../display/types';
@@ -25,7 +24,7 @@ export class DebugConfigSubstituter implements DebugConfigurationProvider {
         
     }
 
-    public resolveDebugConfigurationWithSubstitutedVariables(folder: WorkspaceFolder, config: SupportedDebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration> {
+    public async resolveDebugConfigurationWithSubstitutedVariables(folder: WorkspaceFolder, config: SupportedDebugConfiguration, token?: CancellationToken): Promise<DebugConfiguration | null | undefined> {
         const isSupportDebugAdapter = extensions.getExtension(SupportDebugAdapterId);
         if (!isSupportDebugAdapter) {
             window.showInformationMessage(
@@ -38,7 +37,7 @@ export class DebugConfigSubstituter implements DebugConfigurationProvider {
         if (config.AhkExecutable) return config;
         
         // If runtime is not spectified
-        const runtime = this.interpreterPathProvider();
+        const runtime = await this.interpreterPathProvider();
         if (!runtime) {
             window.showErrorMessage(
                 'Interpreter Is Unavailable. Please check Settings>Ahk-simple-language-server:interpreterPath',

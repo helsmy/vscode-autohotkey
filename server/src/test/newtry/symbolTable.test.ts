@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { Range } from 'vscode-languageserver-types';
 import { VariableSymbol } from '../../parser/newtry/analyzer/models/symbol';
 import { SymbolTable } from '../../parser/newtry/analyzer/models/symbolTable';
-import { ISymType, VarKind } from '../../parser/newtry/analyzer/types';
+import { ISymbol, IAHKTypeInfomation, VarKind } from '../../parser/newtry/analyzer/types';
 import { Label } from '../../parser/newtry/parser/models/declaration';
 import { Binary, Expr, Factor } from '../../parser/newtry/parser/models/expr';
 import * as Stmt from '../../parser/newtry/parser/models/stmt';
@@ -25,7 +25,7 @@ function builtTable(AST: IStmt[]): SymbolTable {
             continue;
         const atom = unpackExpr(stmt.expression);
         if (atom === undefined) continue;
-        let symType: Maybe<ISymType> = undefined;
+        let symType: Maybe<ISymbol>;
         if (atom.type === TokenType.string) {
             symType = table.resolve('string');
         }

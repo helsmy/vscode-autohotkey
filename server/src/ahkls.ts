@@ -583,7 +583,7 @@ export class AHKLS
         if (_compeltionParams.context && 
             (_compeltionParams.context.triggerCharacter === '/' || _compeltionParams.context.triggerCharacter === '<')) {
             return this.includeDirCompletion(docinfo.LineTextToPosition(position));
-        }
+        } 
         
         const scope = this.getCurrentScope(position, docinfo.syntax.table);
         const found = this.finder.find(docinfo.syntax.AST.script.stmts, position, [Expr.Factor]);

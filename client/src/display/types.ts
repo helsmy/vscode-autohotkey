@@ -16,4 +16,4 @@ export type AUTOHOTKEY_VERSION = {
  * Method provides path of vaild interpreter.
  * If interpreter is invaild then undefined is returned
  */
-export type InterpreterPathProvider = () => string | undefined;
+export type InterpreterPathProvider = () => Promise<string | undefined>;

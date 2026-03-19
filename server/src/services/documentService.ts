@@ -186,7 +186,7 @@ export class DocumentService {
 
         const parser = new AHKParser(doc.getText(), doc.uri, this.v2CompatibleMode, this.logger);
         const ast = parser.parse();
-        const start = Date.now();
+        
         const preprocesser = new PreProcesser(
             ast.script, 
             this.v2CompatibleMode ? this.builtinScope.v2 : this.builtinScope.v1
@@ -235,6 +235,8 @@ export class DocumentService {
 
 
         if (useneed.length === 0) {
+            const processer = new Processer(ast.script, this.v2CompatibleMode, docTable);
+            const secondResult = processer.process();
             // just link its include and go.
             this.linkInclude(docTable, uri);
             return
@@ -245,9 +247,13 @@ export class DocumentService {
         // 这个table和docinfo里的table之间的引用怎么没了得
         // 神秘
         this.linkInclude(docTable, uri);
+
+        // Second pass find relation of symbols
+        const processer = new Processer(ast.script, this.v2CompatibleMode, docTable);
+        const secondResult = processer.process();
         this.docsAST.set(uri, {
             AST: ast,
-            table: docTable,
+            table: secondResult.table,
             callInfomation: processResult.callInfomation
         });
     }

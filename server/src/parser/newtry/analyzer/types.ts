@@ -1,4 +1,4 @@
-import { SymbolInformation } from 'vscode-languageserver-types';
+import { Position, SymbolInformation } from 'vscode-languageserver-types';
 
 export interface IScope {
 	readonly name: string;
@@ -41,11 +41,18 @@ export interface IScope {
 
 export interface ISymbol {
 	readonly name: string;
-	readonly type: Maybe<ISymType>;
+	parentScope?: IScope;
+	enclosingScope?: IScope;
+}
+
+export interface IModifierSymbol extends ISymbol {
+	modifier: ModifierKind
 }
 
 // Just marking object is a type
-export interface ISymType {
+export interface IAHKTypeInfomation {
+	type: ISymbol;
+	position: Position;
 	readonly name: string;
 }
 

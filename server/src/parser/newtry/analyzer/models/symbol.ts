@@ -1,5 +1,5 @@
-import { IScope, ISymbol, ISymbolWithDocument, ISymType, ModifierKind, VarKind } from '../types';
-import { Range, SymbolInformation, SymbolKind } from 'vscode-languageserver/node';
+import { IScope, ISymbol, ISymbolWithDocument, IAHKTypeInfomation, ModifierKind, VarKind, IModifierSymbol } from '../types';
+import { Position, Range, SymbolInformation, SymbolKind } from 'vscode-languageserver/node';
 import { symbolInformations } from './symbolInformationProvider';
 import { SpreadParameter } from '../../parser/models/declaration';
 import { TokenType } from '../../tokenizor/tokenTypes';
@@ -10,12 +10,10 @@ export type AHKBUiltinSymbol = AHKBuiltinObjectSymbol | AHKBuiltinMethodSymbol |
 
 export abstract class AHKSymbol implements ISymbol {
 	public readonly name: string;
-	public readonly type: Maybe<ISymType>;
 	public readonly parentScope?: IScope;
 	public readonly enclosingScope?: IScope;
-	constructor(name: string, type?: ISymType) {
+	constructor(name: string) {
 		this.name = name;
-		this.type = type;
 	}
 }
 
@@ -23,19 +21,19 @@ export class BuiltinVariableSymbol extends AHKSymbol {
 	constructor(
 		public readonly name: string,
 		public readonly tag: VarKind,
-		type: Maybe<ISymType>
+		public type: Maybe<IAHKTypeInfomation[]>
 	) {
-		super(name, type);
+		super(name);
 	}
 
 	toString(): string {
 		return this.type !== undefined ?
-			`<${this.name}: ${this.type.name}>` :
+			`<${this.name}: ${this.type[0].name}>` :
 			`<Variable ${this.name}>`;
 	}
 }
 
-export class VariableSymbol extends AHKSymbol {
+export class VariableSymbol extends AHKSymbol implements IModifierSymbol {
 
 	/**
 	 * Temporary type marking for current usage
@@ -57,9 +55,9 @@ export class VariableSymbol extends AHKSymbol {
 		public readonly modifier: ModifierKind = ModifierKind.None,
 		public readonly parentScope?: IScope,
 		public readonly enclosingScope?: IScope,
-		type?: Maybe<ISymType>
+		public type?: Maybe<IAHKTypeInfomation[]>
 	) {
-		super(name, type);
+		super(name);
 	}
 
 	public setType(t: string[]) {
@@ -72,7 +70,7 @@ export class VariableSymbol extends AHKSymbol {
  
 	toString(): string {
 		return this.type !== undefined ?
-			`<${this.name}: ${this.type.name}>` :
+			`<${this.name}: ${this.type[0].name}>` :
 			`<Variable ${this.name}>`;
 	}
 }
@@ -83,7 +81,7 @@ export class ParameterSymbol extends VariableSymbol {
 		public readonly isByref: boolean,
 		public readonly isSpread: boolean, 
 		enclosingScope?: IScope,
-		type?: ISymType
+		type?: Maybe<IAHKTypeInfomation[]>
 	) {
 		super(uri, name, range, tag, ModifierKind.None, undefined, enclosingScope, type);
 	}
@@ -131,7 +129,7 @@ export class LabelSymbol extends AHKSymbol {
 	}
 }
 
-export class BuiltinTypeSymbol extends AHKSymbol implements ISymType {
+export class BuiltinTypeSymbol extends AHKSymbol {
 	constructor(name: string) {
 		super(name)
 	}
@@ -200,7 +198,7 @@ export class AHKBuiltinMethodSymbol extends ScopedSymbol {
 	}
 }
 
-export class AHKBuiltinObjectSymbol extends ScopedSymbol implements ISymType {
+export class AHKBuiltinObjectSymbol extends ScopedSymbol {
 	/**
 	 * @param name Name of class symbol
 	 * @param parentScope parent class
@@ -226,7 +224,7 @@ export class AHKBuiltinObjectSymbol extends ScopedSymbol implements ISymType {
 	}
 }
 
-export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument {
+export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument, IModifierSymbol {
 	public document: string | undefined;
 	constructor(
 		uri: string,
@@ -235,7 +233,8 @@ export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument
 		public readonly requiredParameters: ParameterSymbol[],
 		public readonly optionalParameters: ParameterSymbol[],
 		enclosingScoop?: IScope,
-		public readonly parentScope?: AHKObjectSymbol
+		public readonly parentScope?: AHKObjectSymbol,
+		public readonly modifier: ModifierKind = ModifierKind.None,
 	) {
 		super(uri, name, enclosingScoop);
 		this.requiredParameters.forEach(v => this.define(v));
@@ -255,8 +254,8 @@ export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument
 	}
 
 	public toString(): string {
-		const reqParaStr = this.requiredParameters.map(param => `${param.isByref ? 'byref ' : ''}${param.name}`);
-		const optParaStr = this.optionalParameters.map(param => `${param.isByref ? 'byref ' : ''}${param.name}${
+		const reqParaStr = this.requiredParameters.map(param => `${param.isByref ? '& ' : ''}${param.name}`);
+		const optParaStr = this.optionalParameters.map(param => `${param.isByref ? '& ' : ''}${param.name}${
 			param.isSpread? 
 			param.name === '*' ? '' : '*'
 			: '?'}`);
@@ -266,25 +265,26 @@ export class AHKMethodSymbol extends ScopedSymbol implements ISymbolWithDocument
 }
 
 
-export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
+export class AHKObjectSymbol extends ScopedSymbol {
 
-	public readonly parentScoop: AHKClassSymbol;
+	// may be readonly is better?
+	public parentScope: AHKClassSymbol;
 	/**
 	 * @param name Name of class symbol
 	 * @param range range of symbol
-	 * @param parentScoop parent class
-	 * @param enclosingScoop parent scoop
+	 * @param parentScope parent class
+	 * @param enclosingScope parent scoop
 	 */
 	constructor(
 		uri: string,
 		name: string,
 		public readonly range: Range,
-		parentScoop?: AHKObjectSymbol,
-		enclosingScoop?: IScope
+		parentScope?: AHKObjectSymbol,
+		enclosingScope?: IScope
 	) {
-		super(uri, name, enclosingScoop);
+		super(uri, name, enclosingScope);
 		// All object is extended from Base object
-		this.parentScoop = parentScoop ?? new AHKBaseObject(); 
+		this.parentScope = parentScope ?? new AHKBaseObject(); 
 	}
 
 	/**
@@ -295,12 +295,12 @@ export class AHKObjectSymbol extends ScopedSymbol implements ISymType {
 		const searchName = name.toLocaleLowerCase();
 		if (this.symbols.has(searchName))
 			return this.symbols.get(searchName);
-		return this.parentScoop.resolveProp(searchName);
+		return this.parentScope.resolveProp(searchName);
 	}
 
 	public allSymbols(): ISymbol[] {
 		let sym = new Set(super.allSymbols());
-		for (const s of this.parentScoop.allSymbols()) {
+		for (const s of this.parentScope.allSymbols()) {
 			// Child class' property overwrite parent class'
 			if (this.symbols.has(s.name.toLowerCase()))
 				continue
@@ -422,4 +422,15 @@ export function isBuiltinSymbol(obj: ISymbol): obj is AHKBUiltinSymbol {
 	return obj instanceof AHKBuiltinMethodSymbol 
 		|| obj instanceof AHKBuiltinObjectSymbol
 		|| obj instanceof BuiltinVariableSymbol
+}
+
+export class AHKTypeInfomation implements IAHKTypeInfomation {
+	constructor(
+		public type: ISymbol,
+		public position: Position
+	) {}
+
+	get name(): string {
+		return this.type.name
+	}
 }

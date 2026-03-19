@@ -141,6 +141,18 @@ suite('Syntax Parser Expresion Test', () => {
         assert.strictEqual(actual.toString(), 'a := 1 + 3 * 2 - 12 / 3');
     });
 
+    test('expression right associative', () => {
+        const actual = getExpr('a:=b:=c+1');
+        assert.strictEqual(actual instanceof Expr.Binary, true, 'Expression is not binary');
+        if (!(actual instanceof Expr.Binary)) return;
+        assert.strictEqual(actual.toString(), 'a := b := c + 1');
+        assert.strictEqual(actual.left instanceof Expr.Factor, true, 'left wrong');
+        if (!(actual.left instanceof Expr.Factor)) return;
+        assert.strictEqual(actual.left.toString(), 'a');
+        assert.strictEqual(actual.right instanceof Expr.Binary, true, 'right wrong');
+        assert.strictEqual(actual.right.toString(), 'b := c + 1');
+    });
+
     test('basic valid `=` assign', () => {
         const file = `w:=Format("{:d}",w), CutUp:=CutDown:=0
         re1=(^0{%w%}|^1{%w%})

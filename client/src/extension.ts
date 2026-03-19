@@ -23,9 +23,10 @@ import { DebugConfigSubstituter } from './debugConfig/debugConfigUtil';
 import { InterpreterService } from "./display/interpreterService";
 
 let client: LanguageClient;
-const interpreterService = new InterpreterService();
 
 export async function activate(context: ExtensionContext) {
+	const outputLog = window.createOutputChannel(AHKSS_CLIENT_NAME, {log: true});
+	const interpreterService = new InterpreterService(outputLog);
 	// Register command
 	const commandManger = new CommandManger(interpreterService);
 	commandManger.subscript(context);
@@ -77,7 +78,7 @@ export async function activate(context: ExtensionContext) {
 	
 	// Start the client. This will also launch the server
 	client.start();
-	delayActive(context);
+	delayActive(context, interpreterService);
 }
 
 export function deactivate(): Thenable<void> | undefined {
@@ -87,7 +88,7 @@ export function deactivate(): Thenable<void> | undefined {
 	return client.stop();
 }
 
-async function delayActive(context: ExtensionContext) {
+async function delayActive(context: ExtensionContext, interpreterService: InterpreterService) {
 	interpreterService.activate(context);
 
 	setTimeout(async () => {

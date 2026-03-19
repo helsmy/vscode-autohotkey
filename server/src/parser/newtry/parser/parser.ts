@@ -529,7 +529,7 @@ export class AHKParser {
             // function
             case TokenType.openParen:
                 const name = this.eat();
-                return this.funcDefine(name);
+                return this.methodDefine(name, modifier);
             case TokenType.openBracket:
             case TokenType.openBrace:
                 return this.dynamicProperty();
@@ -538,6 +538,11 @@ export class AHKParser {
                     return this.dynamicProperty();
                 return this.PropertyDeclarationOrMissingMemberDeclaration(modifier);
         }
+    }
+
+    private methodDefine(name: Token, modifier: Maybe<Token>): Decl.MethodDef {
+        const f = this.funcDefine(name);
+        return new Decl.MethodDef(f.nameToken, f.open, f.params, f.close, f.body, modifier);
     }
 
     private PropertyDeclarationOrMissingMemberDeclaration(modifier: Maybe<Token>): Stmt.Stmt {
@@ -593,8 +598,6 @@ export class AHKParser {
         if (this.v2mode) {
             const fatArrow = this.eatOptional(TokenType.fatArrow);
             if (fatArrow) {
-                const expr = this.expression();
-                const stmt = new Stmt.ExprStmt(expr);
                 return new Decl.GetterSetter(name, new Decl.ShortClassMember(
                     fatArrow, this.expression()
                 ));
@@ -1147,7 +1150,7 @@ export class AHKParser {
             
             this.advance();
             const right = this.expression(
-                newAssociative === Associativity.Left ? newAssociative+1 : newAssociative
+                newAssociative === Associativity.Left ? newPrecedence+1 : newPrecedence
             );
             result = new Expr.Binary(
                 result,
